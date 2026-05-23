@@ -1,0 +1,389 @@
+{% extends "base.html" %}
+{% load audit_extras %}
+
+{% block title %}Files - Trawlr{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-start mb-4">
+    <div>
+        <h2>Files</h2>
+        <p>Browse all downloaded files. Total storage: {{ total_storage|filesizeformat }}</p>
+    </div>
+</div>
+
+<!-- Filter Tabs -->
+<ul class="nav nav-tabs mb-4" style="border-color: var(--tg-border);">
+    <li class="nav-item">
+        <a class="nav-link {% if not file_type %}active{% endif %}" href="{% url 'downloads:files' %}{% if search %}?search={{ search }}{% endif %}">
+            <i class="bi bi-folder me-1" style="font-size: 16px;"></i>
+            All
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link {% if file_type == 'photo' %}active{% endif %}" href="?type=photo{% if search %}&search={{ search }}{% endif %}">
+            <i class="bi bi-image me-1" style="font-size: 16px;"></i>
+            Photos
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link {% if file_type == 'video' %}active{% endif %}" href="?type=video{% if search %}&search={{ search }}{% endif %}">
+            <i class="bi bi-camera-video me-1" style="font-size: 16px;"></i>
+            Videos
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link {% if file_type == 'file' %}active{% endif %}" href="?type=file{% if search %}&search={{ search }}{% endif %}">
+            <i class="bi bi-file-earmark me-1" style="font-size: 16px;"></i>
+            Files
+        </a>
+    </li>
+</ul>
+
+<div class="card border-0">
+    <!-- Filters -->
+    <div class="card-header border-bottom" style="border-color: var(--tg-border) !important;">
+        <form method="get" class="row g-2 align-items-end">
+            {% if file_type %}
+            <input type="hidden" name="type" value="{{ file_type }}">
+            {% endif %}
+            <div class="col-md-3">
+                <label class="form-label small text-muted mb-1">Search</label>
+                <div class="input-group">
+                    <span class="input-group-text">
+                        <i class="bi bi-search" style="font-size: 16px;"></i>
+                    </span>
+                    <input type="text" class="form-control" placeholder="Filename or channel..."
+                           name="search" value="{{ search }}">
+                </div>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small text-muted mb-1">Channel</label>
+                <select name="channel" class="form-select">
+                    <option value="">All Channels</option>
+                    {% for channel in channels %}
+                    <option value="{{ channel.pk }}" {% if channel_id|stringformat:"s" == channel.pk|stringformat:"s" %}selected{% endif %}>{{ channel|display_title }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small text-muted mb-1">Account</label>
+                <select name="account" class="form-select">
+                    <option value="">All Accounts</option>
+                    {% for account in accounts %}
+                    <option value="{{ account.pk }}" {% if account_id|stringformat:"s" == account.pk|stringformat:"s" %}selected{% endif %}>{{ account.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <button type="submit" class="btn btn-primary me-1">
+                    <i class="bi bi-funnel me-1" style="font-size: 16px;"></i>
+                    Filter
+                </button>
+                {% if search or channel_id or account_id %}
+                <a href="{% url 'downloads:files' %}{% if file_type %}?type={{ file_type }}{% endif %}" class="btn btn-outline-secondary">Clear</a>
+                {% endif %}
+            </div>
+        </form>
+    </div>
+
+    <div class="card-body p-4">
+        {% if files %}
+            <div class="row g-3">
+                {% for file in files %}
+                <div class="col-6 col-md-4 col-lg-3 col-xl-2">
+                    <div class="card border-0 h-100 file-card" style="cursor: pointer;"
+                         hx-get="{% url 'downloads:file_view' file.pk %}"
+                         hx-target="#file-viewer-modal .modal-body"
+                         data-bs-toggle="modal"
+                         data-bs-target="#file-viewer-modal"
+                         data-file-index="{{ forloop.counter0 }}">
+                        <div class="ratio ratio-1x1 bg-dark rounded-top overflow-hidden">
+                            {% with display_thumb=file.get_display_thumbnail_url use_thumb=file.should_use_thumbnail_for_display %}
+                            {% if file.file_type == 'photo' %}
+                                {# Photos: use thumbnail if config allows and thumbnail exists, otherwise use full image #}
+                                {% if use_thumb and display_thumb %}
+                                    <img src="{{ display_thumb }}" class="img-fluid object-fit-cover" alt="{{ file.original_filename }}">
+                                {% else %}
+                                    <img src="{{ file.file_url }}" class="img-fluid object-fit-cover" alt="{{ file.original_filename }}">
+                                {% endif %}
+                            {% elif file.file_type == 'video' %}
+                                {# Videos: use thumbnail if available, otherwise show icon #}
+                                {% if display_thumb %}
+                                    <img src="{{ display_thumb }}" class="img-fluid object-fit-cover" alt="{{ file.original_filename }}">
+                                    <div class="position-absolute top-50 start-50 translate-middle">
+                                        <i class="bi bi-play-circle" style="font-size: 48px; opacity: 0.9; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));"></i>
+                                    </div>
+                                {% else %}
+                                    <div class="d-flex align-items-center justify-content-center" style="background: var(--tg-gradient);">
+                                        <i class="bi bi-camera-video" style="font-size: 48px; opacity: 0.7;"></i>
+                                    </div>
+                                {% endif %}
+                            {% else %}
+                                {# Other files: show icon #}
+                                <div class="d-flex align-items-center justify-content-center" style="background: #444;">
+                                    <i class="bi bi-file-earmark" style="font-size: 48px; opacity: 0.7;"></i>
+                                </div>
+                            {% endif %}
+                            {% endwith %}
+                            {% if file.is_duplicate %}
+                            <div class="position-absolute top-0 end-0 p-1">
+                                <span class="badge bg-secondary" title="Duplicate file">
+                                    <i class="bi bi-link" style="font-size: 12px;"></i>
+                                </span>
+                            </div>
+                            {% endif %}
+                        </div>
+                        <div class="card-body p-2">
+                            <div class="small text-truncate fw-medium" title="{{ file.original_filename }}">{{ file.original_filename }}</div>
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span class="text-muted text-truncate" style="max-width: 60%;">{{ file.channel|display_title }}</span>
+                                <span class="text-muted">{{ file.file_size|filesizeformat }}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            <!-- Pagination -->
+            {% if files.has_other_pages %}
+            <nav aria-label="File pagination" class="mt-4">
+                <ul class="pagination justify-content-center mb-0">
+                    {% if files.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ files.previous_page_number }}{% if file_type %}&type={{ file_type }}{% endif %}{% if search %}&search={{ search }}{% endif %}{% if channel_id %}&channel={{ channel_id }}{% endif %}{% if account_id %}&account={{ account_id }}{% endif %}">
+                            <i class="bi bi-chevron-left" style="font-size: 16px;"></i>
+                        </a>
+                    </li>
+                    {% else %}
+                    <li class="page-item disabled">
+                        <span class="page-link"><i class="bi bi-chevron-left" style="font-size: 16px;"></i></span>
+                    </li>
+                    {% endif %}
+
+                    {% for num in files.paginator.page_range %}
+                        {% if files.number == num %}
+                        <li class="page-item active"><span class="page-link">{{ num }}</span></li>
+                        {% elif num > files.number|add:'-3' and num < files.number|add:'3' %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ num }}{% if file_type %}&type={{ file_type }}{% endif %}{% if search %}&search={{ search }}{% endif %}{% if channel_id %}&channel={{ channel_id }}{% endif %}{% if account_id %}&account={{ account_id }}{% endif %}">{{ num }}</a>
+                        </li>
+                        {% elif num == 1 or num == files.paginator.num_pages %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ num }}{% if file_type %}&type={{ file_type }}{% endif %}{% if search %}&search={{ search }}{% endif %}{% if channel_id %}&channel={{ channel_id }}{% endif %}{% if account_id %}&account={{ account_id }}{% endif %}">{{ num }}</a>
+                        </li>
+                        {% elif num == files.number|add:'-3' or num == files.number|add:'3' %}
+                        <li class="page-item disabled"><span class="page-link">...</span></li>
+                        {% endif %}
+                    {% endfor %}
+
+                    {% if files.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ files.next_page_number }}{% if file_type %}&type={{ file_type }}{% endif %}{% if search %}&search={{ search }}{% endif %}{% if channel_id %}&channel={{ channel_id }}{% endif %}{% if account_id %}&account={{ account_id }}{% endif %}">
+                            <i class="bi bi-chevron-right" style="font-size: 16px;"></i>
+                        </a>
+                    </li>
+                    {% else %}
+                    <li class="page-item disabled">
+                        <span class="page-link"><i class="bi bi-chevron-right" style="font-size: 16px;"></i></span>
+                    </li>
+                    {% endif %}
+                </ul>
+                <div class="text-center text-muted small mt-2">
+                    Showing {{ files.start_index }}-{{ files.end_index }} of {{ files.paginator.count }} files
+                </div>
+            </nav>
+            {% endif %}
+        {% else %}
+            <div class="text-center py-5 text-muted">
+                <i class="bi bi-folder2-open mb-2" style="font-size: 48px; opacity: 0.5;"></i>
+                {% if search or channel_id or account_id %}
+                    <p class="mb-0">No files found matching your filters.</p>
+                    <p class="small">Try different filter options.</p>
+                {% else %}
+                    <p class="mb-0">No files downloaded yet.</p>
+                    <p class="small">Enable auto-download on a source or scan history to start downloading.</p>
+                {% endif %}
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- File Viewer Modal -->
+<div class="modal fade" id="file-viewer-modal" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+        <div class="modal-content" style="background: var(--tg-card-bg); color: var(--tg-text); overflow: visible;">
+            <!-- Nav arrow left -->
+            <button class="btn file-nav-arrow file-nav-prev" id="file-nav-prev" title="Previous file">
+                <i class="bi bi-chevron-left"></i>
+            </button>
+            <div class="modal-header border-0">
+                <h5 class="modal-title" style="color: var(--tg-text);">File Viewer</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body text-center p-4" style="color: var(--tg-text);">
+                <!-- Content loaded via HTMX -->
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+            </div>
+            <!-- Nav arrow right -->
+            <button class="btn file-nav-arrow file-nav-next" id="file-nav-next" title="Next file">
+                <i class="bi bi-chevron-right"></i>
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .nav-tabs .nav-link {
+        color: var(--tg-text-muted);
+        border: none;
+        border-bottom: 2px solid transparent;
+        background: transparent;
+    }
+    .nav-tabs .nav-link:hover {
+        color: var(--tg-text);
+        border-color: transparent;
+    }
+    .nav-tabs .nav-link.active {
+        color: var(--tg-primary);
+        background: transparent;
+        border-bottom: 2px solid var(--tg-primary);
+    }
+    .file-card {
+        transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+    .file-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    }
+    .pagination .page-link {
+        background: var(--tg-card-bg);
+        border-color: var(--tg-border);
+        color: var(--tg-text);
+    }
+    .pagination .page-link:hover {
+        background: var(--tg-hover-bg);
+        border-color: var(--tg-border);
+        color: var(--tg-primary);
+    }
+    .pagination .page-item.active .page-link {
+        background: var(--tg-primary);
+        border-color: var(--tg-primary);
+    }
+    .pagination .page-item.disabled .page-link {
+        background: var(--tg-card-bg);
+        border-color: var(--tg-border);
+        color: var(--tg-text-muted);
+    }
+    .file-nav-arrow {
+        position: absolute;
+        top: 50%;
+        transform: translateY(-50%);
+        z-index: 10;
+        color: rgba(255,255,255,0.35);
+        font-size: 28px;
+        padding: 12px 8px;
+        border: none;
+        background: none;
+        transition: color 0.2s ease;
+        line-height: 1;
+        cursor: pointer;
+    }
+    .file-nav-arrow:hover:not(:disabled) {
+        color: rgba(255,255,255,0.8);
+    }
+    .file-nav-arrow:disabled {
+        color: rgba(255,255,255,0.1);
+        cursor: default;
+        pointer-events: none;
+    }
+    .file-nav-prev {
+        left: -52px;
+    }
+    .file-nav-next {
+        right: -52px;
+    }
+    @media (max-width: 1400px) {
+        .file-nav-prev { left: 4px; }
+        .file-nav-next { right: 4px; }
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function() {
+    const modal = document.getElementById('file-viewer-modal');
+    const btnPrev = document.getElementById('file-nav-prev');
+    const btnNext = document.getElementById('file-nav-next');
+    let fileCards = [];
+    let currentIndex = -1;
+
+    function getFileCards() {
+        return Array.from(document.querySelectorAll('.file-card[data-file-index]'));
+    }
+
+    function stopMedia() {
+        const video = modal.querySelector('video');
+        if (video) {
+            video.pause();
+            video.currentTime = 0;
+        }
+    }
+
+    function navigateTo(index) {
+        fileCards = getFileCards();
+        if (index < 0 || index >= fileCards.length) return;
+        stopMedia();
+        currentIndex = index;
+        const card = fileCards[index];
+        htmx.ajax('GET', card.getAttribute('hx-get') || card.dataset.hxGet, {
+            target: '#file-viewer-modal .modal-body'
+        });
+        updateArrows();
+    }
+
+    function updateArrows() {
+        fileCards = getFileCards();
+        btnPrev.disabled = currentIndex <= 0;
+        btnNext.disabled = currentIndex >= fileCards.length - 1;
+    }
+
+    // Track which card opened the modal
+    document.addEventListener('click', function(e) {
+        const card = e.target.closest('.file-card[data-file-index]');
+        if (card) {
+            currentIndex = parseInt(card.dataset.fileIndex, 10);
+            fileCards = getFileCards();
+            setTimeout(updateArrows, 50);
+        }
+    });
+
+    btnPrev.addEventListener('click', function() { navigateTo(currentIndex - 1); });
+    btnNext.addEventListener('click', function() { navigateTo(currentIndex + 1); });
+
+    // Keyboard navigation
+    document.addEventListener('keydown', function(e) {
+        if (!modal.classList.contains('show')) return;
+        // Don't navigate if user is typing in an input
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+        if (e.key === 'ArrowLeft') {
+            e.preventDefault();
+            navigateTo(currentIndex - 1);
+        } else if (e.key === 'ArrowRight') {
+            e.preventDefault();
+            navigateTo(currentIndex + 1);
+        }
+    });
+
+    // Pause videos when modal is closed
+    modal.addEventListener('hidden.bs.modal', function() {
+        stopMedia();
+        currentIndex = -1;
+    });
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,22 @@
+{% load humanize %}
+{% if total_files > 0 %}
+{% for type, stats in file_type_breakdown.items %}
+<div class="d-flex justify-content-between align-items-center {% if not forloop.last %}mb-2{% endif %}">
+    {% if type == 'video' %}
+    <span class="text-muted small">Videos</span>
+    <span class="fw-bold text-success">{{ stats.count|intcomma }}</span>
+    {% elif type == 'photo' %}
+    <span class="text-muted small">Photos</span>
+    <span class="fw-bold text-info">{{ stats.count|intcomma }}</span>
+    {% else %}
+    <span class="text-muted small">Files</span>
+    <span class="fw-bold text-warning">{{ stats.count|intcomma }}</span>
+    {% endif %}
+</div>
+{% endfor %}
+{% else %}
+<div class="text-center py-3 text-muted">
+    <i class="bi bi-file-earmark mb-2" style="font-size: 32px; opacity: 0.3;"></i>
+    <p class="mb-0 small">No files yet</p>
+</div>
+{% endif %}

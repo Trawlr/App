@@ -1,0 +1,63 @@
+{% extends "graph/map_base.html" %}
+
+{% block map_controls %}
+<div class="d-flex align-items-center gap-2">
+    <select class="btn-map" id="channel-filter" onchange="applyFilters()" style="min-width: 150px;">
+        <option value="">All Channels</option>
+        {% for channel in channels %}
+        <option value="{{ channel.id }}">{{ channel.title|truncatechars:25 }}</option>
+        {% endfor %}
+    </select>
+    <label class="btn-map" style="cursor: pointer; display: flex; align-items: center; gap: 6px;">
+        <input type="checkbox" id="hide-bots" onchange="applyFilters()" style="cursor: pointer;">
+        Hide Bots
+    </label>
+    <button class="btn-map active" id="labels-btn" onclick="toggleLabels()" title="Show/hide labels">
+        <i class="bi bi-tag-fill" style="font-size: 14px;" id="labels-icon"></i>
+    </button>
+    <button class="btn-map" onclick="togglePhysics()" id="physics-btn" title="Pause/Resume physics">
+        <i class="bi bi-pause-fill" style="font-size: 14px;" id="physics-icon"></i>
+    </button>
+    <button class="btn-map" onclick="resetZoom()" title="Fit to screen">
+        <i class="bi bi-arrows-fullscreen" style="font-size: 14px;"></i>
+    </button>
+</div>
+{% endblock %}
+
+{% block map_legend %}
+<div class="legend-item">
+    <span class="legend-dot" style="background: #64748b;"></span>
+    <span>Channels</span>
+</div>
+<div class="legend-item">
+    <span class="legend-dot" style="background: #10b981;"></span>
+    <span>Users</span>
+</div>
+<div class="legend-item">
+    <span class="legend-dot" style="background: #8b5cf6;"></span>
+    <span>Multi-channel Users</span>
+</div>
+<div class="legend-item">
+    <span class="legend-dot" style="background: #ef4444;"></span>
+    <span>Admins</span>
+</div>
+{% endblock %}
+
+{% block map_js %}
+<script>
+function applyFilters() {
+    const channelId = document.getElementById('channel-filter').value;
+    const hideBots = document.getElementById('hide-bots').checked;
+
+    const params = [];
+    if (channelId) params.push(`channel_id=${channelId}`);
+    if (hideBots) params.push('hide_bots=1');
+
+    loadMapData('{% url "graph:api_users" %}', params.join('&'));
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    applyFilters();
+});
+</script>
+{% endblock %}

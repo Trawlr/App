@@ -1,0 +1,13 @@
+{% extends "audit/source_base.html" %}
+
+{% block title %}Tags - {{ source.title }} - Trawlr{% endblock %}
+
+{% block source_content %}
+<div class="row">
+    <div class="col-lg-8">
+        <!-- Tags -->
+        {% url 'audit:source_add_tag' source.pk as add_tag_url %}
+        {% include "audit/partials/tags.html" with tags=source.tags.all add_url=add_tag_url remove_url_name="audit:source_remove_tag" obj_pk=source.pk all_tags=all_tags %}
+    </div>
+</div>
+{% endblock %}

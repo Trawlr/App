@@ -1,0 +1,347 @@
+{% extends "reports/base_report.html" %}
+{% load humanize %}
+
+{% block report_title %}Content Analytics{% endblock %}
+{% block report_heading %}Content Analytics{% endblock %}
+{% block report_description %}Message volume, media distribution, and entity analysis{% endblock %}
+{% block export_url %}{% url 'reports:export_content' %}{% endblock %}
+{% block export_url_json %}{% url 'reports:export_content' %}{% endblock %}
+
+{% block report_content %}
+<!-- Summary Stats -->
+<div class="row g-3 mb-4">
+    <div class="col-6 col-md-3">
+        <div class="stat-card">
+            <div class="stat-value text-primary">{{ stats.total_messages|default:0|intcomma }}</div>
+            <div class="stat-label">Total Messages</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="stat-card">
+            <div class="stat-value text-info">{{ stats.with_media|default:0|intcomma }}</div>
+            <div class="stat-label">With Media</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="stat-card">
+            <div class="stat-value text-success">{{ stats.total_views|default:0|intcomma }}</div>
+            <div class="stat-label">Total Views</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="stat-card">
+            <div class="stat-value text-warning">{{ stats.total_forwards|default:0|intcomma }}</div>
+            <div class="stat-label">Total Forwards</div>
+        </div>
+    </div>
+</div>
+
+<!-- Secondary Stats -->
+<div class="row g-3 mb-4">
+    <div class="col-4 col-md-2">
+        <div class="stat-card text-center">
+            <div class="stat-value fs-4">{{ stats.edited_count|default:0|intcomma }}</div>
+            <div class="stat-label">Edited</div>
+        </div>
+    </div>
+    <div class="col-4 col-md-2">
+        <div class="stat-card text-center">
+            <div class="stat-value fs-4">{{ stats.pinned_count|default:0|intcomma }}</div>
+            <div class="stat-label">Pinned</div>
+        </div>
+    </div>
+    <div class="col-4 col-md-2">
+        <div class="stat-card text-center">
+            <div class="stat-value fs-4 text-danger">{{ stats.deleted_count|default:0|intcomma }}</div>
+            <div class="stat-label">Deleted</div>
+        </div>
+    </div>
+</div>
+
+<!-- Charts Row -->
+<div class="row g-4 mb-4">
+    <!-- Message Volume Chart -->
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0">
+                    <i class="bi bi-graph-up me-2" style="font-size: 18px;"></i>
+                    Message Volume
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="chart-container">
+                    <canvas id="volumeChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Media Distribution Chart -->
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0">
+                    <i class="bi bi-pie-chart me-2" style="font-size: 18px;"></i>
+                    Media Types
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="chart-container">
+                    <canvas id="mediaChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Entities Row -->
+<div class="row g-4 mb-4">
+    <!-- Top Hashtags -->
+    <div class="col-lg-4">
+        <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h6 class="mb-0">
+                    <i class="bi bi-hash me-2" style="font-size: 18px;"></i>
+                    Top Hashtags
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="chart-container-sm">
+                    <canvas id="hashtagsChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Top URLs -->
+    <div class="col-lg-4">
+        <div class="card h-100">
+            <div class="card-header">
+                <h6 class="mb-0">
+                    <i class="bi bi-link me-2" style="font-size: 18px;"></i>
+                    Top URLs
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="chart-container-sm">
+                    <canvas id="urlsChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Top Forward Sources -->
+    <div class="col-lg-4">
+        <div class="card h-100">
+            <div class="card-header">
+                <h6 class="mb-0">
+                    <i class="bi bi-forward me-2" style="font-size: 18px;"></i>
+                    Top Forward Sources
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="chart-container-sm">
+                    <canvas id="forwardsChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Top Mentions Table -->
+<div class="row g-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0">
+                    <i class="bi bi-at me-2" style="font-size: 18px;"></i>
+                    Top Mentions
+                </h6>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th style="width: 50px;">#</th>
+                                <th>Mention</th>
+                                <th style="width: 120px;">Count</th>
+                            </tr>
+                        </thead>
+                        <tbody id="mentionsTable">
+                            <tr>
+                                <td colspan="3" class="text-center text-muted py-3">
+                                    <div class="spinner-border spinner-border-sm" role="status"></div>
+                                    Loading...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block report_js %}
+<script>
+let volumeChart, mediaChart, hashtagsChart, urlsChart, forwardsChart;
+
+// Initialize all charts
+async function initCharts() {
+    await Promise.all([
+        initVolumeChart(),
+        initMediaChart(),
+        initHashtagsChart(),
+        initUrlsChart(),
+        initForwardsChart(),
+        loadMentionsTable(),
+    ]);
+}
+
+async function initVolumeChart() {
+    const ctx = document.getElementById('volumeChart');
+    const response = await fetch(`{% url 'reports:api_content_volume' %}?${getDateParams()}`);
+    const data = await response.json();
+
+    volumeChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: data.labels,
+            datasets: [{
+                label: 'Messages',
+                data: data.values,
+                borderColor: '#0dcaf0',
+                backgroundColor: 'rgba(13, 202, 240, 0.1)',
+                borderWidth: 2,
+                fill: true,
+                tension: 0.3,
+                pointRadius: 3,
+                pointBackgroundColor: '#0dcaf0',
+            }]
+        },
+        options: lineChartOptions
+    });
+}
+
+async function initMediaChart() {
+    const ctx = document.getElementById('mediaChart');
+    const response = await fetch(`{% url 'reports:api_content_media' %}?${getDateParams()}`);
+    const data = await response.json();
+
+    mediaChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: data.labels,
+            datasets: [{
+                data: data.values,
+                backgroundColor: data.colors,
+                borderWidth: 0,
+            }]
+        },
+        options: doughnutChartOptions
+    });
+}
+
+async function initHashtagsChart() {
+    const ctx = document.getElementById('hashtagsChart');
+    const response = await fetch(`{% url 'reports:api_content_entities' %}?${getDateParams()}&type=hashtag`);
+    const data = await response.json();
+
+    hashtagsChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: data.labels,
+            datasets: [{
+                label: 'Count',
+                data: data.values,
+                backgroundColor: '#6f42c1',
+                borderRadius: 4,
+            }]
+        },
+        options: {
+            ...barChartOptions,
+            plugins: { ...barChartOptions.plugins, legend: { display: false } }
+        }
+    });
+}
+
+async function initUrlsChart() {
+    const ctx = document.getElementById('urlsChart');
+    const response = await fetch(`{% url 'reports:api_content_entities' %}?${getDateParams()}&type=url`);
+    const data = await response.json();
+
+    urlsChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: data.labels,
+            datasets: [{
+                label: 'Count',
+                data: data.values,
+                backgroundColor: '#0dcaf0',
+                borderRadius: 4,
+            }]
+        },
+        options: {
+            ...barChartOptions,
+            plugins: { ...barChartOptions.plugins, legend: { display: false } }
+        }
+    });
+}
+
+async function initForwardsChart() {
+    const ctx = document.getElementById('forwardsChart');
+    const response = await fetch(`{% url 'reports:api_content_forwards' %}?${getDateParams()}`);
+    const data = await response.json();
+
+    forwardsChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: data.labels,
+            datasets: [{
+                label: 'Forwards',
+                data: data.values,
+                backgroundColor: '#198754',
+                borderRadius: 4,
+            }]
+        },
+        options: {
+            ...barChartOptions,
+            plugins: { ...barChartOptions.plugins, legend: { display: false } }
+        }
+    });
+}
+
+async function loadMentionsTable() {
+    const response = await fetch(`{% url 'reports:api_content_entities' %}?${getDateParams()}&type=mention`);
+    const data = await response.json();
+
+    const tbody = document.getElementById('mentionsTable');
+    if (data.labels.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="3" class="text-center text-muted py-3">No mentions found</td></tr>`;
+        return;
+    }
+
+    const searchUrl = '{% url "search:search" %}';
+    tbody.innerHTML = data.labels.map((label, i) => `
+        <tr>
+            <td class="text-muted">${i + 1}</td>
+            <td>
+                <a href="${searchUrl}?q=mention:${encodeURIComponent(label)}"
+                   target="_blank"
+                   class="text-primary text-decoration-none">
+                    ${label}
+                    <i class="bi bi-box-arrow-up-right" style="font-size: 12px; margin-left: 4px;"></i>
+                </a>
+            </td>
+            <td><span class="badge bg-secondary">${data.values[i].toLocaleString()}</span></td>
+        </tr>
+    `).join('');
+}
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', initCharts);
+</script>
+{% endblock %}

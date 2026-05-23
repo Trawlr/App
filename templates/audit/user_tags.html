@@ -1,0 +1,13 @@
+{% extends "audit/user_base.html" %}
+
+{% block title %}Tags - {{ telegram_user.first_name }} {{ telegram_user.last_name }} - Trawlr{% endblock %}
+
+{% block user_content %}
+<div class="row">
+    <div class="col-lg-8">
+        <!-- Tags -->
+        {% url 'audit:user_add_tag' telegram_user.pk as add_tag_url %}
+        {% include "audit/partials/tags.html" with tags=telegram_user.tags.all add_url=add_tag_url remove_url_name="audit:user_remove_tag" obj_pk=telegram_user.pk all_tags=all_tags %}
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,489 @@
+{% extends "audit/source_base.html" %}
+
+{% block title %}{{ source.title }} - Trawlr{% endblock %}
+
+{% block source_content %}
+<div class="row">
+    <!-- Sidebar Column (moved to left) -->
+    <div class="col-lg-4">
+        <!-- Source Details -->
+        <div class="card border-0 mb-4">
+            <div class="card-header py-3">
+                <h5 class="mb-0">Details</h5>
+            </div>
+            <div class="card-body p-0">
+                <table class="table mb-0">
+                    <tbody>
+                        <tr>
+                            <td class="text-muted">Trawlr ID</td>
+                            <td><code>{{ source.pk }}</code></td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted">Telegram ID</td>
+                            <td><code>{{ source.telegram_id }}</code></td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted">Account</td>
+                            <td>
+                                <a href="{% url 'accounts:telegram_account_detail' source.account.pk %}">
+                                    {{ source.account.name }}
+                                </a>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted">Added</td>
+                            <td>{{ source.created_at|date:"M j, Y" }}</td>
+                        </tr>
+                        {% if last_activity %}
+                        <tr>
+                            <td class="text-muted">Last Activity</td>
+                            <td>{{ last_activity|date:"M j, Y" }}</td>
+                        </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Account Visibility -->
+        <div class="card border-0 mb-4">
+            <div class="card-header py-3">
+                <h5 class="mb-0">
+                    <i class="bi bi-eye me-2" style="font-size: 18px;"></i>
+                    Account Visibility
+                </h5>
+            </div>
+            <div class="card-body p-0">
+                <table class="table mb-0">
+                    <tbody>
+                        <tr>
+                            <td class="text-muted">Owner</td>
+                            <td>
+                                <a href="{% url 'accounts:telegram_account_detail' owner_account.pk %}">
+                                    {{ owner_account.name }}
+                                </a>
+                                <span class="badge bg-primary ms-1">Primary</span>
+                            </td>
+                        </tr>
+                        {% if other_accounts %}
+                        <tr>
+                            <td class="text-muted">Also Seen By</td>
+                            <td>
+                                {% for acc in other_accounts %}
+                                <div{% if not forloop.first %} class="mt-1"{% endif %}>
+                                    <a href="{% url 'accounts:telegram_account_detail' acc.pk %}">
+                                        {{ acc.name }}
+                                    </a>
+                                </div>
+                                {% endfor %}
+                            </td>
+                        </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+            {% if has_multiple_accounts %}
+            <div class="card-footer py-2 border-0">
+                <div class="small">
+                    <i class="bi bi-info-circle me-1 text-info" style="font-size: 14px;"></i>
+                    <strong>Multi-account source:</strong> Events from this source are deduplicated across accounts.
+                    {% if source.channel_type == 'group' %}
+                    <div class="mt-1 text-muted">
+                        <i class="bi bi-exclamation-triangle me-1" style="font-size: 12px;"></i>
+                        Legacy group: Message IDs differ per account. Deduplication uses content-based hashing.
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Channel Features -->
+        {% if source.noforwards or source.is_forum or source.slowmode_seconds or source.is_restricted %}
+        <div class="card border-0 mb-4">
+            <div class="card-header py-3">
+                <h5 class="mb-0">Channel Features</h5>
+            </div>
+            <div class="card-body p-3">
+                <div class="d-flex gap-2 flex-wrap">
+                    {% if source.noforwards %}
+                        <span class="badge bg-info text-dark">
+                            <i class="bi bi-lock me-1" style="font-size: 12px;"></i>
+                            No Forwarding
+                        </span>
+                    {% endif %}
+                    {% if source.is_forum %}
+                        <span class="badge bg-info text-dark">
+                            <i class="bi bi-chat-square me-1" style="font-size: 12px;"></i>
+                            Forum
+                        </span>
+                    {% endif %}
+                    {% if source.slowmode_seconds %}
+                        <span class="badge bg-info text-dark">
+                            <i class="bi bi-clock me-1" style="font-size: 12px;"></i>
+                            Slowmode {{ source.slowmode_seconds }}s
+                        </span>
+                    {% endif %}
+                    {% if source.is_restricted %}
+                        <span class="badge bg-secondary">
+                            <i class="bi bi-shield-x me-1" style="font-size: 12px;"></i>
+                            Restricted
+                        </span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Content Insights -->
+        {% if entity_counts or forward_count or message_stats.pinned or message_stats.with_ttl %}
+        <div class="card border-0 mb-4">
+            <div class="card-header py-3">
+                <h5 class="mb-0">Content Insights</h5>
+            </div>
+            <div class="card-body p-0">
+                <table class="table mb-0">
+                    <tbody>
+                        {% if entity_counts.url or entity_counts.text_url %}
+                        <tr>
+                            <td class="text-muted">
+                                <i class="bi bi-link me-1" style="font-size: 16px;"></i>
+                                URLs
+                            </td>
+                            {% with url_count=entity_counts.url|default:0 text_url_count=entity_counts.text_url|default:0 %}
+                            <td>{{ url_count|add:text_url_count }}</td>
+                            {% endwith %}
+                        </tr>
+                        {% endif %}
+                        {% if entity_counts.mention or entity_counts.mention_name %}
+                        <tr>
+                            <td class="text-muted">
+                                <i class="bi bi-at me-1" style="font-size: 16px;"></i>
+                                Mentions
+                            </td>
+                            {% with mention_count=entity_counts.mention|default:0 mention_name_count=entity_counts.mention_name|default:0 %}
+                            <td>{{ mention_count|add:mention_name_count }}</td>
+                            {% endwith %}
+                        </tr>
+                        {% endif %}
+                        {% if entity_counts.hashtag %}
+                        <tr>
+                            <td class="text-muted">
+                                <i class="bi bi-hash me-1" style="font-size: 16px;"></i>
+                                Hashtags
+                            </td>
+                            <td>{{ entity_counts.hashtag }}</td>
+                        </tr>
+                        {% endif %}
+                        {% if forward_count %}
+                        <tr>
+                            <td class="text-muted">
+                                <i class="bi bi-forward me-1" style="font-size: 16px;"></i>
+                                Forwarded
+                            </td>
+                            <td>{{ forward_count }}</td>
+                        </tr>
+                        {% endif %}
+                        {% if message_stats.pinned %}
+                        <tr>
+                            <td class="text-muted">
+                                <i class="bi bi-pin me-1" style="font-size: 16px;"></i>
+                                Pinned
+                            </td>
+                            <td>{{ message_stats.pinned }}</td>
+                        </tr>
+                        {% endif %}
+                        {% if message_stats.with_ttl %}
+                        <tr>
+                            <td class="text-muted">
+                                <i class="bi bi-clock me-1" style="font-size: 16px;"></i>
+                                Disappearing
+                            </td>
+                            <td>{{ message_stats.with_ttl }}</td>
+                        </tr>
+                        {% endif %}
+                        {% if message_stats.noforwards %}
+                        <tr>
+                            <td class="text-muted">
+                                <i class="bi bi-lock me-1" style="font-size: 16px;"></i>
+                                Protected
+                            </td>
+                            <td>{{ message_stats.noforwards }}</td>
+                        </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Availability Error -->
+        {% if source.availability_error %}
+        <div class="alert alert-danger mb-4">
+            <div class="small fw-bold mb-1">Availability Error</div>
+            <div class="small">{{ source.availability_error }}</div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Main Column -->
+    <div class="col-lg-8">
+        <!-- Stats Row -->
+        <div class="row g-3 mb-4">
+            <!-- Telegram Stats (from API) -->
+            <div class="col-md-6">
+                <div class="card border-0 h-100">
+                    <div class="card-header py-2 d-flex justify-content-between align-items-center">
+                        <h6 class="mb-0">Telegram Stats</h6>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" id="refresh-counts-btn"
+                                onclick="refreshMediaCounts(this)"
+                                title="Refresh from Telegram">
+                            <i class="bi bi-arrow-clockwise" style="font-size: 14px;"></i>
+                        </button>
+                    </div>
+                    <div class="card-body p-0">
+                        <table class="table table-sm mb-0">
+                            <tbody>
+                                <tr>
+                                    <td class="text-muted">
+                                        <i class="bi bi-image me-1" style="font-size: 14px;"></i>
+                                        Photos
+                                    </td>
+                                    <td class="text-end">{% if source.telegram_photo_count %}{{ source.telegram_photo_count }}{% else %}-{% endif %}</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted">
+                                        <i class="bi bi-camera-video me-1" style="font-size: 14px;"></i>
+                                        Videos
+                                    </td>
+                                    <td class="text-end">{% if source.telegram_video_count %}{{ source.telegram_video_count }}{% else %}-{% endif %}</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted">
+                                        <i class="bi bi-file-earmark me-1" style="font-size: 14px;"></i>
+                                        Files
+                                    </td>
+                                    <td class="text-end">{% if source.telegram_file_count %}{{ source.telegram_file_count }}{% else %}-{% endif %}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    {% if source.telegram_counts_updated_at %}
+                    <div class="card-footer py-1 small text-muted border-0">
+                        Updated {{ source.telegram_counts_updated_at|timesince }} ago
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Downloaded Stats (from database) -->
+            <div class="col-md-6">
+                <div class="card border-0 h-100">
+                    <div class="card-header py-2">
+                        <h6 class="mb-0">Downloaded</h6>
+                    </div>
+                    <div class="card-body p-0">
+                        <table class="table table-sm mb-0">
+                            <tbody>
+                                <tr>
+                                    <td class="text-muted">
+                                        <i class="bi bi-image me-1" style="font-size: 14px;"></i>
+                                        Photos
+                                    </td>
+                                    <td class="text-end">{{ file_counts.photos }}</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted">
+                                        <i class="bi bi-camera-video me-1" style="font-size: 14px;"></i>
+                                        Videos
+                                    </td>
+                                    <td class="text-end">{{ file_counts.videos }}</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted">
+                                        <i class="bi bi-file-earmark me-1" style="font-size: 14px;"></i>
+                                        Files
+                                    </td>
+                                    <td class="text-end">{{ file_counts.files }}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Task History & Change History Row -->
+        <div class="row g-3 mb-4">
+            <!-- Task History -->
+            <div class="col-md-6">
+                <div class="card border-0 h-100">
+                    <div class="card-header border-bottom d-flex justify-content-between align-items-center py-2">
+                        <h6 class="mb-0">
+                            <i class="bi bi-clipboard-check me-2" style="font-size: 16px;"></i>
+                            Task History
+                        </h6>
+                        <a href="{% url 'audit:tasks' %}?channel={{ source.pk }}" class="small">View All</a>
+                    </div>
+                    <div class="card-body p-0" id="source-tasks-container"
+                         hx-get="{% url 'audit:source_tasks' source.pk %}"
+                         hx-trigger="load"
+                         hx-swap="innerHTML">
+                        <div class="text-center py-4">
+                            <div class="spinner-border spinner-border-sm text-muted" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Change History -->
+            <div class="col-md-6">
+                <div class="card border-0 h-100">
+                    <div class="card-header border-bottom d-flex justify-content-between align-items-center py-2">
+                        <h6 class="mb-0">
+                            <i class="bi bi-clock-history me-2" style="font-size: 16px;"></i>
+                            Change History
+                            {% if history_page_obj %}<span class="text-muted small ms-1">({{ history_page_obj.paginator.count }})</span>{% endif %}
+                        </h6>
+                        {% if history_page_obj %}
+                        <select class="form-select form-select-sm" style="width: auto; font-size: 11px;" onchange="updateHistoryPerPage(this.value)">
+                            <option value="5" {% if history_per_page == 5 %}selected{% endif %}>5</option>
+                            <option value="10" {% if history_per_page == 10 %}selected{% endif %}>10</option>
+                            <option value="15" {% if history_per_page == 15 %}selected{% endif %}>15</option>
+                        </select>
+                        {% endif %}
+                    </div>
+                    {% if history_page_obj %}
+                    <div class="table-responsive">
+                        <table class="table table-sm mb-0">
+                            <thead>
+                                <tr>
+                                    <th class="small">Date</th>
+                                    <th class="small">Changes</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for change in history_page_obj %}
+                                <tr>
+                                    <td>
+                                        <span class="small text-muted">{{ change.date|date:"M j H:i" }}</span>
+                                    </td>
+                                    <td>
+                                        {% for item in change.changes %}
+                                        <div class="small text-truncate" style="max-width: 250px;">
+                                            <span class="text-muted">{{ item.field }}:</span>
+                                            <span class="text-danger">{{ item.old|truncatechars:12 }}</span>
+                                            <i class="bi bi-arrow-right mx-1 text-muted" style="font-size: 10px;"></i>
+                                            <span class="text-success">{{ item.new|truncatechars:12 }}</span>
+                                        </div>
+                                        {% endfor %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% if history_page_obj.paginator.num_pages > 1 %}
+                    <div class="card-footer d-flex justify-content-between align-items-center py-1 border-0">
+                        <div class="small text-muted">
+                            {{ history_page_obj.start_index }}-{{ history_page_obj.end_index }} of {{ history_page_obj.paginator.count }}
+                        </div>
+                        <nav>
+                            <ul class="pagination pagination-sm mb-0">
+                                {% if history_page_obj.has_previous %}
+                                <li class="page-item">
+                                    <a class="page-link py-0" href="?history_page={{ history_page_obj.previous_page_number }}&history_per_page={{ history_per_page }}">
+                                        <i class="bi bi-chevron-left" style="font-size: 12px;"></i>
+                                    </a>
+                                </li>
+                                {% endif %}
+                                <li class="page-item disabled">
+                                    <span class="page-link py-0 small">{{ history_page_obj.number }}/{{ history_page_obj.paginator.num_pages }}</span>
+                                </li>
+                                {% if history_page_obj.has_next %}
+                                <li class="page-item">
+                                    <a class="page-link py-0" href="?history_page={{ history_page_obj.next_page_number }}&history_per_page={{ history_per_page }}">
+                                        <i class="bi bi-chevron-right" style="font-size: 12px;"></i>
+                                    </a>
+                                </li>
+                                {% endif %}
+                            </ul>
+                        </nav>
+                    </div>
+                    {% endif %}
+                    {% else %}
+                    <div class="card-body text-center py-4 text-muted">
+                        <i class="bi bi-clock-history mb-2" style="font-size: 24px; opacity: 0.5;"></i>
+                        <p class="mb-0 small">No changes recorded yet.</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Activity -->
+        {% if recent_activity %}
+        <div class="card border-0 mb-4">
+            <div class="card-header py-3 d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Recent Activity</h5>
+                <a href="{% url 'audit:activity' %}?channel={{ source.pk }}" class="btn btn-sm btn-outline-primary">View All</a>
+            </div>
+            <div class="card-body p-0">
+                <div class="list-group list-group-flush">
+                    {% for activity in recent_activity %}
+                    <div class="list-group-item py-2 px-3">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="small">{{ activity.description|truncatechars:60 }}</span>
+                            <small class="text-muted">{{ activity.timestamp|timesince }} ago</small>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block source_extra_js %}
+<script>
+function updateHistoryPerPage(perPage) {
+    const url = new URL(window.location);
+    url.searchParams.set('history_per_page', perPage);
+    url.searchParams.set('history_page', '1');  // Reset to page 1 when changing per_page
+    window.location.href = url.toString();
+}
+
+async function refreshMediaCounts(btn) {
+    const originalHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+
+    try {
+        const response = await fetch('{% url "audit:refresh_media_counts" source.pk %}', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+        });
+        const data = await response.json();
+        if (response.ok) {
+            showToast(data.message || 'Refreshing...', 'success');
+            setTimeout(() => location.reload(), 2000);
+        } else {
+            showToast(data.error || 'Failed', 'error');
+            btn.disabled = false;
+            btn.innerHTML = originalHtml;
+        }
+    } catch (error) {
+        showToast('Failed to refresh', 'error');
+        btn.disabled = false;
+        btn.innerHTML = originalHtml;
+    }
+}
+</script>
+{% endblock %}

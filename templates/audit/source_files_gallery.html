@@ -1,0 +1,429 @@
+{% extends "audit/source_base.html" %}
+{% load audit_extras %}
+
+{% block title %}Gallery - {{ source.title }} - Trawlr{% endblock %}
+
+{% block source_content %}
+<div class="card border-0">
+    <!-- Filters -->
+    <div class="card-header border-bottom py-2" style="border-color: var(--tg-border) !important;">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+            <!-- Media type filter -->
+            <div class="btn-group btn-group-sm" role="group">
+                <a href="?q={{ search }}&sort={{ sort }}" class="btn {% if not media_filter %}btn-primary{% else %}btn-outline-secondary{% endif %} px-2">All</a>
+                <a href="?q={{ search }}&media=photo&sort={{ sort }}" class="btn {% if media_filter == 'photo' %}btn-primary{% else %}btn-outline-secondary{% endif %} px-2">
+                    <i class="bi bi-image" style="font-size: 16px;"></i>
+                </a>
+                <a href="?q={{ search }}&media=video&sort={{ sort }}" class="btn {% if media_filter == 'video' %}btn-primary{% else %}btn-outline-secondary{% endif %} px-2">
+                    <i class="bi bi-camera-video" style="font-size: 16px;"></i>
+                </a>
+                <a href="?q={{ search }}&media=file&sort={{ sort }}" class="btn {% if media_filter == 'file' %}btn-primary{% else %}btn-outline-secondary{% endif %} px-2">
+                    <i class="bi bi-file-earmark" style="font-size: 16px;"></i>
+                </a>
+            </div>
+
+            <!-- Search -->
+            <form method="get" class="d-flex gap-2 align-items-center flex-grow-1" style="max-width: 350px;">
+                <input type="hidden" name="media" value="{{ media_filter }}">
+                <input type="hidden" name="sort" value="{{ sort }}">
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text">
+                        <i class="bi bi-search" style="font-size: 14px;"></i>
+                    </span>
+                    <input type="text" class="form-control" placeholder="Search filename or SHA256..." name="q" value="{{ search }}">
+                    <button type="submit" class="btn btn-primary btn-sm" style="padding: 0 12px;">
+                        <i class="bi bi-funnel" style="font-size: 14px;"></i>
+                    </button>
+                    {% if search %}
+                    <a href="?media={{ media_filter }}&sort={{ sort }}" class="btn btn-outline-secondary btn-sm" title="Clear search">
+                        <i class="bi bi-x" style="font-size: 14px;"></i>
+                    </a>
+                    {% endif %}
+                </div>
+            </form>
+
+            <div class="d-flex gap-2 align-items-center">
+                <span class="text-muted">{% if paginate %}{{ posts.paginator.count|default:0 }}{% else %}{{ posts|length }}{% endif %} files</span>
+
+                <div class="btn-group btn-group-sm" role="group">
+                    <a href="?q={{ search }}&media={{ media_filter }}&sort=newest" class="btn {% if sort == 'newest' %}btn-primary{% else %}btn-outline-secondary{% endif %} px-2" title="Newest first">
+                        <i class="bi bi-arrow-down" style="font-size: 16px;"></i>
+                    </a>
+                    <a href="?q={{ search }}&media={{ media_filter }}&sort=oldest" class="btn {% if sort == 'oldest' %}btn-primary{% else %}btn-outline-secondary{% endif %} px-2" title="Oldest first">
+                        <i class="bi bi-arrow-up" style="font-size: 16px;"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card-body p-3">
+        {% if album_filter %}
+        <div class="d-flex align-items-center gap-2 mb-3 p-2 rounded" style="background: var(--tg-hover-bg);">
+            <i class="bi bi-images text-primary" style="font-size: 18px;"></i>
+            <span class="fw-semibold">Album</span>
+            <span class="text-muted small">&mdash; {{ posts|length }} item{{ posts|length|pluralize }}</span>
+            <a href="{% url 'audit:source_files_gallery' source.pk %}?q={{ search }}&media={{ media_filter }}&sort={{ sort }}" class="btn btn-sm btn-outline-secondary ms-auto">
+                <i class="bi bi-x me-1" style="font-size: 12px;"></i>Clear
+            </a>
+        </div>
+        {% endif %}
+        {% if posts %}
+        <div class="gallery-grid">
+            {% for post in posts %}
+            <div class="gallery-item {% if highlight_msg and post.message_id|stringformat:'d' == highlight_msg %}gallery-highlight{% endif %}"
+                 id="file-{{ post.message_id }}"
+                 data-file-pk="{{ post.pk }}"
+                 data-file-index="{{ forloop.counter0 }}"
+                 {% if post.pk in album_info %}data-album="{{ album_info|get_item:post.pk|get_item:'grouped_id' }}"{% endif %}>
+                <div class="gallery-thumb"
+                     hx-get="{% url 'downloads:file_view' post.pk %}"
+                     hx-target="#file-viewer-modal .modal-body"
+                     data-bs-toggle="modal"
+                     data-bs-target="#file-viewer-modal">
+                    {% if post.deleted_from_disk %}
+                        <div class="gallery-placeholder">
+                            {% if post.file_type == 'photo' %}
+                                <i class="bi bi-image text-info"></i>
+                            {% elif post.file_type == 'video' %}
+                                <i class="bi bi-camera-video text-success"></i>
+                            {% else %}
+                                <i class="bi bi-file-earmark text-warning"></i>
+                            {% endif %}
+                        </div>
+                    {% else %}
+                    {% with display_thumb=post.get_display_thumbnail_url %}
+                    {% if post.file_type == 'photo' %}
+                        <img src="{% if display_thumb %}{{ display_thumb }}{% else %}{{ post.file_url }}{% endif %}"
+                             alt="{{ post.original_filename }}"
+                             loading="lazy"
+                             decoding="async"
+                             onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+                        <div class="gallery-placeholder" style="display: none;">
+                            <i class="bi bi-image text-info"></i>
+                        </div>
+                    {% elif post.file_type == 'video' %}
+                        {% if display_thumb %}
+                        <img src="{{ display_thumb }}"
+                             alt="{{ post.original_filename }}"
+                             loading="lazy"
+                             decoding="async"
+                             onerror="this.style.display='none';this.nextElementSibling.style.display='none';this.parentNode.querySelector('.gallery-placeholder-fallback').style.display='flex'">
+                        <div class="gallery-play-icon">
+                            <i class="bi bi-play-circle-fill"></i>
+                        </div>
+                        <div class="gallery-placeholder gallery-placeholder-fallback" style="display: none;">
+                            <i class="bi bi-camera-video text-success"></i>
+                        </div>
+                        {% else %}
+                        <div class="gallery-placeholder">
+                            <i class="bi bi-camera-video"></i>
+                        </div>
+                        {% endif %}
+                    {% else %}
+                        <div class="gallery-placeholder">
+                            <i class="bi bi-file-earmark"></i>
+                        </div>
+                    {% endif %}
+                    {% endwith %}
+                    {% endif %}
+
+                    <!-- Album badge -->
+                    {% if post.pk in album_info %}
+                    <span class="gallery-album-badge" title="Album {{ album_info|get_item:post.pk|get_item:'position' }}/{{ album_info|get_item:post.pk|get_item:'total' }}">
+                        <i class="bi bi-images" style="font-size: 10px;"></i>
+                        {{ album_info|get_item:post.pk|get_item:'position' }}/{{ album_info|get_item:post.pk|get_item:'total' }}
+                    </span>
+                    {% endif %}
+
+                    <!-- Type badge -->
+                    <span class="gallery-type-badge {% if post.file_type == 'photo' %}bg-info{% elif post.file_type == 'video' %}bg-success{% else %}bg-warning{% endif %}">
+                        {% if post.file_type == 'photo' %}<i class="bi bi-image" style="font-size: 10px;"></i>{% elif post.file_type == 'video' %}<i class="bi bi-camera-video" style="font-size: 10px;"></i>{% else %}<i class="bi bi-file-earmark" style="font-size: 10px;"></i>{% endif %}
+                    </span>
+                </div>
+
+                <div class="gallery-info">
+                    <div class="text-truncate small fw-semibold" title="{{ post.original_filename }}">{{ post.original_filename }}</div>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span class="text-muted" style="font-size: 0.7rem;">{{ post.file_size|filesizeformat }}</span>
+                        <span class="text-muted" style="font-size: 0.7rem;">{{ post.telegram_date|date:"M j" }}</span>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- Pagination -->
+        {% if paginate and posts.has_other_pages %}
+        <div class="d-flex justify-content-between align-items-center mt-3 pt-3 border-top" style="border-color: var(--tg-border) !important;">
+            <div class="text-muted small">
+                Page {{ posts.number }} of {{ posts.paginator.num_pages }}
+                ({{ posts.paginator.count }} total)
+            </div>
+            <nav>
+                <ul class="pagination pagination-sm mb-0">
+                    {% if posts.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page=1&q={{ search }}&media={{ media_filter }}&sort={{ sort }}">
+                            <i class="bi bi-chevron-double-left" style="font-size: 14px;"></i>
+                        </a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ posts.previous_page_number }}&q={{ search }}&media={{ media_filter }}&sort={{ sort }}">
+                            <i class="bi bi-chevron-left" style="font-size: 14px;"></i>
+                        </a>
+                    </li>
+                    {% endif %}
+                    <li class="page-item active"><span class="page-link">{{ posts.number }}</span></li>
+                    {% if posts.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ posts.next_page_number }}&q={{ search }}&media={{ media_filter }}&sort={{ sort }}">
+                            <i class="bi bi-chevron-right" style="font-size: 14px;"></i>
+                        </a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ posts.paginator.num_pages }}&q={{ search }}&media={{ media_filter }}&sort={{ sort }}">
+                            <i class="bi bi-chevron-double-right" style="font-size: 14px;"></i>
+                        </a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </nav>
+        </div>
+        {% endif %}
+
+        {% else %}
+        <div class="text-center py-5 text-muted">
+            <i class="bi bi-image mb-2" style="font-size: 48px; opacity: 0.5;"></i>
+            <p class="mb-0">No files found.</p>
+            {% if search or media_filter or album_filter %}
+            <p class="small">Try adjusting your filters.</p>
+            <a href="{% url 'audit:source_files_gallery' source.pk %}" class="btn btn-outline-secondary btn-sm mt-2">Clear Filters</a>
+            {% else %}
+            <p class="small">Enable auto-download or scan history to start downloading media.</p>
+            <a href="{% url 'audit:source_config' source.pk %}" class="btn btn-primary mt-3">
+                <i class="bi bi-gear me-1" style="font-size: 18px;"></i>
+                Configure Source
+            </a>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- File Viewer Modal -->
+<div class="modal fade" id="file-viewer-modal" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+        <div class="modal-content" style="background: var(--tg-card-bg); color: var(--tg-text); overflow: visible;">
+            <button class="btn file-nav-arrow file-nav-prev" id="file-nav-prev" title="Previous file">
+                <i class="bi bi-chevron-left"></i>
+            </button>
+            <div class="modal-header border-0">
+                <h5 class="modal-title" style="color: var(--tg-text);">File Viewer</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body text-center p-4" style="color: var(--tg-text);">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+            </div>
+            <button class="btn file-nav-arrow file-nav-next" id="file-nav-next" title="Next file">
+                <i class="bi bi-chevron-right"></i>
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .gallery-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+        gap: 12px;
+    }
+    .gallery-item {
+        border: 1px solid var(--tg-border);
+        border-radius: 0.5rem;
+        overflow: hidden;
+        transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+    .gallery-item:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+    }
+    .gallery-highlight {
+        border-color: var(--tg-primary) !important;
+        box-shadow: 0 0 0 2px rgba(var(--tg-primary-rgb, 255, 193, 7), 0.3);
+        animation: gallery-pulse 2s ease-out;
+    }
+    @keyframes gallery-pulse {
+        0% { box-shadow: 0 0 0 4px rgba(255, 193, 7, 0.5); }
+        100% { box-shadow: 0 0 0 2px rgba(255, 193, 7, 0.1); }
+    }
+    .gallery-thumb {
+        position: relative;
+        aspect-ratio: 1;
+        overflow: hidden;
+        cursor: pointer;
+        background: var(--tg-hover-bg);
+    }
+    .gallery-thumb img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        transition: transform 0.2s ease;
+    }
+    .gallery-item:hover .gallery-thumb img {
+        transform: scale(1.05);
+    }
+    .gallery-placeholder {
+        width: 100%;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 32px;
+        opacity: 0.4;
+    }
+    .gallery-play-icon {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        font-size: 36px;
+        opacity: 0.9;
+        filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
+        pointer-events: none;
+    }
+    .gallery-album-badge {
+        position: absolute;
+        top: 6px;
+        left: 6px;
+        background: rgba(0, 0, 0, 0.7);
+        color: #fff;
+        font-size: 0.65rem;
+        padding: 2px 6px;
+        border-radius: 4px;
+        display: flex;
+        align-items: center;
+        gap: 3px;
+    }
+    .gallery-type-badge {
+        position: absolute;
+        bottom: 6px;
+        right: 6px;
+        padding: 2px 5px;
+        border-radius: 3px;
+        font-size: 0.6rem;
+        opacity: 0.85;
+    }
+    .gallery-info {
+        padding: 6px 8px;
+        border-top: 1px solid var(--tg-border);
+    }
+    .file-nav-arrow {
+        position: absolute;
+        top: 50%;
+        transform: translateY(-50%);
+        z-index: 10;
+        color: rgba(255,255,255,0.35);
+        font-size: 28px;
+        padding: 12px 8px;
+        border: none;
+        background: none;
+        transition: color 0.2s ease;
+        line-height: 1;
+        cursor: pointer;
+    }
+    .file-nav-arrow:hover:not(:disabled) {
+        color: rgba(255,255,255,0.8);
+    }
+    .file-nav-arrow:disabled {
+        color: rgba(255,255,255,0.1);
+        cursor: default;
+        pointer-events: none;
+    }
+    .file-nav-prev { left: -52px; }
+    .file-nav-next { right: -52px; }
+    @media (max-width: 1400px) {
+        .file-nav-prev { left: 4px; }
+        .file-nav-next { right: 4px; }
+    }
+</style>
+{% endblock %}
+
+{% block source_extra_js %}
+<script>
+(function() {
+    const modal = document.getElementById('file-viewer-modal');
+    const btnPrev = document.getElementById('file-nav-prev');
+    const btnNext = document.getElementById('file-nav-next');
+    let currentIndex = -1;
+
+    function getGalleryItems() {
+        return Array.from(document.querySelectorAll('.gallery-item[data-file-index]'));
+    }
+
+    function stopMedia() {
+        const video = modal.querySelector('video');
+        if (video) { video.pause(); video.currentTime = 0; }
+    }
+
+    function navigateTo(index) {
+        const items = getGalleryItems();
+        if (index < 0 || index >= items.length) return;
+        stopMedia();
+        currentIndex = index;
+        const thumb = items[index].querySelector('.gallery-thumb[hx-get]');
+        if (thumb) {
+            htmx.ajax('GET', thumb.getAttribute('hx-get'), {
+                target: '#file-viewer-modal .modal-body'
+            });
+        }
+        updateArrows();
+    }
+
+    function updateArrows() {
+        const items = getGalleryItems();
+        btnPrev.disabled = currentIndex <= 0;
+        btnNext.disabled = currentIndex >= items.length - 1;
+    }
+
+    document.addEventListener('click', function(e) {
+        const item = e.target.closest('.gallery-item[data-file-index]');
+        if (item) {
+            currentIndex = parseInt(item.dataset.fileIndex, 10);
+            setTimeout(updateArrows, 50);
+        }
+    });
+
+    btnPrev.addEventListener('click', function() { navigateTo(currentIndex - 1); });
+    btnNext.addEventListener('click', function() { navigateTo(currentIndex + 1); });
+
+    document.addEventListener('keydown', function(e) {
+        if (!modal.classList.contains('show')) return;
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+        if (e.key === 'ArrowLeft') { e.preventDefault(); navigateTo(currentIndex - 1); }
+        else if (e.key === 'ArrowRight') { e.preventDefault(); navigateTo(currentIndex + 1); }
+    });
+
+    modal.addEventListener('hidden.bs.modal', function() {
+        stopMedia();
+        currentIndex = -1;
+    });
+})();
+
+// Scroll to highlighted file on load
+{% if highlight_msg %}
+document.addEventListener('DOMContentLoaded', function() {
+    const el = document.getElementById('file-{{ highlight_msg }}');
+    if (el) {
+        setTimeout(function() {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 200);
+    }
+});
+{% endif %}
+</script>
+{% endblock %}

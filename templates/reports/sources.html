@@ -1,0 +1,265 @@
+{% extends "reports/base_report.html" %}
+{% load humanize %}
+
+{% block report_title %}Source Analytics{% endblock %}
+{% block report_heading %}Source Analytics{% endblock %}
+{% block report_description %}Channel health and content volume{% endblock %}
+{% block export_url %}{% url 'reports:export_sources' %}{% endblock %}
+{% block export_url_json %}{% url 'reports:export_sources' %}{% endblock %}
+
+{% block report_content %}
+<!-- Summary Stats -->
+<div class="row g-3 mb-4">
+    <div class="col-6 col-md-3">
+        <div class="stat-card">
+            <div class="stat-value text-primary">{{ stats.total_sources|default:0|intcomma }}</div>
+            <div class="stat-label">Total Sources</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="stat-card">
+            <div class="stat-value text-success">{{ stats.active_sources|default:0|intcomma }}</div>
+            <div class="stat-label">Active Sources</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="stat-card">
+            <div class="stat-value text-info">{{ stats.new_sources|default:0|intcomma }}</div>
+            <div class="stat-label">New in Period</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="stat-card">
+            <div class="stat-value text-warning">{{ stats.forum_count|default:0|intcomma }}</div>
+            <div class="stat-label">Forum based sources</div>
+        </div>
+    </div>
+</div>
+
+<!-- Channel Flags -->
+<div class="row g-3 mb-4">
+    <div class="col-4 col-md-2">
+        <div class="stat-card text-center">
+            <div class="stat-value fs-5 text-primary">{{ stats.verified_count|default:0|intcomma }}</div>
+            <div class="stat-label">Verified</div>
+        </div>
+    </div>
+    <div class="col-4 col-md-2">
+        <div class="stat-card text-center">
+            <div class="stat-value fs-5 text-danger">{{ stats.scam_count|default:0|intcomma }}</div>
+            <div class="stat-label">Scam</div>
+        </div>
+    </div>
+    <div class="col-4 col-md-2">
+        <div class="stat-card text-center">
+            <div class="stat-value fs-5 text-danger">{{ stats.fake_count|default:0|intcomma }}</div>
+            <div class="stat-label">Fake</div>
+        </div>
+    </div>
+</div>
+
+<!-- Download Progress Overview -->
+<div class="row g-3 mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0">
+                    <i class="bi bi-download me-2" style="font-size: 18px;"></i>
+                    Download Progress Overview
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="row g-4">
+                    <div class="col-md-3">
+                        <div class="text-muted small">Total Channels</div>
+                        <div class="fs-4 fw-bold">{{ download_progress.total_channels|default:0|intcomma }}</div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="text-muted small">Complete (100%)</div>
+                        <div class="fs-4 fw-bold text-success">{{ download_progress.complete|default:0|intcomma }}</div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="text-muted small">In Progress</div>
+                        <div class="fs-4 fw-bold text-warning">{{ download_progress.incomplete|default:0|intcomma }}</div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="text-muted small">Average Progress</div>
+                        <div class="fs-4 fw-bold text-info">{{ download_progress.avg_progress|default:0 }}%</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Charts Row -->
+<div class="row g-4 mb-4">
+    <!-- Channel Health Chart -->
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0">
+                    <i class="bi bi-activity me-2" style="font-size: 18px;"></i>
+                    Channel Health
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="chart-container">
+                    <canvas id="healthChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Content Volume Chart -->
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0">
+                    <i class="bi bi-bar-chart me-2" style="font-size: 18px;"></i>
+                    Top Sources by Message Volume
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="chart-container">
+                    <canvas id="volumeChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Tables Row -->
+<div class="row g-4">
+    <!-- Channel Types -->
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0">
+                    <i class="bi bi-layers me-2" style="font-size: 18px;"></i>
+                    Channel Types
+                </h6>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th>Type</th>
+                                <th style="width: 100px;">Count</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in channel_types %}
+                            <tr>
+                                <td>{{ item.channel_type|title }}</td>
+                                <td><span class="badge bg-secondary">{{ item.count|intcomma }}</span></td>
+                            </tr>
+                            {% empty %}
+                            <tr><td colspan="2" class="text-center text-muted py-3">No data</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Multi-Account Channels -->
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0">
+                    <i class="bi bi-people me-2" style="font-size: 18px;"></i>
+                    Multi-Account Visibility
+                </h6>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th>Channel</th>
+                                <th>Type</th>
+                                <th style="width: 100px;">Accounts</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for channel in multi_account_channels %}
+                            <tr>
+                                <td>
+                                    <a href="{% url 'audit:source_detail' channel.pk %}" class="text-decoration-none">
+                                        {{ channel.title|truncatechars:30 }}
+                                    </a>
+                                </td>
+                                <td><span class="badge bg-secondary">{{ channel.channel_type }}</span></td>
+                                <td><span class="badge bg-success">{{ channel.account_count }}</span></td>
+                            </tr>
+                            {% empty %}
+                            <tr><td colspan="3" class="text-center text-muted py-3">No multi-account channels</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block report_js %}
+<script>
+let healthChart, volumeChart;
+
+async function initCharts() {
+    await Promise.all([
+        initHealthChart(),
+        initVolumeChart(),
+    ]);
+}
+
+async function initHealthChart() {
+    const ctx = document.getElementById('healthChart');
+    const response = await fetch(`{% url 'reports:api_sources_health' %}?${getDateParams()}`);
+    const data = await response.json();
+
+    healthChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: data.labels,
+            datasets: [{
+                data: data.values,
+                backgroundColor: data.colors,
+                borderWidth: 0,
+            }]
+        },
+        options: doughnutChartOptions
+    });
+}
+
+async function initVolumeChart() {
+    const ctx = document.getElementById('volumeChart');
+    const response = await fetch(`{% url 'reports:api_sources_volume' %}?${getDateParams()}`);
+    const data = await response.json();
+
+    volumeChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: data.labels,
+            datasets: [{
+                label: 'Messages',
+                data: data.values,
+                backgroundColor: '#0dcaf0',
+                borderRadius: 4,
+            }]
+        },
+        options: {
+            ...barChartOptions,
+            plugins: { ...barChartOptions.plugins, legend: { display: false } }
+        }
+    });
+}
+
+document.addEventListener('DOMContentLoaded', initCharts);
+</script>
+{% endblock %}

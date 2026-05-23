@@ -1,0 +1,311 @@
+{% extends "reports/base_report.html" %}
+{% load humanize %}
+{% load audit_extras %}
+
+{% block report_title %}Media Inventory{% endblock %}
+{% block report_heading %}Media Inventory{% endblock %}
+{% block report_description %}Per-source media storage broken down by file type{% endblock %}
+
+{% block report_content %}
+<!-- Summary stats (filter-aware) -->
+<div class="row g-3 mb-4">
+    <div class="col-6 col-md-3">
+        <div class="stat-card">
+            <div class="stat-value text-primary">{{ totals.total_size|filesizeformat }}</div>
+            <div class="stat-label">
+                {% if media_type %}{{ media_type|title }} Storage{% else %}Total Storage{% endif %}
+                <span class="text-muted">· {{ totals.source_count|intcomma }} source{{ totals.source_count|pluralize }}</span>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="stat-card">
+            <div class="stat-value text-info">{{ totals.photo_size|filesizeformat }}</div>
+            <div class="stat-label">Photos · {{ totals.photo_count|intcomma }} file{{ totals.photo_count|pluralize }}</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="stat-card">
+            <div class="stat-value text-success">{{ totals.video_size|filesizeformat }}</div>
+            <div class="stat-label">Videos · {{ totals.video_count|intcomma }} file{{ totals.video_count|pluralize }}</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="stat-card">
+            <div class="stat-value text-warning">{{ totals.file_size|filesizeformat }}</div>
+            <div class="stat-label">Files · {{ totals.file_count|intcomma }} file{{ totals.file_count|pluralize }}</div>
+        </div>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="card mb-4">
+    <div class="card-body py-3">
+        <form method="get" class="d-flex flex-wrap align-items-end gap-3">
+            {% if days_label == 'custom' %}
+            <input type="hidden" name="start" value="{{ start_date|date:'Y-m-d' }}">
+            <input type="hidden" name="end" value="{{ end_date|date:'Y-m-d' }}">
+            {% else %}
+            <input type="hidden" name="days" value="{{ days_label }}">
+            {% endif %}
+
+            <!-- Media type pills -->
+            <div>
+                <label class="form-label small text-muted mb-1 d-block">Media type</label>
+                <div class="btn-group btn-group-sm" role="group">
+                    <a href="?{% if size_band %}size_band={{ size_band }}&{% endif %}{% if account_id %}account={{ account_id }}{% endif %}"
+                       class="btn {% if not media_type %}btn-primary{% else %}btn-outline-secondary{% endif %}">All</a>
+                    <a href="?media_type=photo{% if size_band %}&size_band={{ size_band }}{% endif %}{% if account_id %}&account={{ account_id }}{% endif %}"
+                       class="btn {% if media_type == 'photo' %}btn-primary{% else %}btn-outline-secondary{% endif %}">
+                        <i class="bi bi-image me-1"></i>Photos
+                    </a>
+                    <a href="?media_type=video{% if size_band %}&size_band={{ size_band }}{% endif %}{% if account_id %}&account={{ account_id }}{% endif %}"
+                       class="btn {% if media_type == 'video' %}btn-primary{% else %}btn-outline-secondary{% endif %}">
+                        <i class="bi bi-camera-video me-1"></i>Videos
+                    </a>
+                    <a href="?media_type=file{% if size_band %}&size_band={{ size_band }}{% endif %}{% if account_id %}&account={{ account_id }}{% endif %}"
+                       class="btn {% if media_type == 'file' %}btn-primary{% else %}btn-outline-secondary{% endif %}">
+                        <i class="bi bi-file-earmark me-1"></i>Files
+                    </a>
+                </div>
+            </div>
+
+            <!-- Size band -->
+            <div>
+                <label class="form-label small text-muted mb-1 d-block">
+                    Size {% if media_type %}({{ media_type }}){% else %}(total){% endif %}
+                </label>
+                {% if media_type %}<input type="hidden" name="media_type" value="{{ media_type }}">{% endif %}
+                <select name="size_band" class="form-select form-select-sm" style="min-width: 160px;" onchange="this.form.submit()">
+                    <option value="">Any size</option>
+                    {% for key, label in size_band_choices %}
+                    <option value="{{ key }}" {% if size_band == key %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Account -->
+            <div>
+                <label class="form-label small text-muted mb-1 d-block">Account</label>
+                <select name="account" class="form-select form-select-sm" style="min-width: 180px;" onchange="this.form.submit()">
+                    <option value="">All accounts</option>
+                    {% for account in accounts %}
+                    <option value="{{ account.pk }}" {% if account_id == account.pk|stringformat:"s" %}selected{% endif %}>
+                        {{ account.display_name|default:account.phone_number }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            {% if media_type or size_band or account_id %}
+            <div>
+                <a href="{% url 'reports:media_inventory' %}" class="btn btn-sm btn-outline-secondary">
+                    <i class="bi bi-x-lg me-1"></i>Clear
+                </a>
+            </div>
+            {% endif %}
+        </form>
+    </div>
+</div>
+
+<!-- Storage trend chart -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h6 class="mb-0">
+            <i class="bi bi-graph-up me-2"></i>
+            Storage Growth · Top 10 sources (cumulative bytes over period)
+        </h6>
+    </div>
+    <div class="card-body">
+        <div class="chart-container">
+            <canvas id="storageTrendChart"></canvas>
+        </div>
+    </div>
+</div>
+
+<!-- Inventory table -->
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h6 class="mb-0">
+            <i class="bi bi-hdd-stack me-2"></i>
+            Sources
+            <span class="text-muted small ms-2">· sorted by {% if media_type %}{{ media_type }}{% else %}total{% endif %} size, largest first</span>
+        </h6>
+    </div>
+    <div class="card-body p-0">
+        {% if rows %}
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>Source</th>
+                        <th>Account</th>
+                        {% if not media_type or media_type == 'photo' %}
+                        <th class="text-end">Photos</th>
+                        <th class="text-end">Photo size</th>
+                        {% endif %}
+                        {% if not media_type or media_type == 'video' %}
+                        <th class="text-end">Videos</th>
+                        <th class="text-end">Video size</th>
+                        {% endif %}
+                        {% if not media_type or media_type == 'file' %}
+                        <th class="text-end">Files</th>
+                        <th class="text-end">File size</th>
+                        {% endif %}
+                        <th class="text-end">{% if media_type %}{{ media_type|title }}{% else %}Total{% endif %} size</th>
+                        <th>Last download</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in rows %}
+                    <tr>
+                        <td>
+                            <a href="{% url 'audit:source_files' row.channel.pk %}" class="text-decoration-none">
+                                <i class="bi bi-{% if row.channel.channel_type == 'channel' %}megaphone{% elif row.channel.channel_type == 'supergroup' or row.channel.channel_type == 'group' %}people{% else %}person{% endif %} me-1 text-muted"></i>
+                                {{ row.channel|display_title }}
+                            </a>
+                            {% if row.configured_only %}
+                            <span class="badge bg-warning text-dark ms-1" title="Configured to download but nothing downloaded yet">configured · 0 files</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-muted small">{{ row.channel.account.display_name|default:row.channel.account.phone_number }}</td>
+                        {% if not media_type or media_type == 'photo' %}
+                        <td class="text-end">{{ row.photo_count|intcomma }}</td>
+                        <td class="text-end font-monospace small">{{ row.photo_size|filesizeformat }}</td>
+                        {% endif %}
+                        {% if not media_type or media_type == 'video' %}
+                        <td class="text-end">{{ row.video_count|intcomma }}</td>
+                        <td class="text-end font-monospace small">{{ row.video_size|filesizeformat }}</td>
+                        {% endif %}
+                        {% if not media_type or media_type == 'file' %}
+                        <td class="text-end">{{ row.file_count|intcomma }}</td>
+                        <td class="text-end font-monospace small">{{ row.file_size|filesizeformat }}</td>
+                        {% endif %}
+                        <td class="text-end fw-bold font-monospace">
+                            {% if media_type == 'photo' %}{{ row.photo_size|filesizeformat }}
+                            {% elif media_type == 'video' %}{{ row.video_size|filesizeformat }}
+                            {% elif media_type == 'file' %}{{ row.file_size|filesizeformat }}
+                            {% else %}{{ row.total_size|filesizeformat }}{% endif %}
+                        </td>
+                        <td class="text-muted small">
+                            {% if row.last_downloaded %}{{ row.last_downloaded|date:"M j, Y" }}{% else %}—{% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot>
+                    <tr class="border-top">
+                        <th colspan="2">Totals ({{ totals.source_count|intcomma }} source{{ totals.source_count|pluralize }})</th>
+                        {% if not media_type or media_type == 'photo' %}
+                        <th class="text-end">{{ totals.photo_count|intcomma }}</th>
+                        <th class="text-end font-monospace small">{{ totals.photo_size|filesizeformat }}</th>
+                        {% endif %}
+                        {% if not media_type or media_type == 'video' %}
+                        <th class="text-end">{{ totals.video_count|intcomma }}</th>
+                        <th class="text-end font-monospace small">{{ totals.video_size|filesizeformat }}</th>
+                        {% endif %}
+                        {% if not media_type or media_type == 'file' %}
+                        <th class="text-end">{{ totals.file_count|intcomma }}</th>
+                        <th class="text-end font-monospace small">{{ totals.file_size|filesizeformat }}</th>
+                        {% endif %}
+                        <th class="text-end font-monospace">{{ totals.total_size|filesizeformat }}</th>
+                        <th></th>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center text-muted py-5">
+            <i class="bi bi-inbox" style="font-size: 32px; opacity: 0.5;"></i>
+            <p class="mt-2 mb-0">No sources match the current filters.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block report_js %}
+<script>
+(function() {
+    let storageTrendChart = null;
+
+    // Format bytes for chart axis/tooltip
+    function fmtBytes(bytes) {
+        if (bytes === 0 || bytes == null) return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
+        const i = Math.floor(Math.log(Math.abs(bytes)) / Math.log(k));
+        return (bytes / Math.pow(k, i)).toFixed(1) + ' ' + sizes[i];
+    }
+
+    // Stable color from channel id
+    function colorFor(id, alpha) {
+        const hue = (id * 137) % 360;  // golden-angle spread
+        return `hsla(${hue}, 65%, 55%, ${alpha || 1})`;
+    }
+
+    function loadTrend() {
+        const params = getDateParams();
+        const accountId = '{{ account_id|escapejs }}';
+        const accountParam = accountId ? `&account=${accountId}` : '';
+        fetch(`{% url 'reports:api_media_inventory_trend' %}?${params}${accountParam}`)
+            .then(r => r.json())
+            .then(data => {
+                // Convert daily-add to cumulative per source
+                const datasets = data.datasets.map(ds => {
+                    const cumulative = [];
+                    let running = 0;
+                    for (const v of ds.daily_bytes) {
+                        running += v;
+                        cumulative.push(running);
+                    }
+                    return {
+                        label: ds.label,
+                        data: cumulative,
+                        backgroundColor: colorFor(ds.channel_id, 0.55),
+                        borderColor: colorFor(ds.channel_id, 1),
+                        borderWidth: 1,
+                        fill: true,
+                        tension: 0.2,
+                        pointRadius: 0,
+                    };
+                });
+
+                const ctx = document.getElementById('storageTrendChart').getContext('2d');
+                const options = {
+                    ...chartDefaults,
+                    interaction: { intersect: false, mode: 'index' },
+                    scales: {
+                        y: {
+                            stacked: true,
+                            beginAtZero: true,
+                            grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                            ticks: { callback: fmtBytes },
+                        },
+                        x: { grid: { display: false } },
+                    },
+                    plugins: {
+                        ...chartDefaults.plugins,
+                        tooltip: {
+                            ...chartDefaults.plugins.tooltip,
+                            callbacks: {
+                                label: function(ctx) {
+                                    return `${ctx.dataset.label}: ${fmtBytes(ctx.raw)}`;
+                                }
+                            }
+                        }
+                    }
+                };
+
+                storageTrendChart = createOrUpdateChart(
+                    storageTrendChart, ctx, 'line',
+                    { labels: data.labels, datasets: datasets },
+                    options
+                );
+            });
+    }
+
+    loadTrend();
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% load audit_extras %}
+
+{% block title %}Monitored Feed - Trawlr{% endblock %}
+
+{% block content %}
+<!-- Page Header -->
+<div class="page-header d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2>Monitored Feed</h2>
+        <p class="text-muted mb-0">Aggregate view of posts from {{ monitored_count }} pinned source{{ monitored_count|pluralize }}.</p>
+    </div>
+</div>
+
+{% if monitored_count == 0 %}
+<div class="card border-0">
+    <div class="card-body text-center py-5">
+        <i class="bi bi-pin-angle mb-3 text-muted" style="font-size: 48px;"></i>
+        <h5>No sources pinned yet</h5>
+        <p class="text-muted">Pin sources from the <a href="{% url 'audit:sources' %}">Sources</a> page to see their posts here.</p>
+        <a href="{% url 'audit:sources' %}" class="btn btn-primary mt-2">
+            <i class="bi bi-chat-square me-2" style="font-size: 16px;"></i>
+            Browse Sources
+        </a>
+    </div>
+</div>
+{% else %}
+<div class="card border-0">
+    {% include "includes/messages_table_filters.html" with search=search media_filter=media_filter sort=sort per_page=per_page channels=channels channel_filter=channel_filter total_count=posts.paginator.count %}
+
+    {% include "includes/messages_table.html" with messages=posts pending_message_ids=pending_message_ids known_users=known_users show_source=True show_album_info=True show_details_modal=True album_info=album_info col_count=8 empty_icon="inbox" empty_message="No posts found." empty_submessage="Run history scans on your pinned sources to see posts here." search=search media_filter=media_filter channel_filter=channel_filter clear_filters_url="?sort=newest&per_page=25" %}
+
+    {% include "includes/messages_table_pagination.html" with posts=posts search=search media_filter=media_filter sort=sort per_page=per_page channel_filter=channel_filter %}
+</div>
+{% endif %}
+
+{% include "audit/includes/posts_modals.html" %}
+{% include "includes/messages_table_css.html" %}
+{% endblock %}
+
+{% block extra_js %}
+{% include "includes/messages_table_js.html" %}
+{% include "audit/includes/posts_js.html" %}
+{% endblock %}

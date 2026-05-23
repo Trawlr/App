@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ map_title }} - Trawlr{% endblock %}
+
+{% block extra_css %}
+<style>
+.cib-card { background: var(--tg-section-bg); border-radius: 8px; }
+.cib-controls .form-control,
+.cib-controls .form-select { width: auto; }
+.cib-tabs .nav-link { color: var(--tg-text); }
+.cib-tabs .nav-link.active { background: var(--tg-primary); color: #000; border-color: var(--tg-primary); }
+.cib-row { cursor: pointer; }
+.cib-row:hover { background: rgba(255,255,255,0.04); }
+.cib-row + .cib-detail { display: none; background: rgba(0,0,0,0.15); }
+.cib-row.expanded + .cib-detail { display: table-row; }
+.cib-fingerprint { font-family: var(--bs-font-monospace); font-size: 0.78rem; color: var(--tg-text-muted); }
+.cib-sample { max-width: 480px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cib-badge-confirmed { background-color: #ef4444 !important; color: #fff; }
+.cib-badge-dismissed { background-color: #6b7280 !important; color: #fff; }
+.cib-message-row td { font-size: 0.85rem; padding: 4px 12px; }
+.cib-channel-pill {
+    display: inline-block; padding: 2px 8px; border-radius: 12px;
+    background: rgba(251, 191, 36, 0.15); border: 1px solid rgba(251, 191, 36, 0.3);
+    font-size: 12px; margin: 2px;
+}
+
+/* Phase B swim-lane */
+.cib-chain { position: relative; padding: 16px 0; }
+.cib-chain-track {
+    position: relative; height: 4px; background: rgba(255,255,255,0.08);
+    border-radius: 2px; margin: 24px 12px;
+}
+.cib-chain-pin {
+    position: absolute; top: -6px; transform: translateX(-50%);
+    width: 14px; height: 14px; border-radius: 50%;
+    background: var(--tg-primary); border: 2px solid var(--tg-section-bg);
+}
+.cib-chain-pin.originator { background: #ef4444; }
+.cib-chain-label {
+    position: absolute; top: 10px; transform: translateX(-50%);
+    font-size: 11px; white-space: nowrap; color: var(--tg-text);
+}
+.cib-chain-label small { color: var(--tg-text-muted); display: block; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb mb-0">
+            <li class="breadcrumb-item"><a href="{% url 'graph:index' %}">Map</a></li>
+            <li class="breadcrumb-item active">{{ map_title }}</li>
+        </ol>
+    </nav>
+
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <h2 class="mb-1">{{ map_title }}</h2>
+            <p class="text-muted mb-0">{{ map_description }}</p>
+        </div>
+    </div>
+
+    <!-- Controls -->
+    <div class="card border-0 cib-card mb-3">
+        <div class="card-body p-3 cib-controls d-flex flex-wrap align-items-center gap-3">
+            <div>
+                <label class="text-muted small mb-1 d-block">Window</label>
+                <select class="form-select form-select-sm" id="cib-days">
+                    <option value="1">1 day</option>
+                    <option value="7" selected>7 days</option>
+                    <option value="30">30 days</option>
+                </select>
+            </div>
+            <div>
+                <label class="text-muted small mb-1 d-block">Min channels</label>
+                <input type="number" class="form-control form-control-sm" id="cib-min-channels"
+                       min="2" max="50" value="3" style="width: 80px;">
+            </div>
+            <div>
+                <label class="text-muted small mb-1 d-block">Tightness (sec)</label>
+                <input type="number" class="form-control form-control-sm" id="cib-window"
+                       min="1" max="86400" value="60" style="width: 100px;">
+            </div>
+            <div>
+                <label class="text-muted small mb-1 d-block">Cluster kind</label>
+                <select class="form-select form-select-sm" id="cib-kind">
+                    <option value="text" selected>Text (identical body)</option>
+                    <option value="media">Media (file_unique_id)</option>
+                    <option value="entity">URL / mention / hashtag</option>
+                </select>
+            </div>
+            <div class="form-check form-switch align-self-end ms-2">
+                <input class="form-check-input" type="checkbox" id="cib-active-only" checked>
+                <label class="form-check-label small text-muted" for="cib-active-only">
+                    Active accounts only
+                </label>
+            </div>
+            <div class="ms-auto">
+                <button class="btn btn-sm btn-primary" id="cib-refresh">
+                    <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabs -->
+    <ul class="nav nav-tabs cib-tabs mb-0">
+        <li class="nav-item"><a class="nav-link active" data-tab="clusters" href="#">Burst clusters</a></li>
+        <li class="nav-item"><a class="nav-link" data-tab="chains" href="#">Amplifier chains</a></li>
+        <li class="nav-item"><a class="nav-link" data-tab="crossposters" href="#">Speed crossposters</a></li>
+    </ul>
+
+    <div class="card border-0 cib-card" style="border-top-left-radius: 0;">
+        <div class="card-body p-3">
+            <div id="cib-loading" class="text-center py-5 d-none">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+            </div>
+            <div id="cib-empty" class="text-center text-muted py-5 d-none">
+                <i class="bi bi-shield-check" style="font-size: 32px;"></i>
+                <div class="mt-2">No clusters match these thresholds in the selected window.</div>
+                <div class="small">Try lowering Min channels or extending the Window.</div>
+            </div>
+            <div id="cib-summary" class="small text-muted mb-2"></div>
+            <div id="cib-results" class="table-responsive"></div>
+        </div>
+    </div>
+</div>
+
+<script src="{% static 'js/cib.js' %}"></script>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    initCIB({
+        apiUrl: '{% url "reports:api_cib" %}',
+        flagUrl: '{% url "reports:api_cib_flag" %}',
+        csrfToken: '{{ csrf_token }}',
+    });
+});
+</script>
+{% endblock %}

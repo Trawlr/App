@@ -1,0 +1,23 @@
+{% load humanize %}
+
+{% if history|length > 1 %}
+<div class="edit-history-timeline">
+    {% for version in history %}
+    <div class="d-flex gap-3 {% if not forloop.last %}mb-3 pb-3{% endif %}" style="{% if not forloop.last %}border-bottom: 1px solid var(--tg-border);{% endif %}">
+        <div class="flex-shrink-0 text-center" style="min-width: 70px;">
+            {% if forloop.last %}
+                <span class="badge bg-secondary bg-opacity-50" style="font-size: 0.65rem;">Original</span>
+            {% else %}
+                <span class="badge bg-warning bg-opacity-25 text-warning" style="font-size: 0.65rem;">Edit {{ forloop.revcounter0 }}</span>
+            {% endif %}
+            <div class="text-muted mt-1" style="font-size: 0.65rem;">{{ version.history_date|naturaltime }}</div>
+        </div>
+        <div class="flex-grow-1 min-width-0">
+            <p class="mb-0 mono small" style="white-space: pre-wrap; color: var(--tg-text);">{{ version.text }}</p>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<p class="text-muted small mb-0">No previous versions recorded.</p>
+{% endif %}

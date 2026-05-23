@@ -1,0 +1,46 @@
+{% if posts.has_other_pages %}
+<div class="card-footer border-top d-flex flex-column align-items-center py-2" style="border-color: var(--tg-border) !important;">
+    <nav aria-label="Posts pagination">
+        <ul class="pagination pagination-sm mb-1">
+            {% if posts.has_previous %}
+            <li class="page-item">
+                <a class="page-link" href="?page=1{% if use_query_param %}&q={{ query|urlencode }}{% else %}&q={{ search }}{% endif %}&media={{ media_filter }}&sort={{ sort }}&per_page={{ per_page }}{% if channel_filter %}&channel={{ channel_filter }}{% endif %}">
+                    <i class="bi bi-chevron-double-left" style="font-size: 14px;"></i>
+                </a>
+            </li>
+            <li class="page-item">
+                <a class="page-link" href="?page={{ posts.previous_page_number }}{% if use_query_param %}&q={{ query|urlencode }}{% else %}&q={{ search }}{% endif %}&media={{ media_filter }}&sort={{ sort }}&per_page={{ per_page }}{% if channel_filter %}&channel={{ channel_filter }}{% endif %}">
+                    <i class="bi bi-chevron-left" style="font-size: 14px;"></i>
+                </a>
+            </li>
+            {% endif %}
+
+            {% for num in posts.paginator.page_range %}
+                {% if posts.number == num %}
+                <li class="page-item active"><span class="page-link">{{ num }}</span></li>
+                {% elif num > posts.number|add:'-6' and num < posts.number|add:'6' %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ num }}{% if use_query_param %}&q={{ query|urlencode }}{% else %}&q={{ search }}{% endif %}&media={{ media_filter }}&sort={{ sort }}&per_page={{ per_page }}{% if channel_filter %}&channel={{ channel_filter }}{% endif %}">{{ num }}</a>
+                </li>
+                {% endif %}
+            {% endfor %}
+
+            {% if posts.has_next %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ posts.next_page_number }}{% if use_query_param %}&q={{ query|urlencode }}{% else %}&q={{ search }}{% endif %}&media={{ media_filter }}&sort={{ sort }}&per_page={{ per_page }}{% if channel_filter %}&channel={{ channel_filter }}{% endif %}">
+                    <i class="bi bi-chevron-right" style="font-size: 14px;"></i>
+                </a>
+            </li>
+            <li class="page-item">
+                <a class="page-link" href="?page={{ posts.paginator.num_pages }}{% if use_query_param %}&q={{ query|urlencode }}{% else %}&q={{ search }}{% endif %}&media={{ media_filter }}&sort={{ sort }}&per_page={{ per_page }}{% if channel_filter %}&channel={{ channel_filter }}{% endif %}">
+                    <i class="bi bi-chevron-double-right" style="font-size: 14px;"></i>
+                </a>
+            </li>
+            {% endif %}
+        </ul>
+    </nav>
+    <div class="text-muted small">
+        Page {{ posts.number }} of {{ posts.paginator.num_pages }}{% if search %} (filtered){% endif %}
+    </div>
+</div>
+{% endif %}

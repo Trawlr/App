@@ -1,0 +1,253 @@
+{% extends "audit/source_base.html" %}
+{% load audit_extras %}
+
+{% block title %}Posts - {{ source.title }} - Trawlr{% endblock %}
+
+{% block source_content %}
+<div class="card border-0">
+    <!-- Filters -->
+    <div class="card-header border-bottom py-2" style="border-color: var(--tg-border) !important;">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+            <!-- Media type filter -->
+            <div class="btn-group btn-group-sm" role="group">
+                <a href="?q={{ search }}&sort={{ sort }}&per_page={{ per_page }}" class="btn {% if not media_filter %}btn-primary{% else %}btn-outline-secondary{% endif %} px-2">All</a>
+                <a href="?q={{ search }}&media=media&sort={{ sort }}&per_page={{ per_page }}" class="btn {% if media_filter == 'media' %}btn-primary{% else %}btn-outline-secondary{% endif %} px-2">Media</a>
+                <a href="?q={{ search }}&media=text&sort={{ sort }}&per_page={{ per_page }}" class="btn {% if media_filter == 'text' %}btn-primary{% else %}btn-outline-secondary{% endif %} px-2">Text</a>
+                <a href="?q={{ search }}&media=photo&sort={{ sort }}&per_page={{ per_page }}" class="btn {% if media_filter == 'photo' %}btn-primary{% else %}btn-outline-secondary{% endif %} px-2">
+                    <i class="bi bi-image" style="font-size: 16px;"></i>
+                </a>
+                <a href="?q={{ search }}&media=video&sort={{ sort }}&per_page={{ per_page }}" class="btn {% if media_filter == 'video' %}btn-primary{% else %}btn-outline-secondary{% endif %} px-2">
+                    <i class="bi bi-camera-video" style="font-size: 16px;"></i>
+                </a>
+                <a href="?q={{ search }}&media=file&sort={{ sort }}&per_page={{ per_page }}" class="btn {% if media_filter == 'file' %}btn-primary{% else %}btn-outline-secondary{% endif %} px-2">
+                    <i class="bi bi-file-earmark" style="font-size: 16px;"></i>
+                </a>
+            </div>
+
+            <!-- Search -->
+            <form method="get" class="d-flex gap-2 align-items-center flex-grow-1" style="max-width: 350px;">
+                <input type="hidden" name="media" value="{{ media_filter }}">
+                <input type="hidden" name="sort" value="{{ sort }}">
+                <input type="hidden" name="per_page" value="{{ per_page }}">
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text">
+                        <i class="bi bi-search" style="font-size: 14px;"></i>
+                    </span>
+                    <input type="text" class="form-control" placeholder="Search posts..." name="q" value="{{ search }}">
+                    <button type="submit" class="btn btn-primary btn-sm" style="padding: 0 12px;">
+                        <i class="bi bi-funnel" style="font-size: 14px;"></i>
+                    </button>
+                    {% if search %}
+                    <a href="?media={{ media_filter }}&sort={{ sort }}&per_page={{ per_page }}" class="btn btn-outline-secondary btn-sm" title="Clear search">
+                        <i class="bi bi-x" style="font-size: 14px;"></i>
+                    </a>
+                    {% endif %}
+                </div>
+            </form>
+
+            <div class="d-flex gap-2 align-items-center">
+                <span class="text-muted">{{ posts.paginator.count|default:0 }} posts</span>
+                <select class="form-select form-select-sm" style="width: auto;" onchange="location.href='?q={{ search }}&media={{ media_filter }}&sort={{ sort }}&per_page=' + this.value">
+                    <option value="10" {% if per_page == 10 %}selected{% endif %}>10</option>
+                    <option value="25" {% if per_page == 25 %}selected{% endif %}>25</option>
+                    <option value="50" {% if per_page == 50 %}selected{% endif %}>50</option>
+                    <option value="100" {% if per_page == 100 %}selected{% endif %}>100</option>
+                </select>
+                <div class="btn-group btn-group-sm" role="group">
+                    <a href="?q={{ search }}&media={{ media_filter }}&sort=newest&per_page={{ per_page }}" class="btn {% if sort == 'newest' %}btn-primary{% else %}btn-outline-secondary{% endif %} px-2" title="Newest first">
+                        <i class="bi bi-arrow-down" style="font-size: 16px;"></i>
+                    </a>
+                    <a href="?q={{ search }}&media={{ media_filter }}&sort=oldest&per_page={{ per_page }}" class="btn {% if sort == 'oldest' %}btn-primary{% else %}btn-outline-secondary{% endif %} px-2" title="Oldest first">
+                        <i class="bi bi-arrow-up" style="font-size: 16px;"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Posts List - Timeline/Chat Style -->
+    <div class="timeline-container p-3">
+        {% if posts %}
+            {% for post in posts %}
+            <div class="timeline-item mb-3" id="msg-{{ post.message_id }}">
+                <div class="d-flex gap-3">
+                    <!-- Avatar/Icon -->
+                    <div class="timeline-avatar flex-shrink-0">
+                        <div class="avatar avatar-sm" style="width: 40px; height: 40px;">
+                            {% if post.sender_username or post.sender_name %}
+                                <i class="bi bi-person" style="font-size: 20px;"></i>
+                            {% else %}
+                                <i class="bi bi-megaphone" style="font-size: 20px;"></i>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- Message Bubble -->
+                    <div class="timeline-content flex-grow-1" style="max-width: calc(100% - 52px);">
+                        <!-- Header -->
+                        <div class="d-flex align-items-center gap-2 mb-1">
+                            {% if post.sender_username %}
+                                {% if post.sender_id and post.sender_id in known_users %}
+                                    <a href="{% url 'audit:user_detail' known_users|get_item:post.sender_id %}" class="text-decoration-none fw-semibold">
+                                        {% if post.sender_name %}{{ post.sender_name }} {% endif %}@{{ post.sender_username }}
+                                    </a>
+                                {% else %}
+                                    <span class="fw-semibold">
+                                        {% if post.sender_name %}{{ post.sender_name }} {% endif %}@{{ post.sender_username }}
+                                    </span>
+                                {% endif %}
+                            {% elif post.sender_name %}
+                                {% if post.sender_id and post.sender_id in known_users %}
+                                    <a href="{% url 'audit:user_detail' known_users|get_item:post.sender_id %}" class="text-decoration-none fw-semibold">{{ post.sender_name }}</a>
+                                {% else %}
+                                    <span class="fw-semibold">{{ post.sender_name }}</span>
+                                {% endif %}
+                            {% else %}
+                                <span class="text-muted">Channel Post</span>
+                            {% endif %}
+                            <span class="text-muted small">ID:{{ post.pk }}</span>
+                        </div>
+
+                        <!-- Message Bubble -->
+                        <div class="message-bubble p-3 rounded {% if post.text %}clickable{% endif %}"
+                             {% if post.text %}onclick="toggleBubbleExpand(this)" style="cursor: pointer;"{% endif %}>
+
+                            <!-- Message Text -->
+                            {% if post.text %}
+                            <div class="message-preview mono" style="word-break: break-word;">{{ post.text|truncatechars:300 }}</div>
+                            <div class="message-full mono" style="display: none; white-space: pre-wrap; word-break: break-word;">{{ post.text }}</div>
+                            {% endif %}
+
+                            <!-- Media Attachment -->
+                            {% if post.has_media %}
+                            <div class="media-attachment {% if post.text %}mt-2{% endif %} p-2 rounded d-flex align-items-center gap-2" style="background: rgba(0,0,0,0.2);">
+                                {% if post.media_type == 'photo' %}
+                                    <i class="bi bi-image text-info" style="font-size: 20px;"></i>
+                                {% elif post.media_type == 'video' %}
+                                    <i class="bi bi-camera-video text-success" style="font-size: 20px;"></i>
+                                {% else %}
+                                    <i class="bi bi-file-earmark text-warning" style="font-size: 20px;"></i>
+                                {% endif %}
+                                <div class="flex-grow-1 min-width-0">
+                                    <div class="text-truncate small">{% if post.original_filename %}{{ post.original_filename }}{% else %}{{ post.get_media_type_display }}{% endif %}</div>
+                                    {% if post.file_size %}<div class="text-muted" style="font-size: 0.75rem;">{{ post.file_size|filesizeformat }}</div>{% endif %}
+                                </div>
+                                {% if post.is_downloaded %}
+                                    <a href="{% url 'downloads:file_detail' post.downloaded_file.pk %}" class="btn btn-sm btn-success" onclick="event.stopPropagation();">
+                                        <i class="bi bi-eye" style="font-size: 14px;"></i>
+                                    </a>
+                                {% elif post.media_unavailable %}
+                                    <span class="badge bg-secondary">Unavailable</span>
+                                {% elif post.message_id in pending_message_ids %}
+                                    <span class="badge bg-warning">Queued</span>
+                                {% else %}
+                                    <button class="btn btn-sm btn-primary" onclick="event.stopPropagation(); queueDownload({{ post.pk }})">
+                                        <i class="bi bi-download" style="font-size: 14px;"></i>
+                                    </button>
+                                {% endif %}
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Footer -->
+                        <div class="d-flex align-items-center justify-content-between mt-1">
+                            <div class="text-muted" style="font-size: 0.75rem;">
+                                {{ post.telegram_date|post_datetime }}
+                            </div>
+                            <div class="d-flex align-items-center gap-2">
+                                <span class="text-muted" style="font-size: 0.7rem;">Msg #{{ post.message_id }}</span>
+                                {% if post.text %}
+                                <i class="bi bi-chevron-down text-muted expand-icon" style="font-size: 12px; transition: transform 0.2s;"></i>
+                                {% endif %}
+                                <div class="dropdown">
+                                    <button class="btn btn-link btn-sm p-0 text-muted" type="button" data-bs-toggle="dropdown" onclick="event.stopPropagation();">
+                                        <i class="bi bi-three-dots" style="font-size: 14px;"></i>
+                                    </button>
+                                    <ul class="dropdown-menu dropdown-menu-end">
+                                        <li><a class="dropdown-item" href="#" onclick="event.stopPropagation(); openPostModal({{ post.pk }})"><i class="bi bi-info-circle me-2" style="font-size: 14px;"></i>Details</a></li>
+                                        <li><a class="dropdown-item" href="{% url 'audit:export_post_json' post.pk %}" onclick="event.stopPropagation();"><i class="bi bi-filetype-json me-2" style="font-size: 14px;"></i>Export JSON</a></li>
+                                        {% if post.is_downloaded %}
+                                        <li><a class="dropdown-item text-danger" href="#" onclick="event.stopPropagation(); deletePostMedia({{ post.pk }})"><i class="bi bi-trash me-2" style="font-size: 14px;"></i>Delete File</a></li>
+                                        {% endif %}
+                                        <li><hr class="dropdown-divider"></li>
+                                        <li><a class="dropdown-item text-danger" href="#" onclick="event.stopPropagation(); openReportModal({{ post.message_id }})"><i class="bi bi-flag me-2" style="font-size: 14px;"></i>Report</a></li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="text-center py-5 text-muted">
+                <i class="bi bi-inbox mb-2" style="font-size: 48px; opacity: 0.5;"></i>
+                <p class="mb-0">No posts found.</p>
+            </div>
+        {% endif %}
+    </div>
+
+    {% include "audit/includes/posts_pagination.html" %}
+</div>
+
+{% include "audit/includes/posts_modals.html" %}
+{% endblock %}
+
+{% block source_extra_js %}
+<script>
+function toggleBubbleExpand(bubble) {
+    const preview = bubble.querySelector('.message-preview');
+    const fullText = bubble.querySelector('.message-full');
+    const item = bubble.closest('.timeline-item');
+    const expandIcon = item.querySelector('.expand-icon');
+
+    if (fullText && preview) {
+        const isExpanded = fullText.style.display !== 'none';
+        fullText.style.display = isExpanded ? 'none' : 'block';
+        preview.style.display = isExpanded ? 'block' : 'none';
+        if (expandIcon) {
+            expandIcon.style.transform = isExpanded ? 'rotate(0deg)' : 'rotate(180deg)';
+        }
+    }
+}
+
+{% include "audit/includes/posts_js.html" %}
+</script>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.timeline-item {
+    transition: background-color 0.15s ease;
+}
+.timeline-avatar .avatar {
+    background: var(--tg-hover-bg);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.message-bubble {
+    background: var(--tg-hover-bg);
+    border: 1px solid var(--tg-border);
+    position: relative;
+}
+.message-bubble:hover {
+    background: rgba(255,255,255,0.03);
+}
+.message-bubble.clickable:hover {
+    border-color: var(--tg-accent);
+}
+.highlight-flash {
+    animation: highlight-flash 2s ease-out;
+}
+@keyframes highlight-flash {
+    0% {
+        background-color: rgba(var(--bs-info-rgb), 0.3);
+    }
+    100% {
+        background-color: transparent;
+    }
+}
+</style>
+{% endblock %}

@@ -1,0 +1,206 @@
+{% load audit_extras %}
+{% if downloads %}
+    {% for download in downloads %}
+    <{% if download.status == 'completed' and download.downloaded_file %}a href="{% url 'downloads:file_detail' download.downloaded_file.pk %}"{% else %}div{% endif %} class="list-group-item bg-transparent d-flex justify-content-between align-items-center py-3 px-4 {% if download.status == 'completed' and download.downloaded_file %}list-group-item-action{% endif %}" data-task-id="{{ download.pk }}" {% if download.status == 'completed' and download.downloaded_file %}style="text-decoration: none;"{% endif %}>
+        <div class="d-flex align-items-center gap-3 flex-grow-1">
+            {% if download.status == 'completed' and download.downloaded_file and download.downloaded_file.get_display_thumbnail_url %}
+                <div class="rounded overflow-hidden flex-shrink-0" style="width: 48px; height: 48px;">
+                    <img src="{{ download.downloaded_file.get_display_thumbnail_url }}"
+                         alt="" class="w-100 h-100 blur-safe" style="object-fit: cover;">
+                </div>
+            {% else %}
+                <div class="avatar avatar-sm" style="{% if download.file_type == 'video' %}background: var(--tg-gradient);{% elif download.file_type == 'photo' %}background: #3498db;{% else %}background: #444;{% endif %}">
+                    {% if download.file_type == 'video' %}
+                        <i class="bi bi-camera-video" style="font-size: 16px;"></i>
+                    {% elif download.file_type == 'photo' %}
+                        <i class="bi bi-image" style="font-size: 16px;"></i>
+                    {% else %}
+                        <i class="bi bi-file-earmark" style="font-size: 16px;"></i>
+                    {% endif %}
+                </div>
+            {% endif %}
+            <div class="flex-grow-1" style="min-width: 0;">
+                <div class="fw-bold text-truncate">{{ download.original_filename|default:"Unknown file" }}</div>
+                <span class="text-muted">
+                    {{ download.channel|display_title }} &bull;
+                    {% if download.file_size %}{{ download.file_size|filesizeformat }}{% else %}Unknown size{% endif %}
+                    {% if download.priority != 5 %}&bull; Priority {{ download.priority }}{% endif %}
+                </span>
+            </div>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            {% if download.status == 'downloading' %}
+                <div style="min-width: 160px;">
+                    <div class="d-flex justify-content-between small text-muted mb-1">
+                        <span class="progress-text">{{ download.progress }}%</span>
+                        <span class="speed-text">{% if download.download_speed %}{{ download.download_speed|filesizeformat }}/s{% endif %}</span>
+                    </div>
+                    <div class="progress" style="height: 6px;">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated" style="width: {{ download.progress }}%"></div>
+                    </div>
+                </div>
+                <form method="post" action="{% url 'downloads:pause' download.pk %}">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-sm btn-outline-warning" title="Pause">
+                        <i class="bi bi-pause" style="font-size: 14px;"></i>
+                    </button>
+                </form>
+            {% elif download.status == 'pending' %}
+                {% if download.pending_reason == 'queued' %}
+                    <span class="badge" style="background: rgba(255,255,255,0.1);">{{ download.get_pending_reason_display }}</span>
+                {% else %}
+                    <span class="badge badge-warning" title="{{ download.get_pending_reason_display }}">{{ download.get_pending_reason_display }}</span>
+                {% endif %}
+                <form method="post" action="{% url 'downloads:pause' download.pk %}">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-sm btn-outline-warning" title="Pause">
+                        <i class="bi bi-pause" style="font-size: 14px;"></i>
+                    </button>
+                </form>
+                <form method="post" action="{% url 'downloads:cancel' download.pk %}">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Cancel">
+                        <i class="bi bi-x" style="font-size: 14px;"></i>
+                    </button>
+                </form>
+            {% elif download.status == 'paused' %}
+                <span class="badge badge-warning">Paused</span>
+                <form method="post" action="{% url 'downloads:resume' download.pk %}">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-sm btn-outline-success" title="Resume">
+                        <i class="bi bi-play" style="font-size: 14px;"></i>
+                    </button>
+                </form>
+                <form method="post" action="{% url 'downloads:cancel' download.pk %}">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Cancel">
+                        <i class="bi bi-x" style="font-size: 14px;"></i>
+                    </button>
+                </form>
+            {% elif download.status == 'completed' %}
+                <span class="badge badge-success">Completed</span>
+                <span class="text-muted">{{ download.completed_at|timesince }} ago</span>
+            {% elif download.status == 'failed' %}
+                <div class="text-end">
+                    <span class="badge badge-danger">Failed</span>
+                    {% if download.last_error %}
+                        <div class="small text-danger mt-1" style="max-width: 350px;">
+                            {{ download.last_error }}
+                        </div>
+                    {% endif %}
+                </div>
+                {% if download.can_retry %}
+                <form method="post" action="{% url 'downloads:retry' download.pk %}">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-sm btn-outline-primary" title="Retry">
+                        <i class="bi bi-arrow-clockwise" style="font-size: 14px;"></i>
+                    </button>
+                </form>
+                {% endif %}
+                <form method="post" action="{% url 'downloads:cancel' download.pk %}">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-sm btn-outline-secondary" title="Remove">
+                        <i class="bi bi-x" style="font-size: 14px;"></i>
+                    </button>
+                </form>
+            {% elif download.status == 'unavailable' %}
+                <div class="text-end">
+                    <span class="badge" style="background: #6c757d;">
+                        <i class="bi bi-question-circle me-1" style="font-size: 10px;"></i>
+                        Unavailable
+                    </span>
+                    {% if download.last_error %}
+                        <div class="small text-muted mt-1" style="max-width: 350px;">
+                            {{ download.last_error }}
+                        </div>
+                    {% endif %}
+                </div>
+                <form method="post" action="{% url 'downloads:cancel' download.pk %}">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-sm btn-outline-secondary" title="Remove">
+                        <i class="bi bi-x" style="font-size: 14px;"></i>
+                    </button>
+                </form>
+            {% endif %}
+        </div>
+    </{% if download.status == 'completed' and download.downloaded_file %}a{% else %}div{% endif %}>
+    {% endfor %}
+    <!-- Pagination -->
+    {% if downloads.has_other_pages %}
+    <div class="list-group-item bg-transparent py-3 px-4">
+        <nav aria-label="Download pagination">
+            <ul class="pagination pagination-sm justify-content-center mb-0">
+                {% if downloads.has_previous %}
+                <li class="page-item">
+                    <a class="page-link" href="#"
+                       hx-get="{% url 'downloads:queue' %}?tab={{ tab }}&page={{ downloads.previous_page_number }}"
+                       hx-target="#download-queue"
+                       hx-swap="innerHTML">
+                        <i class="bi bi-chevron-left" style="font-size: 14px;"></i>
+                    </a>
+                </li>
+                {% else %}
+                <li class="page-item disabled">
+                    <span class="page-link"><i class="bi bi-chevron-left" style="font-size: 14px;"></i></span>
+                </li>
+                {% endif %}
+
+                {% for num in downloads.paginator.page_range %}
+                    {% if downloads.number == num %}
+                    <li class="page-item active"><span class="page-link">{{ num }}</span></li>
+                    {% elif num > downloads.number|add:'-3' and num < downloads.number|add:'3' %}
+                    <li class="page-item">
+                        <a class="page-link" href="#"
+                           hx-get="{% url 'downloads:queue' %}?tab={{ tab }}&page={{ num }}"
+                           hx-target="#download-queue"
+                           hx-swap="innerHTML">{{ num }}</a>
+                    </li>
+                    {% elif num == 1 or num == downloads.paginator.num_pages %}
+                    <li class="page-item">
+                        <a class="page-link" href="#"
+                           hx-get="{% url 'downloads:queue' %}?tab={{ tab }}&page={{ num }}"
+                           hx-target="#download-queue"
+                           hx-swap="innerHTML">{{ num }}</a>
+                    </li>
+                    {% elif num == downloads.number|add:'-3' or num == downloads.number|add:'3' %}
+                    <li class="page-item disabled"><span class="page-link">...</span></li>
+                    {% endif %}
+                {% endfor %}
+
+                {% if downloads.has_next %}
+                <li class="page-item">
+                    <a class="page-link" href="#"
+                       hx-get="{% url 'downloads:queue' %}?tab={{ tab }}&page={{ downloads.next_page_number }}"
+                       hx-target="#download-queue"
+                       hx-swap="innerHTML">
+                        <i class="bi bi-chevron-right" style="font-size: 14px;"></i>
+                    </a>
+                </li>
+                {% else %}
+                <li class="page-item disabled">
+                    <span class="page-link"><i class="bi bi-chevron-right" style="font-size: 14px;"></i></span>
+                </li>
+                {% endif %}
+            </ul>
+            <div class="text-center text-muted small mt-2">
+                Showing {{ downloads.start_index }}-{{ downloads.end_index }} of {{ downloads.paginator.count }}
+            </div>
+        </nav>
+    </div>
+    {% endif %}
+{% else %}
+    <div class="list-group-item text-center py-5 text-muted">
+        <i class="bi bi-cloud-download mb-2" style="font-size: 48px; opacity: 0.5;"></i>
+        <p class="mb-0">
+            {% if tab == 'active' %}No active downloads.
+            {% elif tab == 'paused' %}No paused downloads.
+            {% elif tab == 'completed' %}No completed downloads yet.
+            {% elif tab == 'failed' %}No failed downloads.
+            {% else %}No downloads.
+            {% endif %}
+        </p>
+        {% if tab == 'active' %}
+        <p class="small mt-2">Enable auto-download on a source or scan history to start downloading.</p>
+        {% endif %}
+    </div>
+{% endif %}

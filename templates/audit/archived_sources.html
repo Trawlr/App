@@ -1,0 +1,298 @@
+{% extends "base.html" %}
+{% load audit_extras %}
+
+{% block title %}Archived Sources - Trawlr{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2>Archived Sources</h2>
+        <p class="text-muted mb-0">Channels and groups that have been archived.</p>
+    </div>
+    <div class="d-flex gap-2">
+        <a href="{% url 'audit:sources' %}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-arrow-left me-1" style="font-size: 14px;"></i>
+            Back to Sources
+        </a>
+    </div>
+</div>
+
+<div class="card border-0">
+    <!-- Search/Filter -->
+    <div class="p-3 border-bottom" style="border-color: var(--tg-border) !important;">
+        <form method="get" class="row g-2 align-items-center">
+            <input type="hidden" name="per_page" value="{{ per_page }}">
+            <div class="col-md-4">
+                <div class="input-group">
+                    <span class="input-group-text">
+                        <i class="bi bi-search" style="font-size: 18px;"></i>
+                    </span>
+                    <input type="text" class="form-control" placeholder="Search archived sources..."
+                           name="search" value="{{ search }}">
+                </div>
+            </div>
+            <div class="col-md-2">
+                <select name="type" class="form-select">
+                    <option value="">All Types</option>
+                    {% for value, label in channel_types %}
+                    <option value="{{ value }}" {% if channel_type == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <select name="account" class="form-select">
+                    <option value="">All Accounts</option>
+                    {% for acc in accounts %}
+                    <option value="{{ acc.pk }}" {% if account_id == acc.pk|stringformat:"s" %}selected{% endif %}>{{ acc.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <select name="availability" class="form-select">
+                    <option value="">All Status</option>
+                    {% for value, label in availability_choices %}
+                    <option value="{{ value }}" {% if availability_filter == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <select name="sort" class="form-select">
+                    <option value="title" {% if sort == "title" %}selected{% endif %}>Sort: Title</option>
+                    <option value="recent" {% if sort == "recent" %}selected{% endif %}>Sort: Recently Added</option>
+                    <option value="updated" {% if sort == "updated" %}selected{% endif %}>Sort: Last Updated</option>
+                </select>
+            </div>
+            <div class="col-md-1">
+                <button type="submit" class="btn btn-primary btn-sm w-100" style="padding: 7px 0;">
+                    <i class="bi bi-funnel" style="font-size: 16px;"></i>
+                </button>
+            </div>
+        </form>
+
+        <div class="d-flex align-items-center justify-content-between mt-3 pt-3 border-top" style="border-color: var(--tg-border) !important;">
+            <span class="text-muted small">{{ page_obj.paginator.count }} archived source{{ page_obj.paginator.count|pluralize }}</span>
+            <div class="d-flex align-items-center gap-2">
+                <select class="form-select form-select-sm" style="width: auto;" onchange="location.href='?{% if search %}search={{ search }}&{% endif %}{% if channel_type %}type={{ channel_type }}&{% endif %}{% if account_id %}account={{ account_id }}&{% endif %}{% if availability_filter %}availability={{ availability_filter }}&{% endif %}{% if sort and sort != 'title' %}sort={{ sort }}&{% endif %}per_page=' + this.value">
+                    <option value="10" {% if per_page == 10 %}selected{% endif %}>10</option>
+                    <option value="25" {% if per_page == 25 %}selected{% endif %}>25</option>
+                    <option value="50" {% if per_page == 50 %}selected{% endif %}>50</option>
+                    <option value="100" {% if per_page == 100 %}selected{% endif %}>100</option>
+                    <option value="500" {% if per_page == 500 %}selected{% endif %}>500</option>
+                </select>
+                {% if search or channel_type or account_id or availability_filter or sort and sort != 'title' %}
+                <a href="{% url 'audit:archived_sources' %}?per_page={{ per_page }}" class="btn btn-outline-secondary btn-sm">
+                    <i class="bi bi-x me-1" style="font-size: 14px;"></i>
+                    Clear Filters
+                </a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="list-group list-group-flush" id="sources-list">
+        {% if sources %}
+            {% for source in sources %}
+            <div class="list-group-item d-flex align-items-center gap-3 py-3 px-4">
+                <a href="{% url 'audit:source_detail' source.pk %}" class="d-flex align-items-center gap-3 flex-grow-1 text-decoration-none" style="color: inherit;">
+                    <div class="avatar">
+                        {% if source.channel_type == 'channel' %}
+                            <i class="bi bi-megaphone" style="font-size: 20px;"></i>
+                        {% elif source.channel_type == 'supergroup' or source.channel_type == 'group' %}
+                            <i class="bi bi-people" style="font-size: 20px;"></i>
+                        {% else %}
+                            <i class="bi bi-person" style="font-size: 20px;"></i>
+                        {% endif %}
+                    </div>
+                    <div class="flex-grow-1">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <h6 class="mb-0 fw-bold">{{ source|display_title }}</h6>
+                                <div class="small text-muted">
+                                    {{ source.channel_type|title }}
+                                    {% if source.username %}&bull; @{{ source.username }}{% endif %}
+                                    &bull; {{ source.account.name }}
+                                </div>
+                            </div>
+                            <div class="text-end small text-muted" style="min-width: 140px;">
+                                <div title="Added to Trawlr">
+                                    <i class="bi bi-plus-circle me-1" style="font-size: 12px;"></i>
+                                    {{ source.created_at|date:"M j, Y" }}
+                                </div>
+                                <div title="Last updated">
+                                    <i class="bi bi-arrow-clockwise me-1" style="font-size: 12px;"></i>
+                                    {{ source.updated_at|timesince }} ago
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="d-flex gap-2 align-items-center">
+                        <span class="badge bg-secondary">Archived</span>
+                        {% if source.availability_status == 'deleted' %}
+                            <span class="badge bg-danger">Deleted</span>
+                        {% elif source.availability_status == 'restricted' %}
+                            <span class="badge bg-warning text-dark">Restricted</span>
+                        {% elif source.availability_status == 'private' %}
+                            <span class="badge bg-secondary">Private/Left</span>
+                        {% elif source.availability_status != 'active' %}
+                            <span class="badge bg-secondary">Unavailable</span>
+                        {% endif %}
+                    </div>
+                </a>
+                <!-- Actions Dropdown -->
+                <div class="dropdown dropdown-hover">
+                    <button class="btn btn-link btn-hamburger" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="Actions">
+                        <i class="bi bi-three-dots-vertical" style="font-size: 18px;"></i>
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end" style="min-width: 180px;">
+                        <li>
+                            <a class="dropdown-item py-2" href="{% url 'audit:source_detail' source.pk %}">
+                                <i class="bi bi-box-arrow-up-right me-2" style="font-size: 16px;"></i>
+                                View Details
+                            </a>
+                        </li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li>
+                            <a class="dropdown-item py-2 text-success" href="#" onclick="event.preventDefault(); event.stopPropagation(); confirmUnarchive({{ source.pk }}, '{{ source|display_title|escapejs }}')">
+                                <i class="bi bi-archive me-2" style="font-size: 16px;"></i>
+                                Unarchive
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="list-group-item text-center py-5 text-muted">
+                <i class="bi bi-archive mb-2" style="font-size: 48px; opacity: 0.5;"></i>
+                <p class="mb-0">No archived sources found.</p>
+                {% if search or channel_type or account_id or availability_filter %}
+                    <p class="small">Try adjusting your filters.</p>
+                    <a href="{% url 'audit:archived_sources' %}" class="btn btn-outline-primary btn-sm mt-2">Clear Filters</a>
+                {% else %}
+                    <p class="small">Sources you archive will appear here.</p>
+                    <a href="{% url 'audit:sources' %}" class="btn btn-primary mt-2">Browse Sources</a>
+                {% endif %}
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Pagination -->
+{% if page_obj.has_other_pages %}
+<div class="card border-0 mt-3">
+    <div class="card-footer border-0 py-2">
+        <nav aria-label="Archived sources pagination">
+            <ul class="pagination pagination-sm justify-content-center mb-0">
+                {% if page_obj.has_previous %}
+                <li class="page-item">
+                    <a class="page-link" href="?page=1{% if search %}&search={{ search }}{% endif %}{% if channel_type %}&type={{ channel_type }}{% endif %}{% if account_id %}&account={{ account_id }}{% endif %}{% if availability_filter %}&availability={{ availability_filter }}{% endif %}{% if sort and sort != 'title' %}&sort={{ sort }}{% endif %}&per_page={{ per_page }}">&laquo; First</a>
+                </li>
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if search %}&search={{ search }}{% endif %}{% if channel_type %}&type={{ channel_type }}{% endif %}{% if account_id %}&account={{ account_id }}{% endif %}{% if availability_filter %}&availability={{ availability_filter }}{% endif %}{% if sort and sort != 'title' %}&sort={{ sort }}{% endif %}&per_page={{ per_page }}">&lsaquo; Prev</a>
+                </li>
+                {% endif %}
+
+                {% for num in page_obj.paginator.page_range %}
+                    {% if page_obj.number == num %}
+                    <li class="page-item active"><span class="page-link">{{ num }}</span></li>
+                    {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                    <li class="page-item"><a class="page-link" href="?page={{ num }}{% if search %}&search={{ search }}{% endif %}{% if channel_type %}&type={{ channel_type }}{% endif %}{% if account_id %}&account={{ account_id }}{% endif %}{% if availability_filter %}&availability={{ availability_filter }}{% endif %}{% if sort and sort != 'title' %}&sort={{ sort }}{% endif %}&per_page={{ per_page }}">{{ num }}</a></li>
+                    {% endif %}
+                {% endfor %}
+
+                {% if page_obj.has_next %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if search %}&search={{ search }}{% endif %}{% if channel_type %}&type={{ channel_type }}{% endif %}{% if account_id %}&account={{ account_id }}{% endif %}{% if availability_filter %}&availability={{ availability_filter }}{% endif %}{% if sort and sort != 'title' %}&sort={{ sort }}{% endif %}&per_page={{ per_page }}">Next &rsaquo;</a>
+                </li>
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if search %}&search={{ search }}{% endif %}{% if channel_type %}&type={{ channel_type }}{% endif %}{% if account_id %}&account={{ account_id }}{% endif %}{% if availability_filter %}&availability={{ availability_filter }}{% endif %}{% if sort and sort != 'title' %}&sort={{ sort }}{% endif %}&per_page={{ per_page }}">Last &raquo;</a>
+                </li>
+                {% endif %}
+            </ul>
+        </nav>
+    </div>
+</div>
+{% endif %}
+
+{% if page_obj %}
+<div class="mt-3 text-muted small">
+    Showing {{ page_obj.start_index }}-{{ page_obj.end_index }} of {{ page_obj.paginator.count }} archived source{{ page_obj.paginator.count|pluralize }}
+</div>
+{% endif %}
+
+<script>
+// Unarchive source confirmation and action
+let unarchiveSourceId = null;
+let unarchiveSourceTitle = '';
+
+function confirmUnarchive(sourceId, sourceTitle) {
+    unarchiveSourceId = sourceId;
+    unarchiveSourceTitle = sourceTitle;
+    document.getElementById('unarchiveSourceTitle').textContent = sourceTitle;
+    const modal = new bootstrap.Modal(document.getElementById('unarchiveModal'));
+    modal.show();
+}
+
+async function executeUnarchive() {
+    if (!unarchiveSourceId) return;
+
+    const btn = document.getElementById('btn-unarchive-confirm');
+    const originalHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Unarchiving...';
+
+    try {
+        const response = await fetch(`/source/${unarchiveSourceId}/unarchive/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            showToast(data.message || 'Source unarchived', 'success');
+            const modal = bootstrap.Modal.getInstance(document.getElementById('unarchiveModal'));
+            if (modal) modal.hide();
+            setTimeout(() => location.reload(), 500);
+        } else {
+            showToast(data.error || 'Failed to unarchive source', 'error');
+            btn.disabled = false;
+            btn.innerHTML = originalHtml;
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        showToast('Failed to unarchive source', 'error');
+        btn.disabled = false;
+        btn.innerHTML = originalHtml;
+    }
+}
+</script>
+
+<!-- Unarchive Source Modal -->
+<div class="modal fade" id="unarchiveModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Unarchive Source</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to unarchive <strong id="unarchiveSourceTitle"></strong>?</p>
+                <p class="text-muted small mb-0">
+                    This will restore the source to your main sources list.
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-success" id="btn-unarchive-confirm" onclick="executeUnarchive()">
+                    <i class="bi bi-archive me-1" style="font-size: 16px;"></i>
+                    Unarchive
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,99 @@
+<script>
+function toggleRowExpand(row) {
+    const expandRow = row.nextElementSibling;
+    const expandIcon = row.querySelector('.expand-icon');
+
+    if (expandRow && expandRow.classList.contains('expand-row')) {
+        const isExpanded = expandRow.style.display !== 'none';
+        expandRow.style.display = isExpanded ? 'none' : 'table-row';
+        if (expandIcon) {
+            expandIcon.style.transform = isExpanded ? 'rotate(0deg)' : 'rotate(180deg)';
+        }
+    }
+}
+
+// Thumbnail hover preview
+function showThumbnailHover(event, url) {
+    const preview = document.getElementById('thumbnailHoverPreview');
+    const img = document.getElementById('thumbnailHoverImg');
+    const thumb = event.target;
+    const rect = thumb.getBoundingClientRect();
+
+    img.src = url;
+
+    const previewWidth = 408;
+    const previewHeight = 308;
+
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    const spaceRight = viewportWidth - rect.right;
+    const spaceBelow = viewportHeight - rect.top;
+
+    let left;
+    if (spaceRight >= previewWidth + 10) {
+        left = rect.right + 10;
+    } else {
+        left = rect.left - previewWidth - 10;
+    }
+
+    let top;
+    if (spaceBelow >= previewHeight) {
+        top = rect.top;
+    } else {
+        top = Math.max(10, viewportHeight - previewHeight - 10);
+    }
+
+    preview.style.left = left + 'px';
+    preview.style.top = top + 'px';
+    preview.classList.add('visible');
+}
+
+function hideThumbnailHover() {
+    const preview = document.getElementById('thumbnailHoverPreview');
+    preview.classList.remove('visible');
+}
+
+function copyToClipboard(text) {
+    navigator.clipboard.writeText(text).then(() => {
+        showToast('ID ' + text + ' copied to clipboard', 'success');
+    }).catch(err => {
+        console.error('Failed to copy:', err);
+        showToast('Failed to copy to clipboard', 'error');
+    });
+}
+
+// Queue download
+async function queueDownload(postId) {
+    const btn = event.target.closest('.queue-btn');
+    const originalHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+
+    try {
+        const response = await fetch(`/post/${postId}/download/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'X-Requested-With': 'XMLHttpRequest',
+            }
+        });
+
+        const data = await response.json();
+        if (data.status === 'queued' || data.status === 'already_downloaded') {
+            btn.classList.remove('btn-primary');
+            btn.classList.add('btn-warning');
+            btn.innerHTML = '<i class="bi bi-clock" style="font-size: 14px;"></i>';
+            btn.title = 'Queued';
+            showToast(data.message || 'Added to download queue', 'success');
+        } else {
+            btn.innerHTML = originalHtml;
+            btn.disabled = false;
+            showToast(data.message || 'Failed to queue', 'error');
+        }
+    } catch (error) {
+        btn.innerHTML = originalHtml;
+        btn.disabled = false;
+        showToast('Error queueing download', 'error');
+    }
+}
+</script>

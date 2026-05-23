@@ -1,0 +1,46 @@
+{% extends "audit/source_base.html" %}
+{% load audit_extras %}
+
+{% block title %}Posts - {{ source.title }} - Trawlr{% endblock %}
+
+{% block source_content %}
+<div class="card border-0">
+    {% include "includes/messages_table_filters.html" with search=search media_filter=media_filter sort=sort per_page=per_page total_count=posts.paginator.count show_500_per_page=False %}
+
+    {% include "includes/messages_table.html" with messages=posts pending_message_ids=pending_message_ids known_users=known_users show_source=False show_topic_info=True show_album_info=True show_extended_date=True show_details_modal=True album_info=album_info col_count=7 empty_icon="inbox" empty_message="No posts found." search=search media_filter=media_filter %}
+
+    {% include "audit/includes/posts_pagination.html" %}
+</div>
+
+{% include "audit/includes/posts_modals.html" %}
+{% endblock %}
+
+{% block source_extra_js %}
+{% include "includes/messages_table_js.html" %}
+
+{% include "audit/includes/posts_js.html" %}
+
+<script>
+// Highlight message if URL has hash anchor (after goto_msg redirect)
+document.addEventListener('DOMContentLoaded', function() {
+    if (window.location.hash) {
+        const msgId = window.location.hash.replace('#msg-', '');
+        if (msgId) {
+            const element = document.getElementById('msg-' + msgId);
+            if (element) {
+                // Small delay to ensure page is fully rendered
+                setTimeout(() => {
+                    element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    element.classList.add('highlight-flash');
+                    setTimeout(() => element.classList.remove('highlight-flash'), 2000);
+                }, 100);
+            }
+        }
+    }
+});
+</script>
+{% endblock %}
+
+{% block extra_css %}
+{% include "includes/messages_table_css.html" %}
+{% endblock %}

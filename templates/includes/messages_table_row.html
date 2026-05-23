@@ -1,0 +1,213 @@
+{% load audit_extras %}
+
+<tr class="table-row {% if post.is_deleted %}deleted{% endif %} {% if post.text %}expandable{% endif %}" id="msg-{{ post.message_id }}" {% if post.text %}onclick="toggleRowExpand(this)" style="cursor: pointer;"{% endif %}>
+    <td class="small text-muted align-middle" style="border-color: var(--tg-border);">
+        <span class="copy-id d-inline-flex align-items-center gap-1" onclick="event.stopPropagation(); copyToClipboard('{{ post.pk }}')" title="Click to copy ID">{{ post.pk }}<i class="bi bi-clipboard" style="font-size: 10px; opacity: 0.5;"></i></span>
+    </td>
+    <td class="align-middle" style="border-color: var(--tg-border);">
+        <div class="thumb-container position-relative" style="width: 56px; height: 40px;">
+            {% if post.has_media %}
+                {% if post.thumbnail_url %}
+                    <img src="{{ post.thumbnail_url }}"
+                         class="rounded thumbnail-preview"
+                         alt="Thumbnail"
+                         loading="lazy"
+                         decoding="async"
+                         style="width: 56px; height: 40px; object-fit: cover;"
+                         onmouseenter="showThumbnailHover(event, '{{ post.thumbnail_url }}')"
+                         onmouseleave="hideThumbnailHover()"
+                         onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+                    <div class="align-items-center justify-content-center bg-dark rounded" style="width: 56px; height: 40px; display: none;">
+                        {% if post.media_type == 'photo' %}
+                            <i class="bi bi-image text-info" style="font-size: 18px; opacity: 0.5;"></i>
+                        {% elif post.media_type == 'video' %}
+                            <i class="bi bi-camera-video text-success" style="font-size: 18px; opacity: 0.5;"></i>
+                        {% else %}
+                            <i class="bi bi-file-earmark text-warning" style="font-size: 18px; opacity: 0.5;"></i>
+                        {% endif %}
+                    </div>
+                {% else %}
+                    <div class="d-flex align-items-center justify-content-center bg-dark rounded" style="width: 56px; height: 40px;">
+                        {% if post.media_type == 'photo' %}
+                            <i class="bi bi-image text-info" style="font-size: 18px; opacity: 0.5;"></i>
+                        {% elif post.media_type == 'video' %}
+                            <i class="bi bi-camera-video text-success" style="font-size: 18px; opacity: 0.5;"></i>
+                        {% else %}
+                            <i class="bi bi-file-earmark text-warning" style="font-size: 18px; opacity: 0.5;"></i>
+                        {% endif %}
+                    </div>
+                {% endif %}
+                <span class="thumb-type-badge {% if post.media_type == 'photo' %}bg-info{% elif post.media_type == 'video' %}bg-success{% else %}bg-warning{% endif %}">
+                    {% if post.media_type == 'photo' %}<i class="bi bi-image" style="font-size: 10px;"></i>{% elif post.media_type == 'video' %}<i class="bi bi-camera-video" style="font-size: 10px;"></i>{% else %}<i class="bi bi-file-earmark" style="font-size: 10px;"></i>{% endif %}
+                </span>
+                {% if show_album_info and album_info and post.pk in album_info %}
+                <span class="thumb-album-badge bg-secondary" title="Album {{ album_info|get_item:post.pk|get_item:'position' }}/{{ album_info|get_item:post.pk|get_item:'total' }}">
+                    {{ album_info|get_item:post.pk|get_item:'position' }}/{{ album_info|get_item:post.pk|get_item:'total' }}
+                </span>
+                {% endif %}
+            {% else %}
+                <div class="d-flex align-items-center justify-content-center rounded" style="width: 56px; height: 40px; background: var(--tg-hover-bg);">
+                    <i class="bi bi-chat-square text-muted" style="font-size: 16px; opacity: 0.3;"></i>
+                </div>
+            {% endif %}
+        </div>
+    </td>
+    {% if show_source %}
+    <td class="align-middle" style="border-color: var(--tg-border);">
+        <a href="{% url 'audit:source_posts' post.channel.pk %}" class="text-decoration-none" onclick="event.stopPropagation();">
+            <span class="fw-semibold">{{ post.channel|display_title|truncatechars:100 }}</span>
+        </a>
+    </td>
+    {% endif %}
+    <td class="align-middle" style="border-color: var(--tg-border);">
+        {% if post.sender_username %}
+            {% if post.sender_id and post.sender_id in known_users %}
+                <a href="{% url 'audit:user_detail' known_users|get_item:post.sender_id %}" class="text-decoration-none" onclick="event.stopPropagation();">
+                    {% if post.sender_name %}<span class="fw-semibold">{{ post.sender_name|truncatechars:50 }}</span><br>{% endif %}
+                    <span class="small">@{{ post.sender_username|truncatechars:50 }}</span>
+                </a>
+            {% else %}
+                {% if post.sender_name %}<span class="fw-semibold">{{ post.sender_name|truncatechars:50 }}</span><br>{% endif %}
+                <span class="small text-muted">@{{ post.sender_username|truncatechars:50 }}</span>
+            {% endif %}
+        {% elif post.sender_name %}
+            {% if post.sender_id and post.sender_id in known_users %}
+                <a href="{% url 'audit:user_detail' known_users|get_item:post.sender_id %}" class="text-decoration-none fw-semibold" onclick="event.stopPropagation();">{{ post.sender_name|truncatechars:50 }}</a>
+            {% else %}
+                <span class="fw-semibold">{{ post.sender_name|truncatechars:50 }}</span>
+            {% endif %}
+        {% else %}
+            <span class="text-muted">Channel</span>
+        {% endif %}
+    </td>
+    <td class="align-middle" style="border-color: var(--tg-border);">
+        <div class="d-flex align-items-center gap-2">
+            <div class="flex-grow-1 min-width-0">
+                {% if show_topic_info %}
+                    {% if post.is_topic_message and post.topic %}
+                    <div class="topic-indicator small mb-1 text-info">
+                        <i class="bi bi-hash" style="font-size: 12px;"></i>
+                        {{ post.topic.title }}
+                    </div>
+                    {% elif post.reply_to_message_id %}
+                    <div class="reply-indicator small mb-1">
+                        <a href="?goto_msg={{ post.reply_to_message_id }}" class="text-decoration-none" onclick="event.stopPropagation();">
+                            <i class="bi bi-reply" style="font-size: 12px;"></i>
+                            Reply to #{{ post.reply_to_message_id }}
+                        </a>
+                    </div>
+                    {% endif %}
+                {% endif %}
+                {% if post.text %}
+                <div class="text-truncate small mono content-preview" style="max-width: {% if show_topic_info %}400{% else %}300{% endif %}px;">{% if search_highlight %}{{ post.text|highlight_search:search_highlight|truncatechars:200|safe }}{% else %}{{ post.text|truncatechars:200 }}{% endif %}</div>
+                {% endif %}
+                {% if post.has_media %}
+                <div class="small text-muted">
+                    {% if post.original_filename %}{{ post.original_filename|truncatechars:30 }}{% else %}{{ post.get_media_type_display }}{% endif %}
+                    {% if post.file_size %} ({{ post.file_size|filesizeformat }}){% endif %}
+                </div>
+                {% endif %}
+            </div>
+            {% if post.text %}
+            <i class="bi bi-chevron-down text-muted expand-icon flex-shrink-0" style="font-size: 14px; transition: transform 0.2s;"></i>
+            {% endif %}
+        </div>
+    </td>
+    <td class="small align-middle" style="border-color: var(--tg-border);">
+        {% if show_extended_date %}
+        <div>{{ post.telegram_date|post_datetime_short }}</div>
+        <div class="text-muted" style="font-size: 0.75rem;">({{ post.telegram_date|timesince }} ago)</div>
+        {% if post.ttl_period %}
+        <div class="text-warning d-flex align-items-center gap-1" style="font-size: 0.75rem;" title="Self-destructing message">
+            <i class="bi bi-clock" style="font-size: 12px;"></i>
+            <span>TTL: {{ post.ttl_period|format_ttl }}</span>
+        </div>
+        {% endif %}
+        {% if post.edited_date %}
+        <div class="text-muted d-flex align-items-center gap-1" style="font-size: 0.65rem;" title="Edited {{ post.edited_date|date:'d M Y H:i:s' }} UTC">
+            <i class="bi bi-pencil" style="font-size: 10px;"></i>
+            <span>edited</span>
+        </div>
+        {% endif %}
+        {% else %}
+        <div class="text-muted" style="font-size: 0.75rem;">{{ post.telegram_date|timesince }} ago</div>
+        {% if post.edited_date %}
+        <div class="text-muted d-flex align-items-center gap-1" style="font-size: 0.65rem;" title="Edited {{ post.edited_date|date:'d M Y H:i:s' }} UTC">
+            <i class="bi bi-pencil" style="font-size: 10px;"></i>
+            <span>edited</span>
+        </div>
+        {% endif %}
+        {% endif %}
+    </td>
+    <td class="align-middle" style="border-color: var(--tg-border);">
+        {% if post.is_deleted %}
+            <span class="badge bg-danger bg-opacity-75">Deleted</span>
+        {% elif post.has_media %}
+            {% if post.is_downloaded %}
+                <span class="badge bg-success">Downloaded</span>
+            {% elif post.media_unavailable %}
+                <span class="badge bg-secondary">Unavailable</span>
+            {% elif post.message_id in pending_message_ids %}
+                <span class="badge bg-warning">Queued</span>
+            {% else %}
+                <span class="badge bg-secondary bg-opacity-50">Ready</span>
+            {% endif %}
+        {% else %}
+            <span class="badge bg-secondary bg-opacity-50">Text</span>
+        {% endif %}
+    </td>
+    <td class="align-middle" style="border-color: var(--tg-border);">
+        <div class="d-flex gap-1 justify-content-end">
+            {% if post.has_media %}
+                {% if post.is_downloaded %}
+                    <a href="{% url 'downloads:file_detail' post.downloaded_file.pk %}" class="btn btn-sm btn-success" onclick="event.stopPropagation();" title="View">
+                        <i class="bi bi-eye" style="font-size: 14px;"></i>
+                    </a>
+                {% elif not post.media_unavailable and not post.is_deleted and post.message_id not in pending_message_ids %}
+                    <button class="btn btn-sm btn-primary queue-btn" onclick="event.stopPropagation(); queueDownload({{ post.pk }})" title="Download">
+                        <i class="bi bi-download" style="font-size: 14px;"></i>
+                    </button>
+                {% endif %}
+            {% endif %}
+            <div class="dropdown dropdown-hover">
+                <button class="btn btn-sm btn-menu-primary" type="button" data-bs-toggle="dropdown" onclick="event.stopPropagation();">
+                    <i class="bi bi-three-dots-vertical" style="font-size: 14px;"></i>
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end">
+                    {% if show_details_modal %}
+                    <li><a class="dropdown-item" href="#" onclick="event.stopPropagation(); openPostModal({{ post.pk }})"><i class="bi bi-info-circle me-2" style="font-size: 14px;"></i>Details</a></li>
+                    {% else %}
+                    <li><a class="dropdown-item" href="{% url 'audit:source_posts' post.channel.pk %}?q={{ post.message_id }}" onclick="event.stopPropagation();"><i class="bi bi-box-arrow-up-right me-2" style="font-size: 14px;"></i>View in Source</a></li>
+                    {% endif %}
+                    {% if post.is_downloaded and post.downloaded_file %}
+                    <li><a class="dropdown-item" href="{% url 'downloads:serve_media' post.downloaded_file.pk %}" download="{{ post.original_filename }}" onclick="event.stopPropagation();"><i class="bi bi-save me-2" style="font-size: 14px;"></i>Save File</a></li>
+                    {% endif %}
+                    <li><a class="dropdown-item" href="{% url 'audit:export_post_json' post.pk %}" onclick="event.stopPropagation();"><i class="bi bi-filetype-json me-2" style="font-size: 14px;"></i>Export JSON</a></li>
+                    {% if album_info and post.pk in album_info %}
+                    <li><a class="dropdown-item" href="{% url 'audit:source_files_gallery' album_info|get_item:post.pk|get_item:'channel_pk' %}?album={{ album_info|get_item:post.pk|get_item:'grouped_id' }}&msg={{ post.message_id }}" onclick="event.stopPropagation();"><i class="bi bi-images me-2" style="font-size: 14px;"></i>Open in Gallery <span class="badge bg-secondary ms-1">{{ album_info|get_item:post.pk|get_item:'total' }}</span></a></li>
+                    {% endif %}
+                    {% if post.is_downloaded %}
+                    <li><hr class="dropdown-divider"></li>
+                    <li><a class="dropdown-item text-danger" href="#" onclick="event.stopPropagation(); deletePostMedia({{ post.pk }})"><i class="bi bi-trash me-2" style="font-size: 14px;"></i>Delete File</a></li>
+                    {% endif %}
+                    {% if show_details_modal %}
+                    <li><hr class="dropdown-divider"></li>
+                    <li><a class="dropdown-item text-danger" href="#" onclick="event.stopPropagation(); openReportModal({{ post.message_id }}, {{ post.pk }})"><i class="bi bi-flag me-2" style="font-size: 14px;"></i>Report</a></li>
+                    {% endif %}
+                </ul>
+            </div>
+        </div>
+    </td>
+</tr>
+<!-- Expandable content row -->
+{% if post.text %}
+<tr class="expand-row" style="display: none;">
+    <td colspan="{{ col_count }}" style="border-color: var(--tg-border); padding: 0;">
+        <div class="{% if show_source %}d-flex justify-content-center{% endif %}">
+            <div class="p-3 {% if show_source %}my-2{% else %}mx-4 my-2{% endif %} rounded" style="background: rgba(0,0,0,0.2); border: 1px solid var(--tg-border); {% if show_source %}max-width: 800px; width: 100%;{% endif %}">
+                <p class="mb-0 mono" style="white-space: pre-wrap;">{% if search_highlight %}{{ post.text|highlight_search:search_highlight|safe }}{% else %}{{ post.text }}{% endif %}</p>
+            </div>
+        </div>
+    </td>
+</tr>
+{% endif %}

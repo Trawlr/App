@@ -1,0 +1,34 @@
+{% if account_statuses %}
+    {% for item in account_statuses %}
+    <div class="d-flex justify-content-between align-items-center p-3 {% if not forloop.last %}border-bottom{% endif %}">
+        <div class="d-flex align-items-center gap-3">
+            <div class="position-relative">
+                <div class="avatar avatar-sm">
+                    <i class="bi bi-person icon-md"></i>
+                </div>
+                {% if item.is_connected %}
+                <span class="position-absolute bottom-0 end-0 d-inline-block rounded-circle bg-success" style="width: 8px; height: 8px; border: 2px solid var(--tg-card-bg);"></span>
+                {% endif %}
+            </div>
+            <div>
+                <div class="fw-bold small">{{ item.account.name }}</div>
+                <small class="text-muted">{{ item.channel_count }} sources</small>
+            </div>
+        </div>
+        <div class="text-end">
+            {% if item.account.listener_status == 'running' or item.account.listener_status == 'flood_wait' %}
+                <span class="badge badge-success">Listening</span>
+            {% elif item.account.listener_status == 'error' %}
+                <span class="badge badge-danger" title="{{ item.account.listener_error }}">Error</span>
+            {% else %}
+                <span class="badge badge-secondary">Stopped</span>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+{% else %}
+    <div class="text-center py-4 text-muted">
+        <p class="mb-2 small">No accounts configured</p>
+        <a href="{% url 'accounts:telegram_account_add' %}" class="btn btn-sm btn-primary">Add Account</a>
+    </div>
+{% endif %}

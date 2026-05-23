@@ -1,0 +1,295 @@
+{% extends "reports/base_report.html" %}
+{% load humanize %}
+
+{% block report_title %}User Activity{% endblock %}
+{% block report_heading %}User Activity{% endblock %}
+{% block report_description %}User activity overview{% endblock %}
+{% block export_url %}{% url 'reports:export_users' %}{% endblock %}
+{% block export_url_json %}{% url 'reports:export_users' %}{% endblock %}
+
+{% block report_content %}
+<!-- Summary Stats -->
+<div class="row g-3 mb-4">
+    <div class="col-6 col-md-3">
+        <div class="stat-card">
+            <div class="stat-value text-primary">{{ stats.total_users|default:0|intcomma }}</div>
+            <div class="stat-label">Total Users Tracked</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="stat-card">
+            <div class="stat-value text-success">{{ stats.new_users|default:0|intcomma }}</div>
+            <div class="stat-label">New Users (Period)</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="stat-card">
+            <div class="stat-value text-info">{{ stats.active_users|default:0|intcomma }}</div>
+            <div class="stat-label">Active Users</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="stat-card">
+            <div class="stat-value text-warning">{{ stats.flagged_users|default:0|intcomma }}</div>
+            <div class="stat-label">Flagged for Review</div>
+        </div>
+    </div>
+</div>
+
+<!-- User Type Stats -->
+<div class="row g-3 mb-4">
+    <div class="col-4 col-md-2">
+        <div class="stat-card text-center">
+            <div class="stat-value fs-5 text-info">{{ stats.premium_users|default:0|intcomma }}</div>
+            <div class="stat-label">Premium</div>
+        </div>
+    </div>
+    <div class="col-4 col-md-2">
+        <div class="stat-card text-center">
+            <div class="stat-value fs-5 text-primary">{{ stats.verified_users|default:0|intcomma }}</div>
+            <div class="stat-label">Verified</div>
+        </div>
+    </div>
+    <div class="col-4 col-md-2">
+        <div class="stat-card text-center">
+            <div class="stat-value fs-5 text-secondary">{{ stats.bot_count|default:0|intcomma }}</div>
+            <div class="stat-label">Bots</div>
+        </div>
+    </div>
+    <div class="col-4 col-md-2">
+        <div class="stat-card text-center">
+            <div class="stat-value fs-5 text-danger">{{ stats.scam_count|default:0|intcomma }}</div>
+            <div class="stat-label">Scam</div>
+        </div>
+    </div>
+    <div class="col-4 col-md-2">
+        <div class="stat-card text-center">
+            <div class="stat-value fs-5 text-danger">{{ stats.fake_count|default:0|intcomma }}</div>
+            <div class="stat-label">Fake</div>
+        </div>
+    </div>
+    <div class="col-4 col-md-2">
+        <div class="stat-card text-center">
+            <div class="stat-value fs-5 text-warning">{{ stats.restricted_count|default:0|intcomma }}</div>
+            <div class="stat-label">Restricted</div>
+        </div>
+    </div>
+</div>
+
+<!-- Churn Stats -->
+<div class="row g-3 mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0">
+                    <i class="bi bi-person-dash me-2" style="font-size: 18px;"></i>
+                    User Activity (Inactive 60+ days or left)
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="row g-4">
+                    <div class="col-md-3">
+                        <div class="text-muted small">Total Memberships</div>
+                        <div class="fs-4 fw-bold">{{ churn.total_memberships|default:0|intcomma }}</div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="text-muted small">Inactive</div>
+                        <div class="fs-4 fw-bold text-warning">{{ churn.churned_count|default:0|intcomma }}</div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="text-muted small">Inactive Rate</div>
+                        <div class="fs-4 fw-bold text-danger">{{ churn.churn_rate|default:0 }}%</div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="text-muted small">Active</div>
+                        <div class="fs-4 fw-bold text-success">{{ churn.active_count|default:0|intcomma }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Charts Row -->
+<div class="row g-4 mb-4">
+    <!-- New Users Chart -->
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0">
+                    <i class="bi bi-person-plus me-2" style="font-size: 18px;"></i>
+                    New Users Over Time
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="chart-container">
+                    <canvas id="newUsersChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Top Posters Chart -->
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0">
+                    <i class="bi bi-chat-square me-2" style="font-size: 18px;"></i>
+                    Top Posters
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="chart-container">
+                    <canvas id="topPostersChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Tables Row -->
+<div class="row g-4">
+    <!-- Cross-Channel Users -->
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0">
+                    <i class="bi bi-people me-2" style="font-size: 18px;"></i>
+                    Cross-Channel Users
+                </h6>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th>User</th>
+                                <th style="width: 100px;">Channels</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for user in cross_channel_users %}
+                            <tr>
+                                <td>
+                                    <a href="{% url 'audit:user_detail' user.pk %}" class="text-decoration-none">
+                                        {% if user.username %}@{{ user.username }}{% else %}{{ user.first_name }} {{ user.last_name }}{% endif %}
+                                    </a>
+                                </td>
+                                <td><span class="badge bg-info">{{ user.channel_count }}</span></td>
+                            </tr>
+                            {% empty %}
+                            <tr><td colspan="2" class="text-center text-muted py-3">No cross-channel users</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Flagged Users -->
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0">
+                    <i class="bi bi-flag me-2" style="font-size: 18px;"></i>
+                    Flagged Users
+                </h6>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th>User</th>
+                                <th>Reason</th>
+                                <th style="width: 100px;">Flagged</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for user in flagged_users %}
+                            <tr>
+                                <td>
+                                    <a href="{% url 'audit:user_detail' user.pk %}" class="text-decoration-none">
+                                        {% if user.username %}@{{ user.username }}{% else %}{{ user.first_name }} {{ user.last_name }}{% endif %}
+                                    </a>
+                                </td>
+                                <td>
+                                    <span class="badge bg-warning text-dark">{{ user.flagged_reason|default:"—" }}</span>
+                                </td>
+                                <td class="text-muted small">{{ user.flagged_at|date:"M d" }}</td>
+                            </tr>
+                            {% empty %}
+                            <tr><td colspan="3" class="text-center text-muted py-3">No flagged users</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block report_js %}
+<script>
+let newUsersChart, topPostersChart;
+
+async function initCharts() {
+    await Promise.all([
+        initNewUsersChart(),
+        initTopPostersChart(),
+    ]);
+}
+
+async function initNewUsersChart() {
+    const ctx = document.getElementById('newUsersChart');
+    const response = await fetch(`{% url 'reports:api_users_activity' %}?${getDateParams()}`);
+    const data = await response.json();
+
+    newUsersChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: data.labels,
+            datasets: [{
+                label: 'New Users',
+                data: data.values,
+                borderColor: '#198754',
+                backgroundColor: 'rgba(25, 135, 84, 0.1)',
+                borderWidth: 2,
+                fill: true,
+                tension: 0.3,
+                pointRadius: 3,
+                pointBackgroundColor: '#198754',
+            }]
+        },
+        options: lineChartOptions
+    });
+}
+
+async function initTopPostersChart() {
+    const ctx = document.getElementById('topPostersChart');
+    const response = await fetch(`{% url 'reports:api_users_top_posters' %}?${getDateParams()}`);
+    const data = await response.json();
+
+    topPostersChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: data.labels,
+            datasets: [{
+                label: 'Messages',
+                data: data.values,
+                backgroundColor: '#6f42c1',
+                borderRadius: 4,
+            }]
+        },
+        options: {
+            ...barChartOptions,
+            plugins: { ...barChartOptions.plugins, legend: { display: false } }
+        }
+    });
+}
+
+document.addEventListener('DOMContentLoaded', initCharts);
+</script>
+{% endblock %}

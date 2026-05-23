@@ -1,0 +1,73 @@
+{% load audit_extras %}
+{% if file %}
+    <div class="file-viewer">
+        {% if file.deleted_from_disk %}
+            <div class="py-5" style="color: var(--tg-text);">
+                {% if file.file_type == 'photo' %}
+                    <i class="bi bi-image text-info" style="font-size: 64px; opacity: 0.5;"></i>
+                {% elif file.file_type == 'video' %}
+                    <i class="bi bi-camera-video text-success" style="font-size: 64px; opacity: 0.5;"></i>
+                {% else %}
+                    <i class="bi bi-file-earmark text-warning" style="font-size: 64px; opacity: 0.5;"></i>
+                {% endif %}
+                <p class="mt-3 mb-0 text-muted">File has been deleted from disk</p>
+            </div>
+        {% elif file.file_type == 'photo' %}
+            <img src="{{ file.file_url }}" alt="{{ file.original_filename }}" class="img-fluid rounded" style="max-height: 70vh;"
+                 onerror="this.outerHTML='<div class=\'py-5\'><i class=\'bi bi-image text-info\' style=\'font-size: 64px; opacity: 0.5;\'></i><p class=\'mt-3 mb-0 text-muted\'>Image unavailable</p></div>'">
+        {% elif file.file_type == 'video' %}
+            <video controls class="w-100 rounded blur-safe" style="max-height: 70vh;" autoplay>
+                <source src="{{ file.file_url }}" type="video/mp4">
+                Your browser does not support the video tag.
+            </video>
+        {% else %}
+            <div class="py-5" style="color: var(--tg-text);">
+                <i class="bi bi-file-earmark" style="font-size: 64px; opacity: 0.5;"></i>
+                <p class="mt-3 mb-0">{{ file.original_filename }}</p>
+            </div>
+        {% endif %}
+    </div>
+
+    <div class="mt-4 text-start border-top pt-3" style="border-color: var(--tg-border) !important; color: var(--tg-text);">
+        <div class="row g-3">
+            <div class="col-md-6">
+                <div class="small mb-1" style="color: var(--tg-text-muted);">Filename</div>
+                <div class="text-truncate" title="{{ file.original_filename }}" style="color: var(--tg-text);">{{ file.original_filename }}</div>
+            </div>
+            <div class="col-md-6">
+                <div class="small mb-1" style="color: var(--tg-text-muted);">Source</div>
+                <div class="text-truncate" style="color: var(--tg-text);">{{ file.channel|display_title }}</div>
+            </div>
+            <div class="col-md-4">
+                <div class="small mb-1" style="color: var(--tg-text-muted);">Size</div>
+                <div style="color: var(--tg-text);">{{ file.file_size|filesizeformat }}</div>
+            </div>
+            <div class="col-md-4">
+                <div class="small mb-1" style="color: var(--tg-text-muted);">Type</div>
+                <div style="color: var(--tg-text);">{{ file.mime_type }}</div>
+            </div>
+            <div class="col-md-4">
+                <div class="small mb-1" style="color: var(--tg-text-muted);">Downloaded</div>
+                <div style="color: var(--tg-text);">{{ file.downloaded_at|date:"M d, Y H:i" }}</div>
+            </div>
+        </div>
+
+        <div class="mt-3 d-flex gap-2">
+            <a href="{% url 'downloads:file_detail' file.pk %}" class="btn btn-outline-primary btn-sm">
+                <i class="bi bi-info-circle me-1" style="font-size: 14px;"></i>
+                Full Details
+            </a>
+            {% if not file.deleted_from_disk %}
+            <a href="{{ file.file_url }}" class="btn btn-primary btn-sm" download="{{ file.original_filename }}">
+                <i class="bi bi-download me-1" style="font-size: 14px;"></i>
+                Download
+            </a>
+            {% endif %}
+        </div>
+    </div>
+{% else %}
+    <div class="py-5" style="color: var(--tg-text-muted);">
+        <i class="bi bi-exclamation-circle" style="font-size: 48px; opacity: 0.5;"></i>
+        <p class="mt-3 mb-0">File not found.</p>
+    </div>
+{% endif %}

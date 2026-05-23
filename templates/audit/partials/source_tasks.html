@@ -1,0 +1,117 @@
+{% if page_obj.paginator.count > 0 %}
+<div class="table-responsive">
+    <table class="table table-sm mb-0">
+        <thead>
+            <tr>
+                <th>Task</th>
+                <th>Status</th>
+                <th>Completed</th>
+                <th>Duration</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for task in page_obj %}
+            <tr>
+                <td>
+                    <span class="small">{{ task.get_task_type_display }}</span>
+                </td>
+                <td>
+                    <span class="badge
+                        {% if task.status == 'completed' %}bg-success
+                        {% elif task.status == 'running' %}bg-primary
+                        {% elif task.status == 'queued' %}bg-info
+                        {% elif task.status == 'failed' %}bg-danger
+                        {% elif task.status == 'cancelled' %}bg-secondary
+                        {% else %}bg-secondary{% endif %}">
+                        {{ task.get_status_display }}
+                    </span>
+                </td>
+                <td>
+                    <span class="small text-muted">
+                        {% if task.completed_at %}
+                            {{ task.completed_at|timesince }} ago
+                        {% elif task.status == 'running' %}
+                            <span class="text-primary">In progress</span>
+                        {% elif task.status == 'queued' %}
+                            <span class="text-info">Waiting</span>
+                        {% else %}
+                            -
+                        {% endif %}
+                    </span>
+                </td>
+                <td>
+                    <span class="small text-muted">
+                        {% if task.started_at and task.completed_at %}
+                            {{ task.started_at|timesince:task.completed_at }}
+                        {% elif task.started_at %}
+                            {{ task.started_at|timesince }} (running)
+                        {% else %}
+                            -
+                        {% endif %}
+                    </span>
+                </td>
+            </tr>
+            {% if task.status == 'failed' and task.error %}
+            <tr>
+                <td colspan="4" class="py-1 px-3 small text-danger" style="border-top: none;">
+                    <i class="bi bi-exclamation-circle me-1" style="font-size: 12px;"></i>
+                    {{ task.error|truncatechars:100 }}
+                </td>
+            </tr>
+            {% endif %}
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% if page_obj.paginator.num_pages > 1 %}
+<div class="card-footer d-flex justify-content-between align-items-center py-2 border-0">
+    <div class="small text-muted">
+        {{ page_obj.start_index }}-{{ page_obj.end_index }} of {{ page_obj.paginator.count }}
+    </div>
+    <nav aria-label="Task history pagination">
+        <ul class="pagination pagination-sm mb-0">
+            {% if page_obj.has_previous %}
+            <li class="page-item">
+                <a class="page-link"
+                   hx-get="{% url 'audit:source_tasks' source.pk %}?tasks_page={{ page_obj.previous_page_number }}&tasks_per_page={{ tasks_per_page }}"
+                   hx-target="#source-tasks-container"
+                   hx-swap="innerHTML">
+                    <i class="bi bi-chevron-left" style="font-size: 14px;"></i>
+                </a>
+            </li>
+            {% else %}
+            <li class="page-item disabled">
+                <span class="page-link"><i class="bi bi-chevron-left" style="font-size: 14px;"></i></span>
+            </li>
+            {% endif %}
+
+            <li class="page-item disabled">
+                <span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
+            </li>
+
+            {% if page_obj.has_next %}
+            <li class="page-item">
+                <a class="page-link"
+                   hx-get="{% url 'audit:source_tasks' source.pk %}?tasks_page={{ page_obj.next_page_number }}&tasks_per_page={{ tasks_per_page }}"
+                   hx-target="#source-tasks-container"
+                   hx-swap="innerHTML">
+                    <i class="bi bi-chevron-right" style="font-size: 14px;"></i>
+                </a>
+            </li>
+            {% else %}
+            <li class="page-item disabled">
+                <span class="page-link"><i class="bi bi-chevron-right" style="font-size: 14px;"></i></span>
+            </li>
+            {% endif %}
+        </ul>
+    </nav>
+</div>
+{% endif %}
+
+{% else %}
+<div class="text-center py-4 text-muted">
+    <i class="bi bi-clipboard-check mb-2" style="font-size: 32px; opacity: 0.5;"></i>
+    <p class="mb-0 small">No tasks have been executed for this source yet.</p>
+</div>
+{% endif %}

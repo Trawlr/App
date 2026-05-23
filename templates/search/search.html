@@ -1,0 +1,240 @@
+{% extends "base.html" %}
+{% load audit_extras %}
+
+{% block title %}Search - Trawlr{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2>Advanced Search</h2>
+        <p class="text-muted mb-0">Search across all users, messages and entities.</p>
+    </div>
+</div>
+
+<div class="card border-0">
+    <!-- Search Input -->
+    <div class="card-header border-bottom py-3" style="border-color: var(--tg-border) !important;">
+        <form method="get" id="search-form">
+            <div class="input-group">
+                <span class="input-group-text bg-transparent">
+                    <i class="bi bi-search" style="font-size: 16px;"></i>
+                </span>
+                <input type="text"
+                       class="form-control mono"
+                       name="q"
+                       value="{{ query }}"
+                       placeholder="text:keyword channel:news created<=7d"
+                       autocomplete="off"
+                       id="search-input">
+                {% if query %}
+                <a href="{% url 'search:search' %}" class="btn btn-outline-secondary" title="Clear search">
+                    <i class="bi bi-x" style="font-size: 16px;"></i>
+                </a>
+                {% endif %}
+                <button type="submit" class="btn btn-primary px-3">
+                    Search
+                </button>
+            </div>
+            <input type="hidden" name="per_page" value="{{ per_page }}">
+            <input type="hidden" name="sort" value="{{ sort }}">
+        </form>
+
+        <!-- Query examples -->
+        <div class="mt-3 d-flex flex-wrap gap-2 align-items-center">
+            <span class="small text-muted">Examples:</span>
+            {% for example in search_help.examples %}
+            <button type="button" class="btn btn-sm btn-outline-secondary example-query" data-query="{{ example }}">
+                {{ example }}
+            </button>
+            {% endfor %}
+            <button type="button" class="btn btn-sm btn-link text-muted" data-bs-toggle="modal" data-bs-target="#searchHelpModal">
+                <i class="bi bi-question-circle me-1" style="font-size: 14px;"></i>
+                Syntax Help
+            </button>
+        </div>
+    </div>
+
+    {% if warnings %}
+    <div class="alert alert-warning m-3 mb-0 py-2">
+        <i class="bi bi-exclamation-triangle me-2"></i>
+        {% for warning in warnings %}
+        <span class="small">{{ warning }}</span>{% if not forloop.last %}<br>{% endif %}
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if error %}
+    <div class="alert alert-danger m-3">
+        <i class="bi bi-exclamation-circle me-2" style="font-size: 18px;"></i>
+        {{ error }}
+    </div>
+    {% endif %}
+
+    {% if query %}
+    <!-- Results Header -->
+    <div class="d-flex justify-content-between align-items-center px-3 py-2 border-bottom" style="border-color: var(--tg-border) !important;">
+        <span class="text-muted">
+            {{ page_obj.paginator.count|default:0 }} result{{ page_obj.paginator.count|pluralize }}
+            {% if query %}for <code class="ms-1">{{ query }}</code>{% endif %}
+        </span>
+        <div class="d-flex gap-2 align-items-center">
+            <!-- Per page -->
+            <select class="form-select form-select-sm" style="width: auto;" name="per_page" form="search-form" onchange="this.form.submit()">
+                <option value="25" {% if per_page == 25 %}selected{% endif %}>25</option>
+                <option value="50" {% if per_page == 50 %}selected{% endif %}>50</option>
+                <option value="100" {% if per_page == 100 %}selected{% endif %}>100</option>
+            </select>
+            <!-- Sort order -->
+            <div class="btn-group btn-group-sm" role="group">
+                <a href="?q={{ query|urlencode }}&sort=newest&per_page={{ per_page }}" class="btn {% if sort == 'newest' %}btn-primary{% else %}btn-outline-secondary{% endif %} px-2" title="Newest first">
+                    <i class="bi bi-arrow-down" style="font-size: 16px;"></i>
+                </a>
+                <a href="?q={{ query|urlencode }}&sort=oldest&per_page={{ per_page }}" class="btn {% if sort == 'oldest' %}btn-primary{% else %}btn-outline-secondary{% endif %} px-2" title="Oldest first">
+                    <i class="bi bi-arrow-up" style="font-size: 16px;"></i>
+                </a>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Results Table -->
+    {% if query %}
+    {% include "includes/messages_table.html" with messages=results pending_message_ids=pending_message_ids known_users=known_users show_source=True col_count=8 search_highlight=query empty_icon="search-x" empty_message="No results found." empty_submessage="Try adjusting your search query." %}
+    {% elif not query %}
+    <!-- Empty state when no query -->
+    <div class="text-center py-5">
+        <i class="bi bi-search mb-3 text-muted" style="font-size: 64px; opacity: 0.3;"></i>
+        <h5>Search your archived messages</h5>
+        <p class="text-muted">Enter a search query above or click an example to get started.</p>
+    </div>
+    {% endif %}
+
+    <!-- Pagination -->
+    {% if results.has_other_pages %}
+    <div class="card-footer border-top d-flex flex-column align-items-center py-2" style="border-color: var(--tg-border) !important;">
+        <nav aria-label="Search pagination">
+            <ul class="pagination pagination-sm mb-1">
+                {% if results.has_previous %}
+                <li class="page-item">
+                    <a class="page-link" href="?q={{ query|urlencode }}&page=1&per_page={{ per_page }}&sort={{ sort }}">
+                        <i class="bi bi-chevron-double-left" style="font-size: 14px;"></i>
+                    </a>
+                </li>
+                <li class="page-item">
+                    <a class="page-link" href="?q={{ query|urlencode }}&page={{ results.previous_page_number }}&per_page={{ per_page }}&sort={{ sort }}">
+                        <i class="bi bi-chevron-left" style="font-size: 14px;"></i>
+                    </a>
+                </li>
+                {% endif %}
+
+                {% for num in results.paginator.page_range %}
+                    {% if results.number == num %}
+                    <li class="page-item active"><span class="page-link">{{ num }}</span></li>
+                    {% elif num > results.number|add:'-6' and num < results.number|add:'6' %}
+                    <li class="page-item">
+                        <a class="page-link" href="?q={{ query|urlencode }}&page={{ num }}&per_page={{ per_page }}&sort={{ sort }}">{{ num }}</a>
+                    </li>
+                    {% endif %}
+                {% endfor %}
+
+                {% if results.has_next %}
+                <li class="page-item">
+                    <a class="page-link" href="?q={{ query|urlencode }}&page={{ results.next_page_number }}&per_page={{ per_page }}&sort={{ sort }}">
+                        <i class="bi bi-chevron-right" style="font-size: 14px;"></i>
+                    </a>
+                </li>
+                <li class="page-item">
+                    <a class="page-link" href="?q={{ query|urlencode }}&page={{ results.paginator.num_pages }}&per_page={{ per_page }}&sort={{ sort }}">
+                        <i class="bi bi-chevron-double-right" style="font-size: 14px;"></i>
+                    </a>
+                </li>
+                {% endif %}
+            </ul>
+        </nav>
+        <div class="text-muted small">
+            Page {{ results.number }} of {{ results.paginator.num_pages }}
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Search Help Modal -->
+<div class="modal fade" id="searchHelpModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Search Syntax</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <h6>Search Fields</h6>
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th>Field</th>
+                            <th>Description</th>
+                            <th>Example</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for field in search_help.fields %}
+                        <tr>
+                            <td><code>{{ field.name }}</code></td>
+                            <td>{{ field.desc }}</td>
+                            <td><code>{{ field.example }}</code></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+
+                <h6 class="mt-4">Operators</h6>
+                <table class="table table-sm">
+                    <tbody>
+                        {% for op in search_help.operators %}
+                        <tr>
+                            <td><code>{{ op.name }}</code></td>
+                            <td>{{ op.desc }}</td>
+                            <td><code>{{ op.example }}</code></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+
+                <h6 class="mt-4">Date Formats</h6>
+                <ul class="small">
+                    <li>Relative: <code>30s</code> (seconds), <code>5min</code> (minutes), <code>2h</code> (hours), <code>7d</code> (days), <code>2w</code> (weeks), <code>1mo</code> (months), <code>1y</code> (years)</li>
+                    <li>Absolute: <code>2024-01-15</code> (ISO format)</li>
+                    <li>Operators: <code>&gt;=</code>, <code>&gt;</code>, <code>&lt;=</code>, <code>&lt;</code>, <code>=</code></li>
+                </ul>
+
+                <h6 class="mt-4">Tips</h6>
+                <ul class="small">
+                    <li>Use quotes for phrases: <code>text:"hello world"</code></li>
+                    <li>Use wildcards in entity searches: <code>email:*@gmail.com</code></li>
+                    <li>Combine conditions: <code>url:pastebin created<=7d has_media:false</code></li>
+                    <li>Negate with <code>-</code>: <code>-channel:spam</code></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% include "includes/messages_table_css.html" %}
+{% endblock %}
+
+{% block extra_js %}
+{% include "includes/messages_table_js.html" %}
+
+<script>
+// Example query buttons
+document.querySelectorAll('.example-query').forEach(btn => {
+    btn.addEventListener('click', function() {
+        document.getElementById('search-input').value = this.dataset.query;
+        document.getElementById('search-form').submit();
+    });
+});
+
+// Focus search input on page load
+document.getElementById('search-input').focus();
+</script>
+{% endblock %}

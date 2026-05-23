@@ -1,0 +1,446 @@
+{% load audit_extras %}
+<div class="sidebar">
+    <div class="logo-container d-flex align-items-center gap-3">
+        <div class="logo-circle">
+            <span style="font-size: 18px; font-weight: 900; line-height: 1;">T</span>
+        </div>
+        <h5 class="m-0 fw-bold logo-text">Trawlr<span class="text-primary"></span></h5>
+    </div>
+
+    <!-- Safe Eyes Toggle -->
+    <div class="safe-eyes-toggle px-3 py-2 border-bottom" style="border-color: var(--tg-border) !important;" title="Safe Eyes will blur all media content">
+        <div class="form-check form-switch mb-0 d-flex align-items-center">
+            <input class="form-check-input me-2" type="checkbox" id="safeEyesToggle" style="cursor: pointer;">
+            <label class="form-check-label small text-muted" for="safeEyesToggle" style="cursor: pointer;">
+                <i class="bi bi-eye-slash me-1"></i> Safe Eyes
+            </label>
+        </div>
+    </div>
+
+    <div class="sidebar-scroll">
+    <nav class="nav flex-column mt-2">
+        <!-- Dashboard - standalone -->
+        <a href="{% url 'dashboard:index' %}" class="nav-link {% if request.resolver_match.url_name == 'index' and request.resolver_match.app_name == 'dashboard' %}active{% endif %}">
+            <i class="bi bi-speedometer2"></i> <span>Dashboard</span>
+        </a>
+
+        <!-- Search - collapsible -->
+        <div class="nav-section" data-section="search">
+            <div class="nav-section-header" onclick="toggleSection('search')">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="bi bi-search"></i> <span>Search</span>
+                </div>
+                <i class="bi bi-chevron-down section-toggle-icon"></i>
+            </div>
+            <div class="nav-section-items">
+                <a href="{% url 'search:search' %}" class="nav-sublink {% if request.resolver_match.app_name == 'search' and request.resolver_match.url_name == 'search' %}active{% endif %}">
+                    Messages
+                </a>
+                <a href="{% url 'search:aggregate' %}" class="nav-sublink {% if request.resolver_match.url_name == 'aggregate' %}active{% endif %}">
+                    Aggregate <span class="badge bg-warning text-dark ms-1" style="font-size: 0.6rem; vertical-align: middle;">BETA</span>
+                </a>
+            </div>
+        </div>
+
+        <!-- Feed - collapsible -->
+        <div class="nav-section" data-section="feed">
+            <div class="nav-section-header" onclick="toggleSection('feed')">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="bi bi-rss"></i> <span>Feed</span>
+                </div>
+                <i class="bi bi-chevron-down section-toggle-icon"></i>
+            </div>
+            <div class="nav-section-items">
+                <a href="{% url 'audit:feed' %}" class="nav-sublink {% if request.resolver_match.url_name == 'feed' %}active{% endif %}">
+                    All Posts
+                </a>
+                <a href="{% url 'audit:monitored_feed' %}" class="nav-sublink {% if request.resolver_match.url_name == 'monitored_feed' %}active{% endif %}">
+                    Monitored Sources
+                </a>
+            </div>
+        </div>
+
+        <!-- Sources - collapsible -->
+        <div class="nav-section" data-section="sources">
+            <div class="nav-section-header" onclick="toggleSection('sources')">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="bi bi-broadcast-pin"></i> <span>Sources</span>
+                </div>
+                <i class="bi bi-chevron-down section-toggle-icon"></i>
+            </div>
+            <div class="nav-section-items">
+                <a href="{% url 'audit:sources' %}" class="nav-sublink {% if request.resolver_match.app_name == 'audit' and request.resolver_match.url_name == 'sources' and not request.GET.filter %}active{% endif %}">
+                    Browse All
+                </a>
+                <a href="{% url 'audit:sources' %}?filter=monitored" class="nav-sublink {% if request.resolver_match.app_name == 'audit' and request.resolver_match.url_name == 'sources' and request.GET.filter == 'monitored' %}active{% endif %}">
+                    Monitored Sources
+                </a>
+                <a href="{% url 'audit:sources' %}?filter=recent" class="nav-sublink {% if request.resolver_match.app_name == 'audit' and request.resolver_match.url_name == 'sources' and request.GET.filter == 'recent' %}active{% endif %}">
+                    Recently Joined
+                </a>
+                <a href="{% url 'audit:archived_sources' %}" class="nav-sublink {% if request.resolver_match.url_name == 'archived_sources' %}active{% endif %}">
+                    Archived
+                </a>
+                <a href="#" class="nav-sublink nav-sublink-action" data-bs-toggle="modal" data-bs-target="#sourceLookupModal">
+                    <i class="bi bi-plus" style="font-size: 12px;"></i> Join Channel/Group
+                </a>
+            </div>
+        </div>
+
+        <!-- Users - standalone -->
+        <a href="{% url 'audit:users' %}" class="nav-link {% if request.resolver_match.app_name == 'audit' and request.resolver_match.url_name == 'users' or request.resolver_match.url_name == 'user_detail' %}active{% endif %}">
+            <i class="bi bi-person-lines-fill"></i> <span>Telegram Users</span>
+        </a>
+
+        <!-- Downloads - standalone -->
+        <a href="{% url 'downloads:index' %}" class="nav-link {% if request.resolver_match.app_name == 'downloads' and request.resolver_match.url_name == 'index' %}active{% endif %}">
+            <i class="bi bi-cloud-download"></i>
+            <span>Downloads</span>
+            <span id="sidebar-badges">
+                <span id="sidebar-badge-active" class="badge badge-tg ms-auto{% if not sidebar_active_downloads %} d-none{% endif %}">{{ sidebar_active_downloads|default:0 }}</span>
+                <span id="sidebar-badge-failed" class="badge badge-danger ms-1{% if not sidebar_failed_downloads %} d-none{% endif %}">{{ sidebar_failed_downloads|default:0 }}</span>
+            </span>
+        </a>
+
+        <!-- Files - standalone -->
+        <a href="{% url 'downloads:files' %}" class="nav-link {% if request.resolver_match.url_name == 'files' or request.resolver_match.url_name == 'file_detail' %}active{% endif %}">
+            <i class="bi bi-folder"></i> <span>Files</span>
+        </a>
+
+        <!-- Map - collapsible -->
+        <div class="nav-section" data-section="map">
+            <div class="nav-section-header" onclick="toggleSection('map')">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="bi bi-diagram-3"></i> <span>Map</span>
+                </div>
+                <i class="bi bi-chevron-down section-toggle-icon"></i>
+            </div>
+            <div class="nav-section-items">
+                <a href="{% url 'graph:index' %}" class="nav-sublink {% if request.resolver_match.app_name == 'graph' and request.resolver_match.url_name == 'index' %}active{% endif %}">
+                    Overview
+                </a>
+                <a href="{% url 'graph:activity' %}" class="nav-sublink {% if request.resolver_match.app_name == 'graph' and request.resolver_match.url_name == 'activity' %}active{% endif %}">
+                    Activity
+                </a>
+                <a href="{% url 'graph:forwards' %}" class="nav-sublink {% if request.resolver_match.url_name == 'forwards' %}active{% endif %}">
+                    Forwards
+                </a>
+                <a href="{% url 'graph:users' %}" class="nav-sublink {% if request.resolver_match.app_name == 'graph' and request.resolver_match.url_name == 'users' %}active{% endif %}">
+                    Users
+                </a>
+                <a href="{% url 'graph:crosspost' %}" class="nav-sublink {% if request.resolver_match.url_name == 'crosspost' %}active{% endif %}">
+                    Cross-Post
+                </a>
+                <a href="{% url 'graph:urls' %}" class="nav-sublink {% if request.resolver_match.url_name == 'urls' %}active{% endif %}">
+                    URLs
+                </a>
+                <a href="{% url 'graph:media' %}" class="nav-sublink {% if request.resolver_match.app_name == 'graph' and request.resolver_match.url_name == 'media' %}active{% endif %}">
+                    Shared Media
+                </a>
+                <a href="{% url 'graph:mentions' %}" class="nav-sublink {% if request.resolver_match.url_name == 'mentions' %}active{% endif %}">
+                    Mentions
+                </a>
+                <a href="{% url 'graph:admins' %}" class="nav-sublink {% if request.resolver_match.url_name == 'admins' %}active{% endif %}">
+                    Admins
+                </a>
+                <a href="{% url 'graph:cib' %}" class="nav-sublink {% if request.resolver_match.app_name == 'graph' and request.resolver_match.url_name == 'cib' %}active{% endif %}">
+                    Inauthentic Behavior
+                </a>
+            </div>
+        </div>
+
+        <!-- Reports - collapsible -->
+        <div class="nav-section" data-section="reports">
+            <div class="nav-section-header" onclick="toggleSection('reports')">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="bi bi-bar-chart"></i> <span>Reports</span>
+                </div>
+                <i class="bi bi-chevron-down section-toggle-icon"></i>
+            </div>
+            <div class="nav-section-items">
+                <a href="{% url 'reports:content' %}" class="nav-sublink {% if request.resolver_match.app_name == 'reports' and request.resolver_match.url_name == 'content' %}active{% endif %}">
+                    Content
+                </a>
+                <a href="{% url 'reports:users' %}" class="nav-sublink {% if request.resolver_match.app_name == 'reports' and request.resolver_match.url_name == 'users' %}active{% endif %}">
+                    Users
+                </a>
+                <a href="{% url 'reports:sources' %}" class="nav-sublink {% if request.resolver_match.app_name == 'reports' and request.resolver_match.url_name == 'sources' %}active{% endif %}">
+                    Source Analytics
+                </a>
+                <a href="{% url 'reports:media_inventory' %}" class="nav-sublink {% if request.resolver_match.app_name == 'reports' and request.resolver_match.url_name == 'media_inventory' %}active{% endif %}">
+                    Media Inventory
+                </a>
+                <a href="{% url 'reports:investigation' %}" class="nav-sublink {% if request.resolver_match.app_name == 'reports' and request.resolver_match.url_name == 'investigation' %}active{% endif %}">
+                    Investigations
+                </a>
+            </div>
+        </div>
+
+        <!-- System - collapsible -->
+        <div class="nav-section" data-section="system">
+            <div class="nav-section-header" onclick="toggleSection('system')">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="bi bi-gear"></i> <span>System</span>
+                </div>
+                <i class="bi bi-chevron-down section-toggle-icon"></i>
+            </div>
+            <div class="nav-section-items">
+                <a href="{% url 'accounts:telegram_accounts' %}" class="nav-sublink {% if request.resolver_match.app_name == 'accounts' and 'telegram' in request.resolver_match.url_name %}active{% endif %}">
+                    Telegram Accounts
+                </a>
+                <a href="{% url 'audit:tasks' %}" class="nav-sublink {% if request.resolver_match.url_name == 'tasks' %}active{% endif %}">
+                    Task History
+                </a>
+                <a href="{% url 'audit:activity' %}" class="nav-sublink {% if request.resolver_match.url_name == 'activity' %}active{% endif %}">
+                    Activity Log
+                </a>
+                <a href="{% url 'accounts:settings' %}" class="nav-sublink {% if request.resolver_match.url_name == 'settings' %}active{% endif %}">
+                    Settings
+                </a>
+                {% if user.is_superuser %}
+                <a href="{% url 'ops:queues' %}" class="nav-sublink {% if request.resolver_match.url_name == 'queues' %}active{% endif %}">
+                    Queue Management
+                </a>
+                <a href="{% url 'admin:index' %}" class="nav-sublink">
+                    Django Admin
+                </a>
+                {% endif %}
+            </div>
+        </div>
+    </nav>
+
+    {% if sidebar_pinned %}
+    <div class="pinned-section mt-3">
+        <div class="px-3 mb-2 d-flex align-items-center justify-content-between" style="cursor: pointer;" onclick="togglePinned()">
+            <span class="text-muted small text-uppercase fw-bold">Pinned</span>
+            <i class="bi bi-chevron-down text-muted" id="pinned-toggle-icon" style="font-size: 14px; transition: transform 0.2s;"></i>
+        </div>
+        <nav class="nav flex-column" id="pinned-list" style="max-height: 35vh; overflow-y: auto;">
+            {% for monitored in sidebar_pinned %}
+            <a href="{% url 'audit:source_detail' monitored.channel.pk %}" class="nav-link py-1 px-3" title="{{ monitored.channel|display_title }}">
+                <i class="bi bi-{% if monitored.channel.channel_type == 'channel' %}megaphone{% elif monitored.channel.channel_type == 'supergroup' or monitored.channel.channel_type == 'group' %}people{% else %}person{% endif %} icon-sm"></i>
+                <span class="text-truncate text-truncate-sm">{{ monitored.channel|display_title }}</span>
+            </a>
+            {% endfor %}
+        </nav>
+    </div>
+    {% endif %}
+    </div><!-- /sidebar-scroll -->
+
+    <div class="sidebar-footer">
+        <!-- Storage indicator -->
+        <div class="storage-indicator mb-3">
+            <div class="d-flex justify-content-between mb-1 small text-muted">
+                <span>Storage Used</span>
+                <span>{{ sidebar_storage_bytes|filesizeformat }}</span>
+            </div>
+            {% if build_number %}
+            <div class="d-flex justify-content-between small text-muted">
+                <span>Build</span>
+                <span>{{ build_number }}</span>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- User info -->
+        <div class="d-flex align-items-center gap-2">
+            <div class="avatar avatar-sm">
+                {{ user.username|slice:":2"|upper }}
+            </div>
+            <div class="flex-grow-1">
+                <div class="small fw-bold">{{ user.username }}</div>
+            </div>
+            <a href="{% url 'logout' %}" class="text-muted" title="Logout">
+                <i class="bi bi-box-arrow-right icon-base"></i>
+            </a>
+        </div>
+    </div>
+</div>
+
+<script>
+// Global search Alpine component
+function globalSearch() {
+    return {
+        query: '',
+        results: [],
+        open: false,
+        loading: false,
+        selected: -1,
+        search() {
+            if (this.query.length < 2) { this.results = []; this.open = false; return; }
+            this.loading = true;
+            this.open = true;
+            fetch(`{% url 'search:global_search' %}?q=${encodeURIComponent(this.query)}`)
+                .then(r => r.json())
+                .then(data => { this.results = data.results; this.selected = -1; })
+                .catch(() => { this.results = []; })
+                .finally(() => { this.loading = false; });
+        },
+        moveDown() { if (this.selected < this.results.length - 1) this.selected++; },
+        moveUp() { if (this.selected > 0) this.selected--; },
+        go() {
+            if (this.selected >= 0 && this.results[this.selected]) {
+                window.location.href = this.results[this.selected].url;
+            } else if (this.query.length >= 2) {
+                window.location.href = `{% url 'search:search' %}?q=${encodeURIComponent(this.query)}`;
+            }
+        }
+    };
+}
+
+// Global "/" shortcut to focus search
+document.addEventListener('keydown', function(e) {
+    if (e.key === '/' && !['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName) && !document.activeElement.isContentEditable) {
+        e.preventDefault();
+        const input = document.querySelector('.global-search-input');
+        if (input) input.focus();
+    }
+});
+
+// Toggle collapsible nav sections
+function toggleSection(sectionName) {
+    const section = document.querySelector(`.nav-section[data-section="${sectionName}"]`);
+    if (!section) return;
+
+    const items = section.querySelector('.nav-section-items');
+    const icon = section.querySelector('.section-toggle-icon');
+    const isCollapsed = items.style.display === 'none';
+
+    items.style.display = isCollapsed ? 'flex' : 'none';
+    icon.style.transform = isCollapsed ? 'rotate(0deg)' : 'rotate(-90deg)';
+
+    // Save state
+    const states = JSON.parse(localStorage.getItem('sidebar_sections') || '{}');
+    states[sectionName] = isCollapsed ? 'open' : 'closed';
+    localStorage.setItem('sidebar_sections', JSON.stringify(states));
+}
+
+// Toggle pinned section
+function togglePinned() {
+    const list = document.getElementById('pinned-list');
+    const icon = document.getElementById('pinned-toggle-icon');
+    const isCollapsed = list.style.display === 'none';
+
+    list.style.display = isCollapsed ? 'flex' : 'none';
+    icon.style.transform = isCollapsed ? 'rotate(0deg)' : 'rotate(-90deg)';
+    localStorage.setItem('sidebar_pinned_collapsed', isCollapsed ? '0' : '1');
+}
+
+// Apply saved states on load
+(function() {
+    // Pinned section
+    const pinnedCollapsed = localStorage.getItem('sidebar_pinned_collapsed') === '1';
+    if (pinnedCollapsed) {
+        const list = document.getElementById('pinned-list');
+        const icon = document.getElementById('pinned-toggle-icon');
+        if (list) list.style.display = 'none';
+        if (icon) icon.style.transform = 'rotate(-90deg)';
+    }
+
+    // Nav sections
+    const states = JSON.parse(localStorage.getItem('sidebar_sections') || '{}');
+    document.querySelectorAll('.nav-section').forEach(section => {
+        const sectionName = section.dataset.section;
+        const items = section.querySelector('.nav-section-items');
+        const icon = section.querySelector('.section-toggle-icon');
+        const header = section.querySelector('.nav-section-header');
+
+        // Default: expand if has active child, otherwise check saved state
+        const hasActiveChild = section.querySelector('.nav-sublink.active') !== null;
+        const savedState = states[sectionName];
+
+        let shouldBeOpen = hasActiveChild; // Always open if has active child
+        if (!hasActiveChild && savedState) {
+            shouldBeOpen = savedState === 'open';
+        } else if (!hasActiveChild && !savedState) {
+            shouldBeOpen = false; // Default to closed
+        }
+
+        if (!shouldBeOpen) {
+            items.style.display = 'none';
+            icon.style.transform = 'rotate(-90deg)';
+        }
+    });
+})();
+
+// Safe Eyes toggle
+(function() {
+    const safeEyesToggle = document.getElementById('safeEyesToggle');
+    if (!safeEyesToggle) return;
+
+    // Apply saved state on load
+    if (localStorage.getItem('safe_eyes') === '1') {
+        document.body.classList.add('safe-eyes');
+        safeEyesToggle.checked = true;
+    }
+
+    // Toggle handler
+    safeEyesToggle.addEventListener('change', function() {
+        if (this.checked) {
+            document.body.classList.add('safe-eyes');
+            localStorage.setItem('safe_eyes', '1');
+        } else {
+            document.body.classList.remove('safe-eyes');
+            localStorage.setItem('safe_eyes', '0');
+        }
+    });
+})();
+
+// Sidebar badges via WebSocket
+(function() {
+    const badgeActive = document.getElementById('sidebar-badge-active');
+    const badgeFailed = document.getElementById('sidebar-badge-failed');
+    if (!badgeActive || !badgeFailed) return;
+
+    let ws = null;
+    let reconnectAttempts = 0;
+    const maxReconnect = 10;
+    const baseDelay = 2000;
+
+    function updateBadge(el, count) {
+        el.textContent = count;
+        el.classList.toggle('d-none', count === 0);
+    }
+
+    function connect() {
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const url = `${protocol}//${window.location.host}/ws/downloads/`;
+
+        try {
+            ws = new WebSocket(url);
+
+            ws.onopen = function() {
+                reconnectAttempts = 0;
+                // Request current stats on connect
+                ws.send(JSON.stringify({action: 'get_status'}));
+            };
+
+            ws.onmessage = function(e) {
+                const data = JSON.parse(e.data);
+                if (data.type === 'queue_status') {
+                    updateBadge(badgeActive, data.stats.active || 0);
+                    updateBadge(badgeFailed, data.stats.failed || 0);
+                } else if (data.type === 'status_changed' || data.type === 'queue_update') {
+                    // Re-fetch counts on any status change
+                    if (ws.readyState === WebSocket.OPEN) {
+                        ws.send(JSON.stringify({action: 'get_status'}));
+                    }
+                }
+            };
+
+            ws.onclose = function() {
+                if (reconnectAttempts < maxReconnect) {
+                    reconnectAttempts++;
+                    setTimeout(connect, baseDelay * reconnectAttempts);
+                }
+            };
+
+            ws.onerror = function() {};
+        } catch (e) {}
+    }
+
+    {% if user.is_authenticated %}
+    connect();
+    {% endif %}
+})();
+</script>

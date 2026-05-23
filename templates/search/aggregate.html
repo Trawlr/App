@@ -1,0 +1,380 @@
+{% extends "base.html" %}
+{% load audit_extras humanize %}
+
+{% block title %}Aggregate Search - Trawlr{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2>Aggregate Search <span class="badge bg-warning text-dark ms-2" style="font-size: 0.45em; vertical-align: middle;">BETA</span></h2>
+        <p class="text-muted mb-0">Group and count messages by domain, sender, channel, and more.</p>
+    </div>
+</div>
+
+<div class="alert alert-warning d-flex align-items-center mb-4 py-2" role="alert" style="border-color: var(--tg-border) !important;">
+    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+    <div class="small">This feature is in <strong>beta</strong>. Results may be slow on large datasets and functionality may change.</div>
+</div>
+
+<div class="card border-0">
+    <!-- Search Input -->
+    <div class="card-header border-bottom py-3" style="border-color: var(--tg-border) !important;">
+        <form method="get" id="aggregate-form">
+            <div class="input-group">
+                <span class="input-group-text bg-transparent">
+                    <i class="bi bi-search" style="font-size: 16px;"></i>
+                </span>
+                <input type="text"
+                       class="form-control mono"
+                       name="q"
+                       value="{{ query }}"
+                       placeholder="Filter messages first, then group by dimension below"
+                       autocomplete="off"
+                       id="search-input">
+                {% if query %}
+                <a href="{% url 'search:aggregate' %}?group_by={{ group_by }}" class="btn btn-outline-secondary" title="Clear search">
+                    <i class="bi bi-x" style="font-size: 16px;"></i>
+                </a>
+                {% endif %}
+                <button type="submit" class="btn btn-primary px-3">
+                    Search
+                </button>
+            </div>
+            <input type="hidden" name="group_by" value="{{ group_by }}" id="hidden-group-by">
+            <input type="hidden" name="sort" value="{{ sort }}" id="hidden-sort">
+            <input type="hidden" name="per_page" value="{{ per_page }}">
+            <input type="hidden" name="min_count" value="{{ min_count }}" id="hidden-min-count">
+            <input type="hidden" name="max_count" value="{{ max_count }}" id="hidden-max-count">
+        </form>
+
+        <div class="mt-2 small text-muted">
+            <i class="bi bi-info-circle me-1"></i>
+            <strong>Step 1:</strong> Filter which messages to include (optional).
+            <strong>Step 2:</strong> Pick a <em>Group by</em> dimension below to count results.
+        </div>
+
+        <!-- Query examples -->
+        <div class="mt-2 d-flex flex-wrap gap-2 align-items-center">
+            <span class="small text-muted">Try:</span>
+            <button type="button" class="btn btn-sm btn-outline-secondary example-query" data-query="" data-group="domain" title="Top domains across all messages">
+                <i class="bi bi-globe me-1" style="font-size: 11px;"></i>Top domains
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-secondary example-query" data-query="domain:t.me" data-group="sender" title="Who shares t.me links the most?">
+                <i class="bi bi-person me-1" style="font-size: 11px;"></i>Who shares t.me?
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-secondary example-query" data-query="created>=7d" data-group="domain" title="Domains shared this week">
+                <i class="bi bi-calendar me-1" style="font-size: 11px;"></i>Domains this week
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-secondary example-query" data-query="has_media:true" data-group="channel" title="Which channels post the most media?">
+                <i class="bi bi-broadcast-pin me-1" style="font-size: 11px;"></i>Media by channel
+            </button>
+            <button type="button" class="btn btn-sm btn-link text-muted" data-bs-toggle="modal" data-bs-target="#searchHelpModal">
+                <i class="bi bi-question-circle me-1" style="font-size: 14px;"></i>
+                Syntax Help
+            </button>
+        </div>
+    </div>
+
+    <!-- Controls Row -->
+    <div class="d-flex flex-wrap justify-content-between align-items-center px-3 py-2 gap-2 border-bottom" style="border-color: var(--tg-border) !important;">
+        <!-- Group by selector -->
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+            <span class="small text-muted fw-bold">Count by:</span>
+            <div class="btn-group btn-group-sm flex-wrap" role="group">
+                {% for key, group in aggregation_groups.items %}
+                <button type="button"
+                        class="btn {% if group_by == key %}btn-primary{% else %}btn-outline-secondary{% endif %} group-by-btn"
+                        data-group="{{ key }}"
+                        title="{{ group.label }}">
+                    <i class="{{ group.icon }} me-1" style="font-size: 12px;"></i>{{ group.label }}
+                </button>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+            <!-- Count thresholds -->
+            <div class="d-flex align-items-center gap-1">
+                <label class="small text-muted text-nowrap" for="min-count-input">Min:</label>
+                <input type="number" class="form-control form-control-sm" style="width: 70px;" id="min-count-input"
+                       value="{{ min_count }}" min="0" placeholder="0">
+            </div>
+            <div class="d-flex align-items-center gap-1">
+                <label class="small text-muted text-nowrap" for="max-count-input">Max:</label>
+                <input type="number" class="form-control form-control-sm" style="width: 70px;" id="max-count-input"
+                       value="{{ max_count }}" min="0" placeholder="&infin;">
+            </div>
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="apply-thresholds" title="Apply count filter">
+                <i class="bi bi-funnel" style="font-size: 14px;"></i>
+            </button>
+
+            <!-- Sort order -->
+            <div class="btn-group btn-group-sm" role="group">
+                <button type="button" class="btn {% if sort == 'desc' %}btn-primary{% else %}btn-outline-secondary{% endif %} sort-btn" data-sort="desc" title="Highest first">
+                    <i class="bi bi-sort-down" style="font-size: 16px;"></i>
+                </button>
+                <button type="button" class="btn {% if sort == 'asc' %}btn-primary{% else %}btn-outline-secondary{% endif %} sort-btn" data-sort="asc" title="Lowest first">
+                    <i class="bi bi-sort-up" style="font-size: 16px;"></i>
+                </button>
+            </div>
+
+            <!-- Per page -->
+            <select class="form-select form-select-sm" style="width: auto;" id="per-page-select">
+                <option value="25" {% if per_page == 25 %}selected{% endif %}>25</option>
+                <option value="50" {% if per_page == 50 %}selected{% endif %}>50</option>
+                <option value="100" {% if per_page == 100 %}selected{% endif %}>100</option>
+            </select>
+
+            <!-- Export -->
+            <a href="{% url 'search:aggregate_export' %}?q={{ query|urlencode }}&group_by={{ group_by }}&sort={{ sort }}&min_count={{ min_count }}&max_count={{ max_count }}"
+               class="btn btn-sm btn-outline-secondary" title="Export CSV">
+                <i class="bi bi-download" style="font-size: 14px;"></i>
+            </a>
+        </div>
+    </div>
+
+    {% if warnings %}
+    <div class="alert alert-warning m-3 mb-0 py-2">
+        <i class="bi bi-exclamation-triangle me-2"></i>
+        {% for warning in warnings %}
+        <span class="small">{{ warning }}</span>{% if not forloop.last %}<br>{% endif %}
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if error %}
+    <div class="alert alert-danger m-3">
+        <i class="bi bi-exclamation-circle me-2" style="font-size: 18px;"></i>
+        {{ error }}
+    </div>
+    {% endif %}
+
+    {% if has_results %}
+    <!-- Results Header -->
+    <div class="d-flex justify-content-between align-items-center px-3 py-2 border-bottom" style="border-color: var(--tg-border) !important;">
+        <span class="text-muted">
+            {{ total_count }} group{{ total_count|pluralize }}
+            {% if query %}for <code class="ms-1">{{ query }}</code>{% endif %}
+            {% if min_count or max_count %}
+                <span class="ms-1">
+                    (count{% if min_count %} &ge; {{ min_count }}{% endif %}{% if min_count and max_count %},{% endif %}{% if max_count %} &le; {{ max_count }}{% endif %})
+                </span>
+            {% endif %}
+        </span>
+    </div>
+
+    {% if results %}
+    <!-- Results Table -->
+    <div class="table-responsive">
+        <table class="table table-sm table-hover mb-0">
+            <thead>
+                <tr>
+                    <th style="width: 50px;" class="text-muted">#</th>
+                    <th>{{ group_by_label }}</th>
+                    <th style="width: 100px;" class="text-end">Count</th>
+                    <th style="width: 30%;" class="d-none d-md-table-cell"></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in results %}
+                <tr>
+                    <td class="text-muted">
+                        {% if page_obj %}{{ page_obj.start_index|add:forloop.counter0 }}{% else %}{{ forloop.counter }}{% endif %}
+                    </td>
+                    <td class="mono">
+                        {% if row.search_link %}
+                        <a href="{{ row.search_link }}" class="text-decoration-none">{{ row.label }}</a>
+                        {% else %}
+                        {{ row.label }}
+                        {% endif %}
+                    </td>
+                    <td class="text-end fw-bold">{{ row.count|intcomma }}</td>
+                    <td class="d-none d-md-table-cell align-middle">
+                        <div class="progress" style="height: 6px;">
+                            <div class="progress-bar" role="progressbar" style="width: {{ row.bar_pct }}%"></div>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="text-center py-5">
+        <i class="bi bi-search mb-3 text-muted" style="font-size: 48px; opacity: 0.3;"></i>
+        <h5>No results</h5>
+        <p class="text-muted">No groups found matching your query and filters.</p>
+    </div>
+    {% endif %}
+
+    {% else %}
+    <!-- Empty state when no query submitted yet -->
+    <div class="text-center py-5">
+        <i class="bi bi-bar-chart mb-3 text-muted" style="font-size: 64px; opacity: 0.3;"></i>
+        <h5>Aggregate your data</h5>
+        <p class="text-muted">Select a group-by dimension and optionally enter a search query to filter results.</p>
+    </div>
+    {% endif %}
+
+    <!-- Pagination -->
+    {% if page_obj and page_obj.has_other_pages %}
+    <div class="card-footer border-top d-flex flex-column align-items-center py-2" style="border-color: var(--tg-border) !important;">
+        <nav aria-label="Aggregate pagination">
+            <ul class="pagination pagination-sm mb-1">
+                {% if page_obj.has_previous %}
+                <li class="page-item">
+                    <a class="page-link" href="?q={{ query|urlencode }}&group_by={{ group_by }}&sort={{ sort }}&per_page={{ per_page }}&min_count={{ min_count }}&max_count={{ max_count }}&page=1">
+                        <i class="bi bi-chevron-double-left" style="font-size: 14px;"></i>
+                    </a>
+                </li>
+                <li class="page-item">
+                    <a class="page-link" href="?q={{ query|urlencode }}&group_by={{ group_by }}&sort={{ sort }}&per_page={{ per_page }}&min_count={{ min_count }}&max_count={{ max_count }}&page={{ page_obj.previous_page_number }}">
+                        <i class="bi bi-chevron-left" style="font-size: 14px;"></i>
+                    </a>
+                </li>
+                {% endif %}
+
+                {% for num in page_obj.paginator.page_range %}
+                    {% if page_obj.number == num %}
+                    <li class="page-item active"><span class="page-link">{{ num }}</span></li>
+                    {% elif num > page_obj.number|add:'-6' and num < page_obj.number|add:'6' %}
+                    <li class="page-item">
+                        <a class="page-link" href="?q={{ query|urlencode }}&group_by={{ group_by }}&sort={{ sort }}&per_page={{ per_page }}&min_count={{ min_count }}&max_count={{ max_count }}&page={{ num }}">{{ num }}</a>
+                    </li>
+                    {% endif %}
+                {% endfor %}
+
+                {% if page_obj.has_next %}
+                <li class="page-item">
+                    <a class="page-link" href="?q={{ query|urlencode }}&group_by={{ group_by }}&sort={{ sort }}&per_page={{ per_page }}&min_count={{ min_count }}&max_count={{ max_count }}&page={{ page_obj.next_page_number }}">
+                        <i class="bi bi-chevron-right" style="font-size: 14px;"></i>
+                    </a>
+                </li>
+                <li class="page-item">
+                    <a class="page-link" href="?q={{ query|urlencode }}&group_by={{ group_by }}&sort={{ sort }}&per_page={{ per_page }}&min_count={{ min_count }}&max_count={{ max_count }}&page={{ page_obj.paginator.num_pages }}">
+                        <i class="bi bi-chevron-double-right" style="font-size: 14px;"></i>
+                    </a>
+                </li>
+                {% endif %}
+            </ul>
+        </nav>
+        <div class="text-muted small">
+            Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Search Help Modal -->
+<div class="modal fade" id="searchHelpModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Search Syntax</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted">Use the same search syntax as the Messages search to filter which messages are included in the aggregation.</p>
+
+                <h6>Search Fields</h6>
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th>Field</th>
+                            <th>Description</th>
+                            <th>Example</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for field in search_help.fields %}
+                        <tr>
+                            <td><code>{{ field.name }}</code></td>
+                            <td>{{ field.desc }}</td>
+                            <td><code>{{ field.example }}</code></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+
+                <h6 class="mt-4">Operators</h6>
+                <table class="table table-sm">
+                    <tbody>
+                        {% for op in search_help.operators %}
+                        <tr>
+                            <td><code>{{ op.name }}</code></td>
+                            <td>{{ op.desc }}</td>
+                            <td><code>{{ op.example }}</code></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+
+                <h6 class="mt-4">Tips</h6>
+                <ul class="small">
+                    <li>The query <strong>filters messages</strong> first, then results are grouped by the selected dimension.</li>
+                    <li>Use <strong>Min/Max count</strong> to find rare items (e.g., max count = 2) or popular items (e.g., min count = 100).</li>
+                    <li>Click a result label to search for all messages containing that item.</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Group-by buttons
+document.querySelectorAll('.group-by-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        document.getElementById('hidden-group-by').value = this.dataset.group;
+        document.getElementById('aggregate-form').submit();
+    });
+});
+
+// Sort buttons
+document.querySelectorAll('.sort-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        document.getElementById('hidden-sort').value = this.dataset.sort;
+        document.getElementById('aggregate-form').submit();
+    });
+});
+
+// Per page
+document.getElementById('per-page-select').addEventListener('change', function() {
+    const form = document.getElementById('aggregate-form');
+    form.querySelector('[name="per_page"]').value = this.value;
+    form.submit();
+});
+
+// Count thresholds
+document.getElementById('apply-thresholds').addEventListener('click', function() {
+    document.getElementById('hidden-min-count').value = document.getElementById('min-count-input').value;
+    document.getElementById('hidden-max-count').value = document.getElementById('max-count-input').value;
+    document.getElementById('aggregate-form').submit();
+});
+
+// Allow Enter in count inputs to apply
+['min-count-input', 'max-count-input'].forEach(id => {
+    document.getElementById(id).addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            document.getElementById('apply-thresholds').click();
+        }
+    });
+});
+
+// Example query buttons (can also set group-by)
+document.querySelectorAll('.example-query').forEach(btn => {
+    btn.addEventListener('click', function() {
+        document.getElementById('search-input').value = this.dataset.query;
+        if (this.dataset.group) {
+            document.getElementById('hidden-group-by').value = this.dataset.group;
+        }
+        document.getElementById('aggregate-form').submit();
+    });
+});
+
+// Focus search input on page load
+document.getElementById('search-input').focus();
+</script>
+{% endblock %}

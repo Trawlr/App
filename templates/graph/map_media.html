@@ -1,0 +1,89 @@
+{% extends "graph/map_base.html" %}
+
+{% block map_controls %}
+<select class="btn-map" id="time-filter" onchange="reloadMap()">
+    <option value="0" selected>All Time</option>
+    <option value="7">Last 7 days</option>
+    <option value="30">Last 30 days</option>
+    <option value="90">Last 90 days</option>
+</select>
+<select class="btn-map" id="media-type-filter" onchange="reloadMap()">
+    <option value="all" selected>All Files</option>
+    <option value="photo">Photos</option>
+    <option value="video">Videos</option>
+    <option value="document">Documents</option>
+</select>
+<select class="btn-map" id="weight-filter" onchange="reloadMap()" title="Edge weight represents...">
+    <option value="count" selected>Weight: File Count</option>
+    <option value="size">Weight: Total Size</option>
+    <option value="recency">Weight: Recency</option>
+</select>
+<select class="btn-map" id="node-sizing-filter" onchange="reloadMap()" title="Node size represents...">
+    <option value="default" selected>Size: Default</option>
+    <option value="originator">Size: Originators</option>
+    <option value="republisher">Size: Republishers</option>
+</select>
+<button class="btn-map active" id="labels-btn" onclick="toggleLabels()" title="Show/hide labels">
+    <i class="bi bi-tag-fill" style="font-size: 14px;" id="labels-icon"></i>
+</button>
+<button class="btn-map" onclick="togglePhysics()" id="physics-btn" title="Pause/Resume physics">
+    <i class="bi bi-pause-fill" style="font-size: 14px;" id="physics-icon"></i>
+</button>
+<button class="btn-map" onclick="resetZoom()" title="Fit to screen">
+    <i class="bi bi-arrows-fullscreen" style="font-size: 14px;"></i>
+</button>
+{% endblock %}
+
+{% block map_legend %}
+<div class="legend-item">
+    <span class="legend-dot" style="background: #64748b;"></span>
+    <span>Channels</span>
+</div>
+<div class="legend-item">
+    <span class="legend-dot" style="background: #22c55e;"></span>
+    <span>Originators</span>
+</div>
+<div class="legend-item">
+    <span class="legend-dot" style="background: #f97316;"></span>
+    <span>Republishers</span>
+</div>
+<div class="legend-item small text-muted mt-2">
+    Arrow direction = content flow (source &rarr; republisher)
+</div>
+{% endblock %}
+
+{% block map_js %}
+<script>
+// Enable directional arrows for this map (showing content flow)
+options.edges.arrows = {
+    to: {
+        enabled: true,
+        scaleFactor: 1.0,
+        type: 'arrow'
+    }
+};
+// Use straight edges so arrows appear exactly at node boundary
+options.edges.smooth = false;
+
+// Add colors for originator/republisher groups to the global colors object
+colors.originator = '#22c55e';
+colors.republisher = '#f97316';
+
+function getFilterParams() {
+    const days = document.getElementById('time-filter').value;
+    const mediaType = document.getElementById('media-type-filter').value;
+    const weightMode = document.getElementById('weight-filter').value;
+    const nodeSizing = document.getElementById('node-sizing-filter').value;
+
+    return `days=${days}&media_type=${mediaType}&weight_mode=${weightMode}&node_sizing=${nodeSizing}`;
+}
+
+function reloadMap() {
+    loadMapData('{% url "graph:api_media" %}', getFilterParams());
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    reloadMap();
+});
+</script>
+{% endblock %}

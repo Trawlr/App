@@ -1,0 +1,241 @@
+{% extends "base.html" %}
+
+{% block title %}Telegram Users - Trawlr{% endblock %}
+
+{% block content %}
+<style>
+    .user-excluded {
+        background-color: rgba(var(--bs-danger-rgb), 0.15);
+    }
+    .user-excluded:hover {
+        background-color: rgba(var(--bs-danger-rgb), 0.25) !important;
+    }
+</style>
+<div class="page-header mb-3">
+    <div class="d-flex justify-content-between align-items-center">
+        <div>
+            <h2 class="mb-1">Telegram Users</h2>
+            <p class="text-muted mb-0">All tracked users across your monitored sources</p>
+        </div>
+        <div class="d-flex align-items-center gap-3">
+            {% if page_obj %}
+            <span class="text-muted">{{ page_obj.paginator.count }} users</span>
+            {% endif %}
+            <form method="post" action="{% url 'audit:scan_all_members' %}">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-outline-primary btn-sm">
+                    <i class="bi bi-people me-1 icon-sm"></i>
+                    Fetch All Users
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <!-- Search and Filters -->
+    <div class="card-header py-2">
+        <form method="get" class="row g-2 align-items-center">
+            {% if sort != 'last_seen' %}
+            <input type="hidden" name="sort" value="{{ sort }}">
+            {% endif %}
+            <input type="hidden" name="per_page" value="{{ per_page }}">
+            <div class="col-md-4">
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text">
+                        <i class="bi bi-search icon-sm"></i>
+                    </span>
+                    <input type="text" class="form-control" placeholder="Search by username, name, or Telegram ID..." name="q" value="{{ search }}">
+                    <button type="submit" class="btn btn-primary btn-sm" style="padding: 0 12px;">
+                        <i class="bi bi-funnel" style="font-size: 14px;"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="col-auto">
+                <div class="btn-group btn-group-sm" role="group" aria-label="Profile photo filter">
+                    <input type="radio" class="btn-check" name="photo" id="photo-all" value="all" {% if photo_filter == 'all' %}checked{% endif %} onchange="this.form.submit()">
+                    <label class="btn btn-outline-secondary" for="photo-all">All</label>
+
+                    <input type="radio" class="btn-check" name="photo" id="photo-yes" value="yes" {% if photo_filter == 'yes' %}checked{% endif %} onchange="this.form.submit()">
+                    <label class="btn btn-outline-secondary" for="photo-yes">
+                        <i class="bi bi-image icon-sm"></i> With Photo
+                    </label>
+
+                    <input type="radio" class="btn-check" name="photo" id="photo-no" value="no" {% if photo_filter == 'no' %}checked{% endif %} onchange="this.form.submit()">
+                    <label class="btn btn-outline-secondary" for="photo-no">
+                        <i class="bi bi-image-alt icon-sm"></i> No Photo
+                    </label>
+                </div>
+            </div>
+            <div class="col-auto">
+                <select class="form-select form-select-sm" style="width: auto;" onchange="location.href='?{% if search %}q={{ search }}&{% endif %}{% if photo_filter != 'all' %}photo={{ photo_filter }}&{% endif %}{% if sort != 'last_seen' %}sort={{ sort }}&{% endif %}per_page=' + this.value">
+                    <option value="10" {% if per_page == 10 %}selected{% endif %}>10</option>
+                    <option value="25" {% if per_page == 25 %}selected{% endif %}>25</option>
+                    <option value="50" {% if per_page == 50 %}selected{% endif %}>50</option>
+                    <option value="100" {% if per_page == 100 %}selected{% endif %}>100</option>
+                    <option value="500" {% if per_page == 500 %}selected{% endif %}>500</option>
+                </select>
+            </div>
+            {% if all_tags %}
+            <div class="col-auto">
+                <select name="tag" class="form-select form-select-sm" style="width: auto;" onchange="this.form.submit()">
+                    <option value="">All Tags</option>
+                    {% for tag in all_tags %}
+                    <option value="{{ tag.pk }}" {% if tag_filter == tag.pk|stringformat:"s" %}selected{% endif %}>{{ tag.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
+            {% if search or photo_filter != 'all' or tag_filter or sort != 'last_seen' %}
+            <div class="col-auto">
+                <a href="{% url 'audit:users' %}?per_page={{ per_page }}" class="btn btn-outline-secondary btn-sm">
+                    <i class="bi bi-x me-1" style="font-size: 14px;"></i>
+                    Clear
+                </a>
+            </div>
+            {% endif %}
+        </form>
+    </div>
+
+    <div class="table-responsive">
+        <table class="table table-hover mb-0">
+            <thead>
+                <tr>
+                    <th class="th-narrow"></th>
+                    <th>User</th>
+                    <th>Username</th>
+                    <th>Telegram ID</th>
+                    <th>
+                        <a href="?{% if search %}q={{ search }}&{% endif %}{% if photo_filter != 'all' %}photo={{ photo_filter }}&{% endif %}sort={% if sort == 'groups' %}groups_asc{% else %}groups{% endif %}&per_page={{ per_page }}" class="text-decoration-none text-reset">
+                            Groups
+                            {% if sort == 'groups' %}
+                            <i class="bi bi-chevron-down icon-sm"></i>
+                            {% elif sort == 'groups_asc' %}
+                            <i class="bi bi-chevron-up icon-sm"></i>
+                            {% endif %}
+                        </a>
+                    </th>
+                    <th>Last Seen</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if users %}
+                    {% for user in users %}
+                    <tr class="cursor-pointer {% if user.has_global_exclusion or user.source_exclusion_count %}user-excluded{% endif %}" onclick="window.location='{% url 'audit:user_detail' user.pk %}'">
+                        <td>
+                            {% if user.has_photo %}
+                            <i class="bi bi-image text-success icon-md" title="Has profile photo"></i>
+                            {% else %}
+                            <i class="bi bi-image-alt text-muted icon-md" title="No profile photo"></i>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="d-flex align-items-center gap-2">
+                                <div class="avatar avatar-sm avatar-round">
+                                    {% if user.is_bot %}
+                                    <i class="bi bi-robot icon-base"></i>
+                                    {% else %}
+                                    <i class="bi bi-person icon-base"></i>
+                                    {% endif %}
+                                </div>
+                                <div>
+                                    <span class="fw-semibold">{{ user.first_name }} {{ user.last_name }}</span>
+                                    {% if user.is_premium %}
+                                    <i class="bi bi-star-fill text-warning ms-1 icon-xs" title="Premium"></i>
+                                    {% endif %}
+                                    {% if user.is_verified %}
+                                    <i class="bi bi-patch-check-fill text-primary ms-1 icon-xs" title="Verified"></i>
+                                    {% endif %}
+                                    {% if user.is_scam %}
+                                    <span class="badge badge-danger ms-1">Scam</span>
+                                    {% endif %}
+                                    {% if user.is_fake %}
+                                    <span class="badge badge-warning ms-1">Fake</span>
+                                    {% endif %}
+                                    {% if user.has_global_exclusion %}
+                                    <span class="badge bg-danger ms-1">
+                                        <i class="bi bi-person-x icon-2xs me-1"></i>Globally Excluded
+                                    </span>
+                                    {% elif user.source_exclusion_count %}
+                                    <span class="badge bg-primary ms-1">
+                                        <i class="bi bi-person-x icon-2xs me-1"></i>Excluded ({{ user.source_exclusion_count }} source{{ user.source_exclusion_count|pluralize }})
+                                    </span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            {% if user.username %}
+                            <a href="https://t.me/{{ user.username }}" target="_blank" class="text-decoration-none" onclick="event.stopPropagation();">
+                                @{{ user.username }}
+                            </a>
+                            {% else %}
+                            <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <code>{{ user.telegram_id }}</code>
+                        </td>
+                        <td>
+                            <span class="badge badge-secondary">{{ user.group_count|default:0 }}</span>
+                        </td>
+                        <td>
+                            {% if user.last_seen %}
+                            <span class="text-muted" title="{{ user.last_seen }}">
+                                {{ user.last_seen|timesince }} ago
+                            </span>
+                            {% else %}
+                            <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="6" class="text-center py-5 text-muted">
+                            <i class="bi bi-person-bounding-box mb-2 icon-3xl opacity-50"></i>
+                            <p class="mb-0">No users tracked yet.</p>
+                            <p class="small">Users are automatically tracked when they post messages in your monitored sources.</p>
+                        </td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Pagination -->
+    {% if page_obj.has_other_pages %}
+    <div class="card-footer py-2">
+        <nav aria-label="Users pagination">
+            <ul class="pagination pagination-sm justify-content-center mb-0">
+                {% if page_obj.has_previous %}
+                <li class="page-item">
+                    <a class="page-link" href="?page=1{% if search %}&q={{ search }}{% endif %}{% if photo_filter != 'all' %}&photo={{ photo_filter }}{% endif %}{% if sort != 'last_seen' %}&sort={{ sort }}{% endif %}&per_page={{ per_page }}">&laquo; First</a>
+                </li>
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if search %}&q={{ search }}{% endif %}{% if photo_filter != 'all' %}&photo={{ photo_filter }}{% endif %}{% if sort != 'last_seen' %}&sort={{ sort }}{% endif %}&per_page={{ per_page }}">&lsaquo; Prev</a>
+                </li>
+                {% endif %}
+
+                {% for num in page_obj.paginator.page_range %}
+                    {% if page_obj.number == num %}
+                    <li class="page-item active"><span class="page-link">{{ num }}</span></li>
+                    {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                    <li class="page-item"><a class="page-link" href="?page={{ num }}{% if search %}&q={{ search }}{% endif %}{% if photo_filter != 'all' %}&photo={{ photo_filter }}{% endif %}{% if sort != 'last_seen' %}&sort={{ sort }}{% endif %}&per_page={{ per_page }}">{{ num }}</a></li>
+                    {% endif %}
+                {% endfor %}
+
+                {% if page_obj.has_next %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if search %}&q={{ search }}{% endif %}{% if photo_filter != 'all' %}&photo={{ photo_filter }}{% endif %}{% if sort != 'last_seen' %}&sort={{ sort }}{% endif %}&per_page={{ per_page }}">Next &rsaquo;</a>
+                </li>
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if search %}&q={{ search }}{% endif %}{% if photo_filter != 'all' %}&photo={{ photo_filter }}{% endif %}{% if sort != 'last_seen' %}&sort={{ sort }}{% endif %}&per_page={{ per_page }}">Last &raquo;</a>
+                </li>
+                {% endif %}
+            </ul>
+        </nav>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

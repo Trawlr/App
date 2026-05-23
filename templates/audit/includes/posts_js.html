@@ -1,0 +1,358 @@
+{% load audit_extras %}
+<script>
+const postsData = {
+{% for post in posts %}
+    {{ post.pk }}: {
+        id: {{ post.pk }},
+        messageId: {{ post.message_id }},
+        hasMedia: {{ post.has_media|yesno:"true,false" }},
+        mediaType: "{{ post.media_type }}",
+        thumbnailUrl: "{{ post.thumbnail_url|default:'' }}",
+        filename: "{{ post.original_filename|escapejs }}",
+        fileSize: "{{ post.file_size|filesizeformat }}",
+        fileSizeBytes: {{ post.file_size|default:0 }},
+        mimeType: "{{ post.mime_type }}",
+        text: `{{ post.text|escapejs }}`,
+        senderName: "{{ post.sender_name|escapejs }}",
+        senderUsername: "{{ post.sender_username }}",
+        senderId: {{ post.sender_id|default:"null" }},
+        senderUserPk: {% if post.sender_id and post.sender_id in known_users %}{{ known_users|get_item:post.sender_id }}{% else %}null{% endif %},
+        date: "{{ post.telegram_date|date:'d M Y H:i:s' }} UTC",
+        dateRelative: "{{ post.telegram_date|timesince }} ago",
+        editedDate: {% if post.edited_date %}"{{ post.edited_date|date:'d M Y H:i:s' }} UTC"{% else %}null{% endif %},
+        views: {{ post.views }},
+        forwards: {{ post.forwards }},
+        reactions: JSON.parse("{{ post.reactions|default:'{}' |escapejs }}"),
+        isDownloaded: {{ post.is_downloaded|yesno:"true,false" }},
+        isUnavailable: {{ post.media_unavailable|yesno:"true,false" }},
+        isPending: {% if post.message_id in pending_message_ids %}true{% else %}false{% endif %},
+        replyToMessageId: {{ post.reply_to_message_id|default:"null" }},
+        downloadedFileId: {{ post.downloaded_file.pk|default:"null" }},
+        isPinned: {{ post.is_pinned|yesno:"true,false" }},
+        isPost: {{ post.is_post|yesno:"true,false" }},
+        noForwards: {{ post.noforwards|yesno:"true,false" }},
+        isSilent: {{ post.is_silent|yesno:"true,false" }},
+        groupedId: {{ post.grouped_id|default:"null" }},
+        postAuthor: "{{ post.post_author|escapejs }}",
+        ttlPeriod: {{ post.ttl_period|default:"null" }},
+        telegramFileId: "{{ post.telegram_file_id }}",
+        channelPk: {{ post.channel_id }}
+    },
+{% endfor %}
+};
+
+// Report modal function
+function openReportModal(messageId, postId) {
+    const form = document.getElementById('reportPostForm');
+    const post = postId ? postsData[postId] : null;
+    const sourcePk = post ? post.channelPk : '{{ source.pk }}';
+    form.action = `/source/${sourcePk}/post/${messageId}/report/`;
+    document.getElementById('reportMessageId').textContent = '#' + messageId;
+    const modal = new bootstrap.Modal(document.getElementById('reportPostModal'));
+    modal.show();
+}
+
+// Open post modal
+function openPostModal(postId) {
+    const post = postsData[postId];
+    if (!post) return;
+
+    const modal = new bootstrap.Modal(document.getElementById('post-modal'));
+
+    let mediaHtml = '';
+    const mediaIconName = post.mediaType === 'photo' ? 'bi-image' : (post.mediaType === 'video' ? 'bi-camera-video' : 'bi-file-earmark');
+    const mediaIconColor = post.mediaType === 'photo' ? 'info' : (post.mediaType === 'video' ? 'success' : 'warning');
+    if (post.hasMedia && post.thumbnailUrl) {
+        mediaHtml = `
+            <div class="text-center mb-3">
+                <img src="${post.thumbnailUrl}" class="img-fluid rounded" style="max-height: 400px;" alt="Preview"
+                     onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
+                <div class="py-5 bg-dark rounded" style="display: none;">
+                    <i class="bi ${mediaIconName} text-${mediaIconColor}" style="font-size: 64px; opacity: 0.7;"></i>
+                    <p class="text-muted mt-2 mb-0">${post.filename || post.mediaType}</p>
+                </div>
+            </div>
+        `;
+    } else if (post.hasMedia) {
+        mediaHtml = `
+            <div class="text-center mb-3 py-5 bg-dark rounded">
+                <i class="bi ${mediaIconName} text-${mediaIconColor}" style="font-size: 64px; opacity: 0.7;"></i>
+                <p class="text-muted mt-2 mb-0">${post.filename || post.mediaType}</p>
+            </div>
+        `;
+    }
+
+    let senderHtml = '';
+    if (post.senderName || post.senderUsername) {
+        const userLink = post.senderUserPk ? `/user/${post.senderUserPk}/` : null;
+        senderHtml = `
+            <tr>
+                <th style="width: 140px; color: var(--tg-text-muted); border-color: var(--tg-border);">Sender</th>
+                <td style="color: var(--tg-text); border-color: var(--tg-border);">
+                    ${userLink ? `<a href="${userLink}" class="text-decoration-none">` : ''}
+                    ${post.senderName ? `<span class="fw-semibold">${post.senderName}</span>` : ''}
+                    ${post.senderUsername ? ` @${post.senderUsername}` : ''}
+                    ${userLink ? `</a>` : ''}
+                    ${post.senderId ? `<small style="color: var(--tg-text-muted);" class="ms-2">(${post.senderId})</small>` : ''}
+                </td>
+            </tr>
+        `;
+    }
+
+    // Build flags
+    let flagsHtml = '';
+    const flags = [];
+    if (post.isPinned) flags.push('<span class="badge bg-warning text-dark">Pinned</span>');
+    if (post.noForwards) flags.push('<span class="badge bg-info">No Forwards</span>');
+    if (post.isSilent) flags.push('<span class="badge bg-secondary">Silent</span>');
+    if (post.ttlPeriod) flags.push(`<span class="badge bg-danger">TTL: ${post.ttlPeriod}s</span>`);
+    if (flags.length > 0) {
+        flagsHtml = `
+            <tr>
+                <th style="color: var(--tg-text-muted); border-color: var(--tg-border);">Flags</th>
+                <td style="border-color: var(--tg-border);">${flags.join(' ')}</td>
+            </tr>
+        `;
+    }
+
+    let downloadBtn = '';
+    if (post.hasMedia) {
+        if (post.isDownloaded && post.downloadedFileId) {
+            downloadBtn = `
+                <a href="/downloads/file/${post.downloadedFileId}/" class="btn btn-success btn-sm">
+                    <i class="bi bi-eye me-1" style="font-size: 14px;"></i>
+                    View
+                </a>
+                <a href="/downloads/media/${post.downloadedFileId}/" class="btn btn-outline-success btn-sm" download="${post.filename}">
+                    <i class="bi bi-save me-1" style="font-size: 14px;"></i>
+                    Save
+                </a>
+            `;
+        } else if (post.isUnavailable) {
+            downloadBtn = `<span class="badge bg-secondary"><i class="bi bi-x-circle" style="font-size: 14px;"></i> Unavailable</span>`;
+        } else if (post.isPending) {
+            downloadBtn = `<span class="badge bg-warning"><i class="bi bi-clock" style="font-size: 14px;"></i> Downloading...</span>`;
+        } else {
+            downloadBtn = `
+                <button class="btn btn-primary btn-sm" onclick="queueDownload(${post.id})">
+                    <i class="bi bi-download me-1" style="font-size: 16px;"></i>
+                    Download
+                </button>
+            `;
+        }
+    }
+
+    const modalBody = document.getElementById('post-modal-body');
+    modalBody.innerHTML = `
+        ${mediaHtml}
+
+        ${post.text ? `<div class="mb-3 p-3 rounded" style="background: var(--tg-hover-bg); color: var(--tg-text);"><p class="mb-0 mono" style="white-space: pre-wrap;">${post.text}</p></div>` : ''}
+
+        <table class="table table-sm table-condensed mb-3" style="--bs-table-bg: transparent;">
+            <tbody>
+                <tr>
+                    <th style="width: 140px; color: var(--tg-text-muted); border-color: var(--tg-border);">Message ID</th>
+                    <td style="color: var(--tg-text); border-color: var(--tg-border);">${post.messageId}</td>
+                </tr>
+                <tr>
+                    <th style="color: var(--tg-text-muted); border-color: var(--tg-border);">Date</th>
+                    <td style="color: var(--tg-text); border-color: var(--tg-border);">${post.date}</td>
+                </tr>
+                ${post.editedDate ? `
+                <tr>
+                    <th style="color: var(--tg-text-muted); border-color: var(--tg-border);">Edited</th>
+                    <td style="color: var(--tg-text); border-color: var(--tg-border);">${post.editedDate}</td>
+                </tr>
+                ` : ''}
+                ${senderHtml}
+                ${post.postAuthor ? `
+                <tr>
+                    <th style="color: var(--tg-text-muted); border-color: var(--tg-border);">Post Author</th>
+                    <td style="color: var(--tg-text); border-color: var(--tg-border);">${post.postAuthor}</td>
+                </tr>
+                ` : ''}
+                ${post.replyToMessageId ? `
+                <tr>
+                    <th style="color: var(--tg-text-muted); border-color: var(--tg-border);">Reply To</th>
+                    <td style="border-color: var(--tg-border);">
+                        <a href="#msg-${post.replyToMessageId}"
+                           class="text-info text-decoration-none"
+                           onclick="bootstrap.Modal.getInstance(document.getElementById('post-modal')).hide(); setTimeout(() => scrollToMessage(${post.replyToMessageId}), 300);">
+                            Message #${post.replyToMessageId}
+                        </a>
+                    </td>
+                </tr>
+                ` : ''}
+                ${post.groupedId ? `
+                <tr>
+                    <th style="color: var(--tg-text-muted); border-color: var(--tg-border);">Album ID</th>
+                    <td style="color: var(--tg-text); border-color: var(--tg-border);">${post.groupedId}</td>
+                </tr>
+                ` : ''}
+                ${flagsHtml}
+                ${post.hasMedia ? `
+                <tr>
+                    <th style="color: var(--tg-text-muted); border-color: var(--tg-border);">Media Type</th>
+                    <td style="color: var(--tg-text); border-color: var(--tg-border);">${post.mediaType}</td>
+                </tr>
+                <tr>
+                    <th style="color: var(--tg-text-muted); border-color: var(--tg-border);">Filename</th>
+                    <td style="color: var(--tg-text); border-color: var(--tg-border);">${post.filename || '-'}</td>
+                </tr>
+                <tr>
+                    <th style="color: var(--tg-text-muted); border-color: var(--tg-border);">Size</th>
+                    <td style="color: var(--tg-text); border-color: var(--tg-border);">${post.fileSize} (${post.fileSizeBytes.toLocaleString()} bytes)</td>
+                </tr>
+                <tr>
+                    <th style="color: var(--tg-text-muted); border-color: var(--tg-border);">MIME Type</th>
+                    <td style="color: var(--tg-text); border-color: var(--tg-border);">${post.mimeType || '-'}</td>
+                </tr>
+                ` : ''}
+                <tr>
+                    <th style="color: var(--tg-text-muted); border-color: var(--tg-border);">Views</th>
+                    <td style="color: var(--tg-text); border-color: var(--tg-border);">${post.views.toLocaleString()}</td>
+                </tr>
+                <tr>
+                    <th style="color: var(--tg-text-muted); border-color: var(--tg-border);">Forwards</th>
+                    <td style="color: var(--tg-text); border-color: var(--tg-border);">${post.forwards.toLocaleString()}</td>
+                </tr>
+                ${post.telegramFileId ? `
+                <tr>
+                    <th style="color: var(--tg-text-muted); border-color: var(--tg-border);">File ID</th>
+                    <td style="color: var(--tg-text); border-color: var(--tg-border);"><code class="small text-break">${post.telegramFileId}</code></td>
+                </tr>
+                ` : ''}
+            </tbody>
+        </table>
+
+        ${post.editedDate ? `
+        <div class="mb-3">
+            <div class="d-flex align-items-center gap-2 mb-2" style="cursor: pointer;" onclick="toggleEditHistory(${post.id}, this)">
+                <i class="bi bi-pencil-square text-warning" style="font-size: 14px;"></i>
+                <span class="small fw-semibold" style="color: var(--tg-text-muted);">Edit History</span>
+                <i class="bi bi-chevron-right text-muted edit-history-chevron" style="font-size: 12px; transition: transform 0.2s;"></i>
+            </div>
+            <div id="edit-history-${post.id}" style="display: none;">
+                <div class="p-3 rounded" style="background: rgba(0,0,0,0.2); border: 1px solid var(--tg-border);">
+                    <div class="text-center py-2">
+                        <div class="spinner-border spinner-border-sm text-muted" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        ` : ''}
+
+        <div class="d-flex justify-content-between">
+            <div class="d-flex gap-2">
+                <a href="/post/${post.id}/export/" class="btn btn-outline-secondary btn-sm">
+                    <i class="bi bi-file-earmark-code me-1" style="font-size: 14px;"></i>
+                    Export JSON
+                </a>
+                <button class="btn btn-outline-danger btn-sm" onclick="bootstrap.Modal.getInstance(document.getElementById('post-modal')).hide(); setTimeout(() => openReportModal(${post.messageId}, ${post.id}), 300);">
+                    <i class="bi bi-flag me-1" style="font-size: 14px;"></i>
+                    Report
+                </button>
+            </div>
+            <div class="d-flex gap-2">
+                ${downloadBtn}
+            </div>
+        </div>
+    `;
+
+    modal.show();
+}
+
+// Queue download function
+async function queueDownload(postId) {
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value || '{{ csrf_token }}';
+
+    try {
+        const response = await fetch(`/post/${postId}/download/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': csrfToken,
+                'Content-Type': 'application/json',
+            },
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            if (postsData[postId]) {
+                postsData[postId].isPending = true;
+            }
+            showToast(`Queued "${data.filename}" for download`, 'success');
+            // Refresh the page to show updated status
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            if (data.unavailable) {
+                if (postsData[postId]) {
+                    postsData[postId].isUnavailable = true;
+                }
+            }
+            showToast(data.error || 'Failed to queue download', 'error');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        showToast('Failed to queue download', 'error');
+    }
+}
+
+async function deletePostMedia(postId) {
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value || '{{ csrf_token }}';
+    const fileId = postsData[postId]?.downloadedFileId;
+    if (!fileId) {
+        showToast('No file to delete', 'error');
+        return;
+    }
+
+    try {
+        const response = await fetch(`/file/${fileId}/delete/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': csrfToken,
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            showToast(data.message || 'Deleted successfully', 'success');
+            setTimeout(() => location.reload(), 500);
+        } else {
+            showToast(data.error || 'Failed to delete', 'error');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        showToast('Failed to delete', 'error');
+    }
+}
+
+// Scroll to a message by ID
+function scrollToMessage(messageId) {
+    const element = document.getElementById('msg-' + messageId);
+    if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        element.classList.add('highlight-flash');
+        setTimeout(() => element.classList.remove('highlight-flash'), 2000);
+    }
+}
+
+// Toggle edit history panel (HTMX lazy-load)
+function toggleEditHistory(postId, triggerEl) {
+    const container = document.getElementById('edit-history-' + postId);
+    const chevron = triggerEl.querySelector('.edit-history-chevron');
+    const isHidden = container.style.display === 'none';
+
+    container.style.display = isHidden ? 'block' : 'none';
+    chevron.style.transform = isHidden ? 'rotate(90deg)' : '';
+
+    if (isHidden && !container.dataset.loaded) {
+        htmx.ajax('GET', `/post/${postId}/history/`, {target: container.querySelector('.p-3'), swap: 'innerHTML'});
+        container.dataset.loaded = 'true';
+    }
+}
+</script>

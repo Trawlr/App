@@ -1,0 +1,246 @@
+{% extends "base.html" %}
+{% load audit_extras %}
+
+{% block title %}Activity - Trawlr{% endblock %}
+
+{% block content %}
+<div class="page-header mb-3">
+    <div class="d-flex justify-content-between align-items-center">
+        <div>
+            <h2 class="mb-1">System Activity</h2>
+            <p class="text-muted mb-0">Real-time view of all system activities</p>
+        </div>
+        <div class="d-flex align-items-center gap-3">
+            {% if page_obj %}
+            <span class="text-muted">{{ page_obj.paginator.count }} activities</span>
+            {% endif %}
+            <span class="text-muted" id="last-updated">
+                Updated: <span id="update-time">just now</span>
+            </span>
+            <button type="button" class="btn btn-outline-primary btn-sm" onclick="location.reload()">
+                <i class="bi bi-arrow-clockwise me-1" style="font-size: 14px;"></i>
+                Refresh
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Stats Row -->
+<div class="row g-3 mb-4">
+    <!-- Activity Type Breakdown -->
+    <div class="col-md-6">
+        <div class="card border-0 h-100">
+            <div class="card-header py-2 border-bottom" style="border-color: var(--tg-border) !important;">
+                <h6 class="mb-0">Activity Types (Last Hour)</h6>
+            </div>
+            <div class="card-body p-2">
+                {% if type_counts %}
+                <div class="d-flex flex-wrap gap-2">
+                    {% for item in type_counts %}
+                    <a href="?type={{ item.activity_type }}{% if search %}&q={{ search }}{% endif %}{% if source %}&source={{ source }}{% endif %}"
+                       class="btn btn-sm px-2 py-1 text-decoration-none fw-bold
+                        {% if item.activity_type == 'message_processed' or item.activity_type == 'download_started' %}badge-cyan
+                        {% elif item.activity_type == 'user_tracked' or item.activity_type == 'download_completed' %}bg-success
+                        {% elif item.activity_type == 'photo_downloaded' or item.activity_type == 'profile_fetch_started' or item.activity_type == 'profile_fetch_completed' or item.activity_type == 'profile_fetched' %}badge-teal
+                        {% elif item.activity_type == 'download_failed' or item.activity_type == 'error' %}bg-danger
+                        {% elif item.activity_type == 'download_queued' or item.activity_type == 'history_scan_started' or item.activity_type == 'history_scan_completed' %}badge-purple
+                        {% elif item.activity_type == 'history_scan_cancelled' or item.activity_type == 'member_scan_cancelled' or item.activity_type == 'channel_sync_cancelled' %}badge-secondary
+                        {% elif item.activity_type == 'member_scan_started' or item.activity_type == 'member_scan_completed' %}badge-pink
+                        {% elif item.activity_type == 'availability_check_started' or item.activity_type == 'availability_check_completed' %}badge-orange
+                        {% elif item.activity_type == 'channel_sync_started' or item.activity_type == 'channel_sync_completed' or item.activity_type == 'refresh_stats_started' or item.activity_type == 'refresh_stats_completed' or item.activity_type == 'media_counts_updated' %}badge-info
+                        {% elif item.activity_type == 'flood_wait' %}bg-warning
+                        {% else %}badge-purple
+                        {% endif %}" style="font-size: 0.75rem; color: #000 !important;">
+                        {{ item.display_name }}: {{ item.count }}
+                    </a>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-muted mb-0 small">No activity in the last hour</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Source Breakdown -->
+    <div class="col-md-3">
+        <div class="card border-0 h-100">
+            <div class="card-header py-2 border-bottom" style="border-color: var(--tg-border) !important;">
+                <h6 class="mb-0">By Source</h6>
+            </div>
+            <div class="card-body p-2">
+                {% if source_counts %}
+                <div class="d-flex flex-wrap gap-2">
+                    {% for item in source_counts %}
+                    <a href="?source={{ item.source }}{% if search %}&q={{ search }}{% endif %}{% if activity_type %}&type={{ activity_type }}{% endif %}"
+                       class="btn btn-sm px-2 py-1 text-decoration-none fw-bold
+                        {% if item.source == 'listener' %}bg-success
+                        {% elif item.source == 'worker' %}badge-cyan
+                        {% elif item.source == 'worker_telegram' %}badge-orange
+                        {% else %}badge-purple
+                        {% endif %}" style="font-size: 0.75rem; color: #000 !important;">
+                        {% if item.source == 'listener' %}Listener{% elif item.source == 'worker' %}Worker{% elif item.source == 'worker_telegram' %}Telegram{% else %}{{ item.source }}{% endif %}: {{ item.count }}
+                    </a>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-muted mb-0 small">No activity</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Queue Stats -->
+    <div class="col-md-3">
+        <div class="card border-0 h-100">
+            <div class="card-header py-2 border-bottom" style="border-color: var(--tg-border) !important;">
+                <h6 class="mb-0">Queue Status</h6>
+            </div>
+            <div class="card-body p-2">
+                {% if queue_stats %}
+                <div class="d-flex flex-wrap gap-2">
+                    {% for name, stats in queue_stats.items %}
+                    <span class="badge bg-secondary bg-opacity-25 text-body" title="Consumers: {{ stats.consumers }}">
+                        {{ name }}: {{ stats.messages }}
+                    </span>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-muted mb-0 small">RabbitMQ integration coming soon.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Activity Log -->
+<div class="card border-0">
+    <!-- Search and Filters -->
+    <div class="card-header border-bottom py-2" style="border-color: var(--tg-border) !important;">
+        <form method="get" class="row g-2 align-items-center">
+            <div class="col-md-3">
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text">
+                        <i class="bi bi-search" style="font-size: 14px;"></i>
+                    </span>
+                    <input type="text" class="form-control" placeholder="Search description..." name="q" value="{{ search }}">
+                    <button type="submit" class="btn btn-primary btn-sm" style="padding: 0 12px;">
+                        <i class="bi bi-funnel" style="font-size: 14px;"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <select name="type" class="form-select form-select-sm" onchange="this.form.submit()">
+                    <option value="">All Types</option>
+                    {% for type_value, type_label in activity_types %}
+                    <option value="{{ type_value }}" {% if activity_type == type_value %}selected{% endif %}>{{ type_label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <select name="source" class="form-select form-select-sm" onchange="this.form.submit()">
+                    <option value="">All Sources</option>
+                    {% for source_value, source_label in sources %}
+                    <option value="{{ source_value }}" {% if source == source_value %}selected{% endif %}>{{ source_label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-auto">
+                <select name="channel" class="form-select form-select-sm" onchange="this.form.submit()" style="width: auto; max-width: 150px;">
+                    <option value="">All Channels</option>
+                    {% for ch in channels_with_activity %}
+                    <option value="{{ ch.pk }}" {% if channel_id == ch.pk|stringformat:"i" %}selected{% endif %}>{{ ch|display_title|truncatechars:25 }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-auto">
+                <select name="date" class="form-select form-select-sm" onchange="this.form.submit()" style="width: auto;">
+                    <option value="1h" {% if date_range == '1h' %}selected{% endif %}>Last 1 hour</option>
+                    <option value="6h" {% if date_range == '6h' %}selected{% endif %}>Last 6 hours</option>
+                    <option value="24h" {% if date_range == '24h' %}selected{% endif %}>Last 24 hours</option>
+                    <option value="7d" {% if date_range == '7d' %}selected{% endif %}>Last 7 days</option>
+                    <option value="30d" {% if date_range == '30d' %}selected{% endif %}>Last 30 days</option>
+                    <option value="all" {% if date_range == 'all' %}selected{% endif %}>All time</option>
+                </select>
+            </div>
+            <div class="col-auto">
+                <div class="d-flex align-items-center gap-2">
+                    <label class="small text-muted mb-0" for="refresh-interval">Refresh:</label>
+                    <select id="refresh-interval" class="form-select form-select-sm" style="width: auto;">
+                        <option value="0">Off</option>
+                        <option value="1000">1s</option>
+                        <option value="3000" selected>3s</option>
+                        <option value="5000">5s</option>
+                        <option value="10000">10s</option>
+                        <option value="30000">30s</option>
+                        <option value="60000">60s</option>
+                    </select>
+                </div>
+            </div>
+            {% if search or activity_type or source or channel_id or date_range != '24h' %}
+            <div class="col-auto">
+                <a href="{% url 'audit:activity' %}" class="btn btn-outline-secondary btn-sm">
+                    <i class="bi bi-x me-1" style="font-size: 14px;"></i>
+                    Clear Filters
+                </a>
+            </div>
+            {% endif %}
+        </form>
+    </div>
+
+    <div id="activity-list"
+         hx-get="{% url 'audit:activity' %}?{% if search %}q={{ search }}&{% endif %}{% if activity_type %}type={{ activity_type }}&{% endif %}{% if source %}source={{ source }}&{% endif %}{% if channel_id %}channel={{ channel_id }}&{% endif %}{% if date_range %}date={{ date_range }}&{% endif %}page={{ page_obj.number }}"
+         hx-trigger="none"
+         hx-swap="innerHTML">
+        {% include "audit/partials/activity_list.html" %}
+    </div>
+</div>
+
+<script>
+    (function() {
+        const STORAGE_KEY = 'activity_refresh_interval';
+        const refreshSelect = document.getElementById('refresh-interval');
+        const activityList = document.getElementById('activity-list');
+        let refreshTimer = null;
+
+        // Load saved interval from localStorage
+        const savedInterval = localStorage.getItem(STORAGE_KEY);
+        if (savedInterval !== null) {
+            refreshSelect.value = savedInterval;
+        }
+
+        // Function to start/stop refresh
+        function updateRefreshTimer() {
+            // Clear existing timer
+            if (refreshTimer) {
+                clearInterval(refreshTimer);
+                refreshTimer = null;
+            }
+
+            const interval = parseInt(refreshSelect.value, 10);
+
+            // Save to localStorage
+            localStorage.setItem(STORAGE_KEY, interval.toString());
+
+            if (interval > 0) {
+                refreshTimer = setInterval(function() {
+                    htmx.trigger(activityList, 'htmx:trigger');
+                }, interval);
+            }
+        }
+
+        // Handle interval change
+        refreshSelect.addEventListener('change', updateRefreshTimer);
+
+        // Initial setup
+        updateRefreshTimer();
+
+        // Update the "Updated" timestamp when HTMX refreshes
+        document.body.addEventListener('htmx:afterSwap', function(evt) {
+            if (evt.detail.target.id === 'activity-list') {
+                document.getElementById('update-time').textContent = 'just now';
+            }
+        });
+    })();
+</script>
+{% endblock %}

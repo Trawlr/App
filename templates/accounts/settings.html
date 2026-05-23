@@ -1,0 +1,1425 @@
+{% extends "base.html" %}
+
+{% block title %}Settings - Trawlr{% endblock %}
+
+{% block content %}
+<div class="page-header mb-4">
+    <h2>Settings</h2>
+</div>
+
+<!-- Tab Navigation -->
+<div class="card border-0 mb-4">
+    <div class="card-body py-2 px-3">
+        <ul class="nav nav-pills gap-1" id="settingsTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link py-2 px-3 active" id="general-tab" data-bs-toggle="tab" data-bs-target="#general"
+                        type="button" role="tab" aria-controls="general" aria-selected="true">
+                    <i class="bi bi-gear me-1" style="font-size: 16px;"></i>
+                    General
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link py-2 px-3" id="scheduler-tab" data-bs-toggle="tab" data-bs-target="#scheduler"
+                        type="button" role="tab" aria-controls="scheduler" aria-selected="false">
+                    <i class="bi bi-list-check me-1" style="font-size: 16px;"></i>
+                    Tasks
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link py-2 px-3" id="events-tab" data-bs-toggle="tab" data-bs-target="#events"
+                        type="button" role="tab" aria-controls="events" aria-selected="false">
+                    <i class="bi bi-lightning me-1" style="font-size: 16px;"></i>
+                    Event Processing
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link py-2 px-3" id="exclusions-tab" data-bs-toggle="tab" data-bs-target="#exclusions"
+                        type="button" role="tab" aria-controls="exclusions" aria-selected="false">
+                    <i class="bi bi-person-x me-1" style="font-size: 16px;"></i>
+                    Exclusions
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link py-2 px-3" id="api-tab" data-bs-toggle="tab" data-bs-target="#api"
+                        type="button" role="tab" aria-controls="api" aria-selected="false">
+                    <i class="bi bi-key me-1" style="font-size: 16px;"></i>
+                    API
+                </button>
+            </li>
+        </ul>
+    </div>
+</div>
+
+<!-- Tab Content -->
+<div class="tab-content" id="settingsTabContent">
+    <!-- General Settings Tab -->
+    <div class="tab-pane fade show active" id="general" role="tabpanel" aria-labelledby="general-tab">
+        <!-- Section Info -->
+        <div class="mb-4 pb-3 border-bottom border-secondary">
+            <p class="text-muted mb-0">
+                <i class="bi bi-info-circle me-1" style="font-size: 14px;"></i>
+                Configure file storage locations and download behavior. Files are organized by source ID and media type.
+            </p>
+        </div>
+
+        <div class="row">
+            <div class="col-lg-8">
+                <form method="post" id="generalForm">
+                    {% csrf_token %}
+                    <input type="hidden" name="form_section" value="general">
+
+                    <!-- Storage Settings -->
+                    <div class="card border-0 mb-4">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="bi bi-folder me-2" style="font-size: 20px;"></i>
+                                Storage Settings
+                            </h5>
+                        </div>
+                        <div class="card-body p-4">
+                            <div class="mb-3">
+                                <label for="storage_provider" class="form-label">Storage Provider</label>
+                                <select name="storage_provider" id="storage_provider" class="form-select"
+                                        onchange="toggleStorageFields()">
+                                    <option value="local" {% if settings.storage_provider == 'local' %}selected{% endif %}>Local Filesystem</option>
+                                    <option value="s3" {% if settings.storage_provider == 's3' %}selected{% endif %}>S3-Compatible Storage</option>
+                                    <option value="azure" {% if settings.storage_provider == 'azure' %}selected{% endif %}>Azure Blob Storage</option>
+                                </select>
+                                <div class="form-text text-muted">Where to store downloaded media files</div>
+                            </div>
+
+                            <!-- Local Storage Fields -->
+                            <div id="local-storage-fields">
+                                <div class="mb-3">
+                                    <label for="storage_root" class="form-label">Storage Root Path</label>
+                                    <input type="text" name="storage_root" id="storage_root" class="form-control"
+                                           value="{{ settings.storage_root }}">
+                                    <div class="form-text text-muted">Base directory for storing downloaded files</div>
+                                </div>
+                            </div>
+
+                            <!-- S3 Storage Fields -->
+                            <div id="s3-storage-fields" style="display: none;">
+                                <div class="mb-3">
+                                    <label for="s3_endpoint_url" class="form-label">Endpoint URL</label>
+                                    <input type="text" name="s3_endpoint_url" id="s3_endpoint_url" class="form-control"
+                                           value="{{ settings.s3_endpoint_url }}" placeholder="https://s3.amazonaws.com">
+                                    <div class="form-text text-muted">S3 endpoint. Use your MinIO/Wasabi URL for non-AWS providers.</div>
+                                </div>
+                                <div class="row mb-3">
+                                    <div class="col-md-6">
+                                        <label for="s3_access_key_id" class="form-label">Access Key ID</label>
+                                        <input type="text" name="s3_access_key_id" id="s3_access_key_id" class="form-control"
+                                               value="{{ settings.s3_access_key_id }}" placeholder="AKIAIOSFODNN7EXAMPLE">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label for="s3_secret_access_key" class="form-label">Secret Access Key</label>
+                                        <input type="password" name="s3_secret_access_key" id="s3_secret_access_key" class="form-control"
+                                               value="{{ settings.s3_secret_access_key }}" placeholder="Enter secret key">
+                                    </div>
+                                </div>
+                                <div class="row mb-3">
+                                    <div class="col-md-6">
+                                        <label for="s3_bucket_name" class="form-label">Bucket Name</label>
+                                        <input type="text" name="s3_bucket_name" id="s3_bucket_name" class="form-control"
+                                               value="{{ settings.s3_bucket_name }}" placeholder="my-trawlr-bucket">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label for="s3_region" class="form-label">Region</label>
+                                        <input type="text" name="s3_region" id="s3_region" class="form-control"
+                                               value="{{ settings.s3_region }}" placeholder="us-east-1">
+                                        <div class="form-text text-muted">Leave blank for non-AWS providers</div>
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="s3_presigned_url_expiry" class="form-label">Presigned URL Expiry (seconds)</label>
+                                    <input type="number" name="s3_presigned_url_expiry" id="s3_presigned_url_expiry"
+                                           class="form-control" value="{{ settings.s3_presigned_url_expiry }}"
+                                           min="60" max="86400" style="max-width: 120px;">
+                                    <div class="form-text text-muted">How long media URLs remain valid</div>
+                                </div>
+                            </div>
+
+                            <!-- Azure Storage Fields -->
+                            <div id="azure-storage-fields" style="display: none;">
+                                <div class="mb-3">
+                                    <label for="azure_connection_string" class="form-label">Connection String</label>
+                                    <input type="password" name="azure_connection_string" id="azure_connection_string" class="form-control"
+                                           value="{{ settings.azure_connection_string }}"
+                                           placeholder="DefaultEndpointsProtocol=https;AccountName=...">
+                                </div>
+                                <div class="mb-3">
+                                    <label for="azure_container_name" class="form-label">Container Name</label>
+                                    <input type="text" name="azure_container_name" id="azure_container_name" class="form-control"
+                                           value="{{ settings.azure_container_name }}" placeholder="trawlr-media">
+                                </div>
+                                <div class="mb-3">
+                                    <label for="azure_sas_expiry" class="form-label">SAS Token Expiry (seconds)</label>
+                                    <input type="number" name="azure_sas_expiry" id="azure_sas_expiry"
+                                           class="form-control" value="{{ settings.azure_sas_expiry }}"
+                                           min="60" max="86400" style="max-width: 120px;">
+                                    <div class="form-text text-muted">How long media URLs remain valid</div>
+                                </div>
+                            </div>
+
+                            <hr class="my-3">
+
+                            <div class="mb-0">
+                                <label for="filename_format" class="form-label">Filename Format</label>
+                                <select name="filename_format" id="filename_format" class="form-select">
+                                    <option value="guid" {% if settings.filename_format == 'guid' %}selected{% endif %}>GUID.ext</option>
+                                    <option value="timestamp" {% if settings.filename_format == 'timestamp' %}selected{% endif %}>timestamp_originalname.ext</option>
+                                    <option value="message_id" {% if settings.filename_format == 'message_id' %}selected{% endif %}>messageid_originalname.ext</option>
+                                    <option value="file_id" {% if settings.filename_format == 'file_id' %}selected{% endif %}>fileid.ext</option>
+                                </select>
+                                <div class="form-text text-muted">How downloaded files are named on disk</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Download Settings -->
+                    <div class="card border-0 mb-4">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="bi bi-download me-2" style="font-size: 20px;"></i>
+                                Download Settings
+                            </h5>
+                        </div>
+                        <div class="card-body p-4">
+                            <div class="mb-3">
+                                <label for="default_retry_count" class="form-label">Default Retry Count</label>
+                                <input type="number" name="default_retry_count" id="default_retry_count"
+                                       class="form-control" value="{{ settings.default_retry_count }}"
+                                       min="0" max="10" style="max-width: 120px;">
+                                <div class="form-text text-muted">Times to retry failed downloads</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Source Onboarding Settings -->
+                    <div class="card border-0 mb-4">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="bi bi-rocket me-2" style="font-size: 20px;"></i>
+                                Source Onboarding
+                            </h5>
+                        </div>
+                        <div class="card-body p-4">
+                            <div class="form-check form-switch">
+                                <input type="hidden" name="run_onboarding_for_new_sources" id="run_onboarding_for_new_sources_value"
+                                       value="{% if settings.run_onboarding_for_new_sources %}true{% else %}false{% endif %}">
+                                <input type="checkbox" id="run_onboarding_for_new_sources"
+                                       class="form-check-input" role="switch"
+                                       {% if settings.run_onboarding_for_new_sources %}checked{% endif %}
+                                       onchange="document.getElementById('run_onboarding_for_new_sources_value').value = this.checked ? 'true' : 'false';">
+                                <label class="form-check-label" for="run_onboarding_for_new_sources">
+                                    Run onboarding for newly detected sources
+                                </label>
+                            </div>
+                            <div class="form-text text-muted">
+                                Automatically fetch message history and members (without media) when new sources are detected during channel sync.
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Availability Settings -->
+                    <div class="card border-0 mb-4">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="bi bi-shield-exclamation me-2" style="font-size: 20px;"></i>
+                                Availability
+                            </h5>
+                        </div>
+                        <div class="card-body p-4">
+                            <div class="form-check form-switch">
+                                <input type="hidden" name="auto_archive_unavailable" id="auto_archive_unavailable_value"
+                                       value="{% if settings.auto_archive_unavailable %}true{% else %}false{% endif %}">
+                                <input type="checkbox" id="auto_archive_unavailable"
+                                       class="form-check-input" role="switch"
+                                       {% if settings.auto_archive_unavailable %}checked{% endif %}
+                                       onchange="document.getElementById('auto_archive_unavailable_value').value = this.checked ? 'true' : 'false';">
+                                <label class="form-check-label" for="auto_archive_unavailable">
+                                    Archive unavailable sources
+                                </label>
+                            </div>
+                            <div class="form-text text-muted">
+                                Automatically archive sources that are detected as restricted, deleted, or private during availability checks. Disables auto-download and logs the event.
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Source Auto-Discovery -->
+                    <div class="card border-0 mb-4">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="bi bi-broadcast me-2" style="font-size: 20px;"></i>
+                                Source Auto-Discovery
+                            </h5>
+                        </div>
+                        <div class="card-body p-4">
+                            <div class="form-check form-switch mb-3">
+                                <input type="hidden" name="auto_discover_sources" id="auto_discover_sources_value"
+                                       value="{% if settings.auto_discover_sources %}true{% else %}false{% endif %}">
+                                <input type="checkbox" id="auto_discover_sources"
+                                       class="form-check-input" role="switch"
+                                       {% if settings.auto_discover_sources %}checked{% endif %}
+                                       onchange="document.getElementById('auto_discover_sources_value').value = this.checked ? 'true' : 'false';">
+                                <label class="form-check-label" for="auto_discover_sources">
+                                    Auto-discover new sources
+                                </label>
+                            </div>
+                            <div class="form-text text-muted">
+                                Automatically detect and create sources when the listener receives events from channels/groups not yet in Trawlr. Zero additional API calls.
+                                Onboarding (history fetch &amp; members) is controlled by the Source Onboarding setting above.
+                            </div>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-save me-1" style="font-size: 18px;"></i>
+                        Save Settings
+                    </button>
+                </form>
+            </div>
+
+            <div class="col-lg-4">
+                <div class="card border-0 bg-dark bg-opacity-25">
+                    <div class="card-body p-4">
+                        <h5 class="mb-3">
+                            <i class="bi bi-info-circle me-2" style="font-size: 20px;"></i>
+                            Help
+                        </h5>
+                        <div class="mb-3">
+                            <h6 class="text-muted">Storage Providers</h6>
+                            <ul class="small text-muted mb-0">
+                                <li><strong>Local</strong>: Files stored on the server filesystem</li>
+                                <li><strong>S3</strong>: Any S3-compatible provider (AWS, MinIO, Wasabi, etc.)</li>
+                                <li><strong>Azure</strong>: Azure Blob Storage</li>
+                            </ul>
+                        </div>
+                        <div class="mb-3">
+                            <h6 class="text-muted">Filename Formats</h6>
+                            <ul class="small text-muted mb-0">
+                                <li><strong>GUID</strong>: Unique random identifier</li>
+                                <li><strong>Timestamp</strong>: Download time + original name</li>
+                                <li><strong>Message ID</strong>: Telegram message ID + original name</li>
+                                <li><strong>File ID</strong>: Telegram file identifier</li>
+                            </ul>
+                        </div>
+                        <div class="mb-0">
+                            <h6 class="text-muted">File Organization</h6>
+                            <p class="small text-muted mb-0">
+                                Files are organized as:<br>
+                                <code class="text-primary">channel_id/type/filename</code>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tasks Tab -->
+    <div class="tab-pane fade" id="scheduler" role="tabpanel" aria-labelledby="scheduler-tab">
+        <!-- Section Info -->
+        <div class="mb-4 pb-3 border-bottom border-secondary">
+            <p class="text-muted mb-0">
+                <i class="bi bi-info-circle me-1" style="font-size: 14px;"></i>
+                Control how frequently background tasks run. Lower intervals provide fresher data but increase system load.
+            </p>
+        </div>
+
+        <div class="row">
+            <div class="col-lg-8">
+                <form method="post" id="schedulerForm">
+                    {% csrf_token %}
+                    <input type="hidden" name="form_section" value="scheduler">
+
+                    <div class="card border-0 mb-4">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="bi bi-clock me-2" style="font-size: 20px;"></i>
+                                Task Intervals
+                            </h5>
+                        </div>
+                        <div class="card-body p-4">
+                            <div class="mb-3">
+                                <label for="download_queue_interval" class="form-label">Download Queue Check</label>
+                                <select name="download_queue_interval" id="download_queue_interval" class="form-select" style="max-width: 200px;">
+                                    {% for value, label in settings.SCHEDULER_INTERVAL_CHOICES %}
+                                    <option value="{{ value }}" {% if settings.download_queue_interval == value %}selected{% endif %}>{{ label }}</option>
+                                    {% endfor %}
+                                </select>
+                                <div class="form-text text-muted">How often to check for pending downloads</div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="channel_sync_interval" class="form-label">Channel Sync</label>
+                                <select name="channel_sync_interval" id="channel_sync_interval" class="form-select" style="max-width: 200px;">
+                                    {% for value, label in settings.SCHEDULER_INTERVAL_CHOICES %}
+                                    <option value="{{ value }}" {% if settings.channel_sync_interval == value %}selected{% endif %}>{{ label }}</option>
+                                    {% endfor %}
+                                </select>
+                                <div class="form-text text-muted">How often to sync channels for all accounts</div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="channel_stats_interval" class="form-label">Channel Stats Refresh</label>
+                                <select name="channel_stats_interval" id="channel_stats_interval" class="form-select" style="max-width: 200px;">
+                                    {% for value, label in settings.SCHEDULER_INTERVAL_CHOICES %}
+                                    <option value="{{ value }}" {% if settings.channel_stats_interval == value %}selected{% endif %}>{{ label }}</option>
+                                    {% endfor %}
+                                </select>
+                                <div class="form-text text-muted">How often to refresh channel member counts</div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="media_counts_interval" class="form-label">Media Counts Refresh</label>
+                                <select name="media_counts_interval" id="media_counts_interval" class="form-select" style="max-width: 200px;">
+                                    {% for value, label in settings.SCHEDULER_INTERVAL_CHOICES %}
+                                    <option value="{{ value }}" {% if settings.media_counts_interval == value %}selected{% endif %}>{{ label }}</option>
+                                    {% endfor %}
+                                </select>
+                                <div class="form-text text-muted">How often to refresh photo/video/file counts from Telegram</div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="stuck_task_recovery_interval" class="form-label">Stuck Task Recovery</label>
+                                <select name="stuck_task_recovery_interval" id="stuck_task_recovery_interval" class="form-select" style="max-width: 200px;">
+                                    {% for value, label in settings.SCHEDULER_INTERVAL_CHOICES %}
+                                    <option value="{{ value }}" {% if settings.stuck_task_recovery_interval == value %}selected{% endif %}>{{ label }}</option>
+                                    {% endfor %}
+                                </select>
+                                <div class="form-text text-muted">How often to recover stuck tasks (always runs on startup)</div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="availability_check_interval" class="form-label">Availability Check</label>
+                                <select name="availability_check_interval" id="availability_check_interval" class="form-select" style="max-width: 200px;">
+                                    {% for value, label in settings.SCHEDULER_INTERVAL_CHOICES %}
+                                    <option value="{{ value }}" {% if settings.availability_check_interval == value %}selected{% endif %}>{{ label }}</option>
+                                    {% endfor %}
+                                </select>
+                                <div class="form-text text-muted">How often to check if channels are still accessible</div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="forum_topics_sync_interval" class="form-label">Forum Topics Sync</label>
+                                <select name="forum_topics_sync_interval" id="forum_topics_sync_interval" class="form-select" style="max-width: 200px;">
+                                    {% for value, label in settings.SCHEDULER_INTERVAL_CHOICES %}
+                                    <option value="{{ value }}" {% if settings.forum_topics_sync_interval == value %}selected{% endif %}>{{ label }}</option>
+                                    {% endfor %}
+                                </select>
+                                <div class="form-text text-muted">How often to sync forum topics for forum channels</div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="member_sync_interval" class="form-label">Member Sync</label>
+                                <select name="member_sync_interval" id="member_sync_interval" class="form-select" style="max-width: 200px;">
+                                    {% for value, label in settings.SCHEDULER_INTERVAL_CHOICES %}
+                                    <option value="{{ value }}" {% if settings.member_sync_interval == value %}selected{% endif %}>{{ label }}</option>
+                                    {% endfor %}
+                                </select>
+                                <div class="form-text text-muted">How often to sync group/supergroup member lists</div>
+                            </div>
+                            <div class="mb-0">
+                                <label for="reaction_scan_interval" class="form-label">Reaction Scan</label>
+                                <select name="reaction_scan_interval" id="reaction_scan_interval" class="form-select" style="max-width: 200px;">
+                                    {% for value, label in settings.SCHEDULER_INTERVAL_CHOICES %}
+                                    <option value="{{ value }}" {% if settings.reaction_scan_interval == value %}selected{% endif %}>{{ label }}</option>
+                                    {% endfor %}
+                                </select>
+                                <div class="form-text text-muted">How often to scan per-user reaction data. Uses API calls — set conservatively to avoid rate limits.</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-save me-1" style="font-size: 18px;"></i>
+                        Save Settings
+                    </button>
+                </form>
+            </div>
+
+            <div class="col-lg-4">
+                <!-- Manual Actions -->
+                <div class="card border-0 mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="bi bi-play me-2" style="font-size: 20px;"></i>
+                            Manual Actions
+                        </h5>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="list-group list-group-flush">
+                            <button type="button" class="list-group-item list-group-item-action action-item-hover d-flex justify-content-between align-items-center py-3"
+                                    onclick="invokeTask('{% url 'accounts:invoke_process_downloads' %}', this)">
+                                <div>
+                                    <div class="fw-medium">Process Download Queue</div>
+                                    <small class="text-muted">Check for pending downloads</small>
+                                </div>
+                                <i class="bi bi-chevron-right text-muted" style="font-size: 18px;"></i>
+                            </button>
+                            <button type="button" class="list-group-item list-group-item-action action-item-hover d-flex justify-content-between align-items-center py-3"
+                                    onclick="invokeTask('{% url 'accounts:invoke_sync_channels' %}', this)">
+                                <div>
+                                    <div class="fw-medium">Sync All Channels</div>
+                                    <small class="text-muted">Update channel list &amp; join dates</small>
+                                </div>
+                                <i class="bi bi-chevron-right text-muted" style="font-size: 18px;"></i>
+                            </button>
+                            <button type="button" class="list-group-item list-group-item-action action-item-hover d-flex justify-content-between align-items-center py-3"
+                                    onclick="invokeTask('{% url 'accounts:invoke_refresh_stats' %}', this)">
+                                <div>
+                                    <div class="fw-medium">Refresh Channel Stats</div>
+                                    <small class="text-muted">Update member counts</small>
+                                </div>
+                                <i class="bi bi-chevron-right text-muted" style="font-size: 18px;"></i>
+                            </button>
+                            <button type="button" class="list-group-item list-group-item-action action-item-hover d-flex justify-content-between align-items-center py-3"
+                                    onclick="invokeTask('{% url 'accounts:invoke_refresh_media_counts' %}', this)">
+                                <div>
+                                    <div class="fw-medium">Refresh Media Counts</div>
+                                    <small class="text-muted">Update photo/video/file counts</small>
+                                </div>
+                                <i class="bi bi-chevron-right text-muted" style="font-size: 18px;"></i>
+                            </button>
+                            <button type="button" class="list-group-item list-group-item-action action-item-hover d-flex justify-content-between align-items-center py-3"
+                                    onclick="invokeTask('{% url 'accounts:invoke_recover_stuck_tasks' %}', this)">
+                                <div>
+                                    <div class="fw-medium">Recover Stuck Tasks</div>
+                                    <small class="text-muted">Reset hung downloads &amp; scans</small>
+                                </div>
+                                <i class="bi bi-chevron-right text-muted" style="font-size: 18px;"></i>
+                            </button>
+                            <button type="button" class="list-group-item list-group-item-action action-item-hover d-flex justify-content-between align-items-center py-3"
+                                    onclick="invokeTask('{% url 'accounts:invoke_check_availability' %}', this)">
+                                <div>
+                                    <div class="fw-medium">Check Availability</div>
+                                    <small class="text-muted">Verify all channels are accessible</small>
+                                </div>
+                                <i class="bi bi-chevron-right text-muted" style="font-size: 18px;"></i>
+                            </button>
+                            <button type="button" class="list-group-item list-group-item-action action-item-hover d-flex justify-content-between align-items-center py-3"
+                                    onclick="invokeTask('{% url 'accounts:invoke_sync_forum_topics' %}', this)">
+                                <div>
+                                    <div class="fw-medium">Sync Forum Topics</div>
+                                    <small class="text-muted">Update topics for all forum channels</small>
+                                </div>
+                                <i class="bi bi-chevron-right text-muted" style="font-size: 18px;"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Dead Letter Queue Management -->
+                <div class="card border-0 mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="bi bi-exclamation-triangle me-2" style="font-size: 20px;"></i>
+                            Failed Tasks (Dead Letters)
+                        </h5>
+                    </div>
+                    <div class="card-body p-3">
+                        <div class="mb-3">
+                            <div class="d-flex align-items-center mb-2">
+                                <span class="text-muted small">Messages in dead letter queues:</span>
+                                <span id="dead-letter-count" class="badge bg-warning ms-2">...</span>
+                                <button type="button" class="btn btn-link btn-sm p-0 ms-2" onclick="refreshDeadLetterStats()">
+                                    <i class="bi bi-arrow-clockwise" style="font-size: 14px;"></i>
+                                </button>
+                            </div>
+                            <div class="small text-muted">
+                                Tasks that failed after max retries end up here. Requeue to retry them, or purge to discard.
+                            </div>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <button type="button" class="btn btn-outline-warning btn-sm" onclick="invokeTask('{% url 'accounts:invoke_requeue_dead_letters' %}', this)">
+                                <i class="bi bi-arrow-repeat me-1"></i> Requeue All
+                            </button>
+                            <button type="button" class="btn btn-outline-danger btn-sm" onclick="invokeTask('{% url 'accounts:invoke_purge_dead_letters' %}', this)">
+                                <i class="bi bi-trash me-1"></i> Purge All
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Important Notice -->
+                <div class="card border-0 bg-dark bg-opacity-25">
+                    <div class="card-body p-4">
+                        <h6 class="mb-3">
+                            <i class="bi bi-exclamation-triangle me-2" style="font-size: 18px;"></i>
+                            Important
+                        </h6>
+                        <div class="small text-muted">
+                            <p class="mb-2">Changes to intervals require a <strong>scheduler restart</strong> to take effect.</p>
+                            <p class="mb-0">Very low intervals may trigger Telegram rate limits.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Event Processing Tab -->
+    <div class="tab-pane fade" id="events" role="tabpanel" aria-labelledby="events-tab">
+        <!-- Section Info -->
+        <div class="mb-4 pb-3 border-bottom border-secondary">
+            <p class="text-muted mb-0">
+                <i class="bi bi-info-circle me-1" style="font-size: 14px;"></i>
+                Configure how real-time events from Telegram are processed. Events are queued by the listener and processed by the worker.
+            </p>
+        </div>
+
+        <div class="row">
+            <div class="col-lg-8">
+                <form method="post" id="eventsForm">
+                    {% csrf_token %}
+                    <input type="hidden" name="form_section" value="events">
+
+                    <div class="card border-0 mb-4">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="bi bi-diagram-3 me-2" style="font-size: 20px;"></i>
+                                Entity Cache
+                            </h5>
+                        </div>
+                        <div class="card-body p-4">
+                            <div class="mb-0">
+                                <label for="dialog_cache_limit" class="form-label">Dialog Cache Limit</label>
+                                <input type="number" name="dialog_cache_limit" id="dialog_cache_limit"
+                                       class="form-control" value="{{ settings.dialog_cache_limit }}"
+                                       min="100" max="5000" style="max-width: 150px;">
+                                <div class="form-text text-muted">Number of dialogs to fetch when populating the Telegram entity cache (used for availability checks). Increase this if sources are incorrectly marked as deleted or inaccessible.</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card border-0 mb-4">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="bi bi-lightning me-2" style="font-size: 20px;"></i>
+                                Processing Settings
+                            </h5>
+                        </div>
+                        <div class="card-body p-4">
+                            <div class="mb-3">
+                                <div class="form-check form-switch">
+                                    <input type="hidden" name="event_processing_enabled" id="event_processing_enabled_value"
+                                           value="{% if settings.event_processing_enabled %}true{% else %}false{% endif %}">
+                                    <input type="checkbox" id="event_processing_enabled"
+                                           class="form-check-input" role="switch"
+                                           {% if settings.event_processing_enabled %}checked{% endif %}
+                                           onchange="document.getElementById('event_processing_enabled_value').value = this.checked ? 'true' : 'false';">
+                                    <label class="form-check-label" for="event_processing_enabled">
+                                        Enable Event Processing
+                                    </label>
+                                </div>
+                                <div class="form-text text-muted">Master switch for processing queued events. If disabled, events will queue but not process.</div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label for="event_processor_batch_size" class="form-label">Batch Size</label>
+                                    <input type="number" name="event_processor_batch_size" id="event_processor_batch_size"
+                                           class="form-control" value="{{ settings.event_processor_batch_size }}"
+                                           min="1" max="500" style="max-width: 120px;">
+                                    <div class="form-text text-muted">Events processed per worker cycle</div>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label for="event_processor_retry_count" class="form-label">Max Retries</label>
+                                    <input type="number" name="event_processor_retry_count" id="event_processor_retry_count"
+                                           class="form-control" value="{{ settings.event_processor_retry_count }}"
+                                           min="0" max="10" style="max-width: 120px;">
+                                    <div class="form-text text-muted">Times to retry failed events</div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label for="event_processor_retry_backoff_min" class="form-label">Min Retry Backoff (seconds)</label>
+                                    <input type="number" name="event_processor_retry_backoff_min" id="event_processor_retry_backoff_min"
+                                           class="form-control" value="{{ settings.event_processor_retry_backoff_min }}"
+                                           min="1" max="300" style="max-width: 120px;">
+                                    <div class="form-text text-muted">Minimum wait between retries</div>
+                                </div>
+                                <div class="col-md-6 mb-0">
+                                    <label for="event_processor_retry_backoff_max" class="form-label">Max Retry Backoff (seconds)</label>
+                                    <input type="number" name="event_processor_retry_backoff_max" id="event_processor_retry_backoff_max"
+                                           class="form-control" value="{{ settings.event_processor_retry_backoff_max }}"
+                                           min="10" max="3600" style="max-width: 120px;">
+                                    <div class="form-text text-muted">Maximum wait between retries</div>
+                                </div>
+                            </div>
+                            <div class="mb-0">
+                                <div class="form-check form-switch">
+                                    <input type="hidden" name="tglink_resolution" id="tglink_resolution_value"
+                                           value="{% if settings.tglink_resolution %}true{% else %}false{% endif %}">
+                                    <input type="checkbox" id="tglink_resolution"
+                                           class="form-check-input" role="switch"
+                                           {% if settings.tglink_resolution %}checked{% endif %}
+                                           onchange="document.getElementById('tglink_resolution_value').value = this.checked ? 'true' : 'false';">
+                                    <label class="form-check-label" for="tglink_resolution">
+                                        Resolve Invite Links
+                                    </label>
+                                </div>
+                                <div class="form-text text-muted">Automatically resolve t.me invite links found in messages to catalog destination metadata (group name, member count, about text) without joining.</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Raw Event Storage -->
+                    <div class="card border-0 mb-4">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="bi bi-database me-2" style="font-size: 20px;"></i>
+                                Raw Event Storage
+                            </h5>
+                        </div>
+                        <div class="card-body p-4">
+                            <div class="mb-3">
+                                <div class="form-check form-switch">
+                                    <input type="hidden" name="store_raw_events" id="store_raw_events_value"
+                                           value="{% if settings.store_raw_events %}true{% else %}false{% endif %}">
+                                    <input type="checkbox" id="store_raw_events"
+                                           class="form-check-input" role="switch"
+                                           {% if settings.store_raw_events %}checked{% endif %}
+                                           onchange="document.getElementById('store_raw_events_value').value = this.checked ? 'true' : 'false';">
+                                    <label class="form-check-label" for="store_raw_events">
+                                        Store Raw Event Data
+                                    </label>
+                                </div>
+                                <div class="form-text text-muted">Save the complete raw JSON payload for each event before processing. Useful for debugging and auditing. Can be accessed via the Django admin or API.</div>
+                            </div>
+                            <div class="mb-0">
+                                <div class="form-check form-switch">
+                                    <input type="hidden" name="stream_raw_events" id="stream_raw_events_value"
+                                           value="{% if settings.stream_raw_events %}true{% else %}false{% endif %}">
+                                    <input type="checkbox" id="stream_raw_events"
+                                           class="form-check-input" role="switch"
+                                           {% if settings.stream_raw_events %}checked{% endif %}
+                                           onchange="document.getElementById('stream_raw_events_value').value = this.checked ? 'true' : 'false';">
+                                    <label class="form-check-label" for="stream_raw_events">
+                                        Stream Raw Events to Queue
+                                    </label>
+                                </div>
+                                <div class="form-text text-muted">Stream raw event payloads to the <code>trawlr.events.raw</code> RabbitMQ queue for external processing or integration with other systems.</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-save me-1" style="font-size: 18px;"></i>
+                        Save Settings
+                    </button>
+                </form>
+            </div>
+
+            <div class="col-lg-4">
+                <div class="card border-0 bg-dark bg-opacity-25">
+                    <div class="card-body p-4">
+                        <h5 class="mb-3">
+                            <i class="bi bi-info-circle me-2" style="font-size: 20px;"></i>
+                            Architecture
+                        </h5>
+                        <div class="small text-muted">
+                            <p><strong>Listener Service</strong> captures events from Telegram and publishes them to RabbitMQ.</p>
+                            <p><strong>Event Worker</strong> processes queued events, handling user tracking, message archiving, and download scheduling.</p>
+                            <p class="mb-0">This decoupling ensures no events are lost even under high load.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card border-0 bg-dark bg-opacity-25 mt-4">
+                    <div class="card-body p-4">
+                        <h5 class="mb-3">
+                            <i class="bi bi-database me-2" style="font-size: 20px;"></i>
+                            Raw Events
+                        </h5>
+                        <div class="small text-muted">
+                            <p>When enabled, raw event JSON is stored before processing and linked to the resulting archived message.</p>
+                            <p class="mb-0">Access raw events via Django Admin under <strong>Events &gt; Raw Events</strong>.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Exclusions Tab -->
+    <div class="tab-pane fade" id="exclusions" role="tabpanel" aria-labelledby="exclusions-tab">
+        <!-- Section Info -->
+        <div class="mb-4 pb-3 border-bottom border-secondary">
+            <p class="text-muted mb-0">
+                <i class="bi bi-info-circle me-1" style="font-size: 14px;"></i>
+                Exclude specific users from message processing. Excluded users' messages will be ignored by the event processor.
+            </p>
+        </div>
+        <div class="row">
+            <div class="col-lg-9">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <div>
+                        <h5 class="mb-1">User Exclusion List</h5>
+                        <p class="text-muted mb-0 small">Excluded users' messages will not be processed by the listener service.</p>
+                    </div>
+                    <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addExclusionModal">
+                        <i class="bi bi-plus me-1" style="font-size: 18px;"></i>
+                        Add Exclusion
+                    </button>
+                </div>
+
+                <!-- Exclusion Table Container -->
+                <div id="exclusionTableContainer">
+                    {% include "accounts/partials/exclusion_table.html" %}
+                </div>
+            </div>
+
+            <div class="col-lg-3">
+                <div class="card border-0 bg-dark bg-opacity-25">
+                    <div class="card-body p-4">
+                        <h5 class="mb-3">
+                            <i class="bi bi-info-circle me-2" style="font-size: 20px;"></i>
+                            About Exclusions
+                        </h5>
+                        <div class="small text-muted">
+                            <p><strong>Global exclusions</strong> prevent real-time messages from being processed for the specified user across all sources.</p>
+                            <p><strong>Source exclusions</strong> prevent real-time messages from being processed from the selected sources.</p>
+                            <p class="mb-0">User profiles are still updated when excluded users post.</p>
+                            <p class="mb-0">If you need to stop all posts from a specific source being processed, use the "bypass listener" feature on the sources' config page.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- API Tab -->
+    <div class="tab-pane fade" id="api" role="tabpanel" aria-labelledby="api-tab">
+        <!-- Section Info -->
+        <div class="mb-4 pb-3 border-bottom border-secondary">
+            <p class="text-muted mb-0">
+                <i class="bi bi-info-circle me-1" style="font-size: 14px;"></i>
+                Manage your API tokens for programmatic access to the Trawlr API.
+            </p>
+        </div>
+
+        <div class="row">
+            <div class="col-lg-8">
+                <div class="card border-0 mb-4">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">
+                            <i class="bi bi-key me-2" style="font-size: 20px;"></i>
+                            API Token
+                        </h5>
+                        {% if not tokens %}
+                        <button type="button" class="btn btn-primary btn-sm" onclick="createApiToken()">
+                            <i class="bi bi-plus me-1" style="font-size: 16px;"></i>
+                            Generate Token
+                        </button>
+                        {% endif %}
+                    </div>
+                    <div class="card-body p-4">
+                        {% if tokens %}
+                        {% for token in tokens %}
+                        <div class="mb-3" id="tokenDisplay">
+                            <label class="form-label">Your API Token</label>
+                            <div class="input-group">
+                                <input type="text" class="form-control font-monospace bg-dark" id="apiTokenValue"
+                                       value="{{ token.key|slice:':8' }}********************************" readonly disabled>
+                            </div>
+                            <div class="form-text text-muted">
+                                Created: {{ token.created|date:"M d, Y H:i" }}
+                            </div>
+                            <div class="form-text text-warning">
+                                <i class="bi bi-exclamation-triangle me-1" style="font-size: 14px;"></i>
+                                Token is only shown once at creation. Regenerate to get a new token.
+                            </div>
+                        </div>
+
+                        <div class="d-flex gap-2">
+                            <button type="button" class="btn btn-warning btn-sm" onclick="regenerateApiToken()">
+                                <i class="bi bi-arrow-clockwise me-1" style="font-size: 16px;"></i>
+                                Regenerate Token
+                            </button>
+                            <button type="button" class="btn btn-danger btn-sm" onclick="deleteApiToken()">
+                                <i class="bi bi-trash me-1" style="font-size: 16px;"></i>
+                                Delete Token
+                            </button>
+                        </div>
+                        {% endfor %}
+                        {% else %}
+                        <div id="noTokenDisplay">
+                            <p class="text-muted mb-0">
+                                You don't have an API token yet. Click "Generate Token" to create one.
+                            </p>
+                        </div>
+                        {% endif %}
+
+                        <!-- Placeholder for newly created token -->
+                        <div id="newTokenDisplay" style="display: none;">
+                            <div class="alert alert-success mb-3">
+                                <i class="bi bi-check-circle me-2" style="font-size: 18px;"></i>
+                                <strong>Token created successfully!</strong>
+                                <br><small>Copy your token now - it will only be shown once.</small>
+                            </div>
+                            <label class="form-label">Your API Token</label>
+                            <div class="input-group mb-3">
+                                <input type="text" class="form-control font-monospace" id="newApiTokenValue" readonly>
+                                <button class="btn btn-primary" type="button" onclick="copyToClipboard('newApiTokenValue')" title="Copy to clipboard">
+                                    <i class="bi bi-clipboard" style="font-size: 16px;"></i>
+                                    Copy
+                                </button>
+                            </div>
+                            <div class="d-flex gap-2">
+                                <button type="button" class="btn btn-secondary btn-sm" onclick="location.reload()">
+                                    Done
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- API Usage Examples -->
+                <div class="card border-0">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="bi bi-code me-2" style="font-size: 20px;"></i>
+                            Usage Examples
+                        </h5>
+                    </div>
+                    <div class="card-body p-4">
+                        <h6>Authentication Header</h6>
+                        <pre class="bg-dark p-3 rounded"><code>Authorization: Bearer YOUR_API_TOKEN</code></pre>
+                        <div class="form-text text-muted mb-3">Both <code>Bearer</code> and <code>Token</code> keywords are supported.</div>
+
+                        <h6>cURL Example</h6>
+                        <pre class="bg-dark p-3 rounded"><code>curl -H "Authorization: Bearer YOUR_API_TOKEN" \
+     {{ request.scheme }}://{{ request.get_host }}/api/v1/accounts/</code></pre>
+
+                        <h6>Python Example</h6>
+                        <pre class="bg-dark p-3 rounded"><code>import requests
+
+headers = {'Authorization': 'Bearer YOUR_API_TOKEN'}
+response = requests.get(
+    '{{ request.scheme }}://{{ request.get_host }}/api/v1/accounts/',
+    headers=headers
+)
+print(response.json())</code></pre>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-4">
+                <div class="card border-0 bg-dark bg-opacity-25">
+                    <div class="card-body p-4">
+                        <h5 class="mb-3">
+                            <i class="bi bi-info-circle me-2" style="font-size: 20px;"></i>
+                            API Documentation
+                        </h5>
+                        <div class="small text-muted">
+                            <p>The Trawlr API provides programmatic access to your data.</p>
+                            <p class="mb-3">View the full API documentation:</p>
+                            <a href="{% url 'api:swagger-ui' %}" class="btn btn-outline-primary btn-sm mb-2 d-block">
+                                <i class="bi bi-book me-1" style="font-size: 16px;"></i>
+                                Swagger UI
+                            </a>
+                            <a href="{% url 'api:redoc' %}" class="btn btn-outline-primary btn-sm d-block">
+                                <i class="bi bi-file-text me-1" style="font-size: 16px;"></i>
+                                ReDoc
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card border-0 bg-dark bg-opacity-25 mt-4">
+                    <div class="card-body p-4">
+                        <h5 class="mb-3">
+                            <i class="bi bi-shield me-2" style="font-size: 20px;"></i>
+                            Security
+                        </h5>
+                        <div class="small text-muted">
+                            <ul class="ps-3 mb-0">
+                                <li>Keep your API token secret</li>
+                                <li>Don't share it in public repositories</li>
+                                <li>Regenerate immediately if compromised</li>
+                                <li>Token is only shown once at creation</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Exclusion Modal -->
+{% include "accounts/partials/exclusion_modal.html" %}
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function toggleStorageFields() {
+    const provider = document.getElementById('storage_provider').value;
+    document.getElementById('local-storage-fields').style.display = provider === 'local' ? '' : 'none';
+    document.getElementById('s3-storage-fields').style.display = provider === 's3' ? '' : 'none';
+    document.getElementById('azure-storage-fields').style.display = provider === 'azure' ? '' : 'none';
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize storage provider field visibility
+    toggleStorageFields();
+
+    // Handle tab switching via URL hash
+    const hash = window.location.hash;
+    const validTabs = ['general', 'scheduler', 'events', 'exclusions', 'api'];
+    const tabName = hash.replace('#', '');
+
+    if (validTabs.includes(tabName) && tabName !== 'general') {
+        const tabButton = document.querySelector(`#${tabName}-tab`);
+        if (tabButton) {
+            const tab = new bootstrap.Tab(tabButton);
+            tab.show();
+        }
+    }
+
+    // Update URL hash when tab changes
+    document.querySelectorAll('#settingsTabs button[data-bs-toggle="tab"]').forEach(function(tabEl) {
+        tabEl.addEventListener('shown.bs.tab', function(event) {
+            const targetId = event.target.getAttribute('data-bs-target').replace('#', '');
+            if (targetId === 'general') {
+                history.replaceState(null, null, window.location.pathname);
+            } else {
+                history.replaceState(null, null, '#' + targetId);
+            }
+        });
+    });
+
+});
+
+// Exclusion management functions
+function toggleExclusion(pk) {
+    fetch(`{% url 'accounts:exclusion_toggle' pk=0 %}`.replace('/0/', `/${pk}/`), {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': '{{ csrf_token }}',
+            'Content-Type': 'application/json',
+        },
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            refreshExclusionTable();
+            showToast(data.is_active ? 'Exclusion enabled' : 'Exclusion disabled', 'success');
+        } else {
+            showToast(data.error || 'Failed to toggle exclusion', 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showToast('Failed to toggle exclusion', 'error');
+    });
+}
+
+function deleteExclusion(pk) {
+    if (!confirm('Are you sure you want to delete this exclusion?')) {
+        return;
+    }
+
+    fetch(`{% url 'accounts:exclusion_delete' pk=0 %}`.replace('/0/', `/${pk}/`), {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': '{{ csrf_token }}',
+            'Content-Type': 'application/json',
+        },
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            refreshExclusionTable();
+            showToast('Exclusion deleted', 'success');
+        } else {
+            showToast(data.error || 'Failed to delete exclusion', 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showToast('Failed to delete exclusion', 'error');
+    });
+}
+
+function refreshExclusionTable() {
+    fetch('{% url "accounts:exclusion_list" %}')
+        .then(response => response.text())
+        .then(html => {
+            document.getElementById('exclusionTableContainer').innerHTML = html;
+        });
+}
+
+// User search for exclusion modal
+let userSearchTimeout;
+function searchUsers(query) {
+    clearTimeout(userSearchTimeout);
+    const resultsContainer = document.getElementById('userSearchResults');
+
+    if (query.length < 2) {
+        resultsContainer.innerHTML = '<div class="text-muted small p-2">Type at least 2 characters to search</div>';
+        return;
+    }
+
+    userSearchTimeout = setTimeout(() => {
+        fetch(`{% url 'accounts:search_users_api' %}?q=${encodeURIComponent(query)}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.results.length === 0) {
+                    resultsContainer.innerHTML = '<div class="text-muted small p-2">No users found</div>';
+                    return;
+                }
+
+                let html = '<div class="list-group list-group-flush">';
+                data.results.forEach(user => {
+                    html += `
+                        <button type="button" class="list-group-item list-group-item-action" onclick="selectUser(${user.id}, '${user.text.replace(/'/g, "\\'")}', ${user.telegram_id})">
+                            <div class="d-flex justify-content-between">
+                                <span>${user.text}</span>
+                                <small class="text-muted">${user.telegram_id}</small>
+                            </div>
+                        </button>
+                    `;
+                });
+                html += '</div>';
+                resultsContainer.innerHTML = html;
+            });
+    }, 300);
+}
+
+function selectUser(id, text, telegramId) {
+    document.getElementById('selectedUserId').value = id;
+    document.getElementById('selectedUserDisplay').innerHTML = `
+        <div class="alert alert-success mb-0 py-2">
+            <strong>${text}</strong>
+            <small class="text-muted ms-2">(ID: ${telegramId})</small>
+            <button type="button" class="btn-close btn-sm float-end" onclick="clearSelectedUser()"></button>
+        </div>
+    `;
+    document.getElementById('userSearchInput').value = '';
+    document.getElementById('userSearchResults').innerHTML = '';
+}
+
+function clearSelectedUser() {
+    document.getElementById('selectedUserId').value = '';
+    document.getElementById('selectedUserDisplay').innerHTML = '';
+}
+
+// Source search for exclusion modal
+let sourceSearchTimeout;
+function searchSources(query) {
+    clearTimeout(sourceSearchTimeout);
+    const resultsContainer = document.getElementById('sourceSearchResults');
+
+    if (query.length < 2) {
+        resultsContainer.innerHTML = '<div class="text-muted small p-2">Type at least 2 characters to search</div>';
+        return;
+    }
+
+    sourceSearchTimeout = setTimeout(() => {
+        fetch(`{% url 'accounts:search_sources_api' %}?q=${encodeURIComponent(query)}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.results.length === 0) {
+                    resultsContainer.innerHTML = '<div class="text-muted small p-2">No sources found</div>';
+                    return;
+                }
+
+                let html = '<div class="list-group list-group-flush">';
+                data.results.forEach(source => {
+                    html += `
+                        <button type="button" class="list-group-item list-group-item-action" onclick="addSource(${source.id}, '${source.text.replace(/'/g, "\\'")}')">
+                            <div class="d-flex justify-content-between">
+                                <span>${source.text}</span>
+                                <small class="text-muted">${source.telegram_id}</small>
+                            </div>
+                        </button>
+                    `;
+                });
+                html += '</div>';
+                resultsContainer.innerHTML = html;
+            });
+    }, 300);
+}
+
+let selectedSources = [];
+
+function addSource(id, text) {
+    if (selectedSources.find(s => s.id === id)) {
+        return; // Already selected
+    }
+
+    selectedSources.push({ id, text });
+    updateSelectedSourcesDisplay();
+    document.getElementById('sourceSearchInput').value = '';
+    document.getElementById('sourceSearchResults').innerHTML = '';
+}
+
+function removeSource(id) {
+    selectedSources = selectedSources.filter(s => s.id !== id);
+    updateSelectedSourcesDisplay();
+}
+
+function updateSelectedSourcesDisplay() {
+    const container = document.getElementById('selectedSourcesDisplay');
+    if (selectedSources.length === 0) {
+        container.innerHTML = '';
+        return;
+    }
+
+    let html = '<div class="d-flex flex-wrap gap-2 mt-2">';
+    selectedSources.forEach(source => {
+        html += `
+            <span class="badge bg-primary d-flex align-items-center">
+                ${source.text}
+                <button type="button" class="btn-close btn-close-white ms-2" style="font-size: 0.6em;" onclick="removeSource(${source.id})"></button>
+            </span>
+        `;
+    });
+    html += '</div>';
+    container.innerHTML = html;
+}
+
+// Handle exclusion type change
+function onExclusionTypeChange() {
+    const isGlobal = document.getElementById('exclusionTypeGlobal').checked;
+    const sourceSection = document.getElementById('sourceSelectionSection');
+
+    if (isGlobal) {
+        sourceSection.style.display = 'none';
+        selectedSources = [];
+        updateSelectedSourcesDisplay();
+    } else {
+        sourceSection.style.display = 'block';
+    }
+}
+
+// Submit exclusion form
+function submitExclusion() {
+    const userId = document.getElementById('selectedUserId').value;
+    const exclusionType = document.getElementById('exclusionTypeGlobal').checked ? 'global' : 'source';
+    const reason = document.getElementById('exclusionReason').value;
+
+    if (!userId) {
+        alert('Please select a user');
+        return;
+    }
+
+    if (exclusionType === 'source' && selectedSources.length === 0) {
+        alert('Please select at least one source');
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('user_id', userId);
+    formData.append('exclusion_type', exclusionType);
+    formData.append('reason', reason);
+
+    selectedSources.forEach(source => {
+        formData.append('source_ids', source.id);
+    });
+
+    fetch('{% url "accounts:exclusion_add" %}', {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': '{{ csrf_token }}',
+        },
+        body: formData,
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Close modal and refresh table
+            bootstrap.Modal.getInstance(document.getElementById('addExclusionModal')).hide();
+            refreshExclusionTable();
+
+            // Reset form
+            clearSelectedUser();
+            selectedSources = [];
+            updateSelectedSourcesDisplay();
+            document.getElementById('exclusionReason').value = '';
+            document.getElementById('exclusionTypeGlobal').checked = true;
+            onExclusionTypeChange();
+        } else {
+            alert(data.error || 'Failed to create exclusion');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Failed to create exclusion');
+    });
+}
+
+// Task invocation function for scheduler
+async function invokeTask(url, btn) {
+    const originalHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<div class="d-flex align-items-center"><span class="spinner-border spinner-border-sm me-2"></span> Running...</div>';
+
+    try {
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+        });
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+            showToast(data.message || 'Task triggered', 'success');
+            // Refresh dead letter stats after requeue/purge
+            if (url.includes('dead-letters')) {
+                refreshDeadLetterStats();
+            }
+        } else {
+            showToast(data.error || 'Failed to trigger task', 'error');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        showToast('Failed to trigger task', 'error');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalHtml;
+    }
+}
+
+// Dead Letter Queue Stats
+async function refreshDeadLetterStats() {
+    const badge = document.getElementById('dead-letter-count');
+    if (!badge) return;
+
+    badge.textContent = '...';
+    badge.className = 'badge bg-secondary ms-2';
+
+    try {
+        const response = await fetch('{% url "accounts:get_dead_letters_stats" %}', {
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+        });
+        const data = await response.json();
+
+        if (data.success && data.data) {
+            const total = data.data.total || 0;
+            badge.textContent = total;
+            badge.className = total > 0 ? 'badge bg-warning ms-2' : 'badge bg-success ms-2';
+        } else {
+            badge.textContent = 'Error';
+            badge.className = 'badge bg-danger ms-2';
+        }
+    } catch (error) {
+        console.error('Error fetching dead letter stats:', error);
+        badge.textContent = 'Error';
+        badge.className = 'badge bg-danger ms-2';
+    }
+}
+
+// Load dead letter stats on page load
+document.addEventListener('DOMContentLoaded', refreshDeadLetterStats);
+
+// API Token Management Functions
+async function createApiToken() {
+    try {
+        const response = await fetch('{% url "accounts:api_token_create" %}', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'Content-Type': 'application/json',
+            },
+        });
+        const data = await response.json();
+
+        if (data.success) {
+            // Hide "no token" display and show new token
+            const noTokenDisplay = document.getElementById('noTokenDisplay');
+            if (noTokenDisplay) noTokenDisplay.style.display = 'none';
+
+            const newTokenDisplay = document.getElementById('newTokenDisplay');
+            document.getElementById('newApiTokenValue').value = data.token;
+            newTokenDisplay.style.display = 'block';
+
+            showToast(data.message, 'success');
+        } else {
+            showToast(data.error || 'Failed to create token', 'error');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        showToast('Failed to create token', 'error');
+    }
+}
+
+async function regenerateApiToken() {
+    if (!confirm('Are you sure you want to regenerate your API token? The old token will stop working immediately.')) {
+        return;
+    }
+
+    try {
+        const response = await fetch('{% url "accounts:api_token_regenerate" %}', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'Content-Type': 'application/json',
+            },
+        });
+        const data = await response.json();
+
+        if (data.success) {
+            // Hide existing token display and show new token display
+            const tokenDisplay = document.getElementById('tokenDisplay');
+            if (tokenDisplay) tokenDisplay.style.display = 'none';
+
+            const newTokenDisplay = document.getElementById('newTokenDisplay');
+            document.getElementById('newApiTokenValue').value = data.token;
+            newTokenDisplay.style.display = 'block';
+
+            showToast(data.message, 'success');
+        } else {
+            showToast(data.error || 'Failed to regenerate token', 'error');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        showToast('Failed to regenerate token', 'error');
+    }
+}
+
+async function deleteApiToken() {
+    if (!confirm('Are you sure you want to delete your API token? This action cannot be undone.')) {
+        return;
+    }
+
+    try {
+        const response = await fetch('{% url "accounts:api_token_delete" %}', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'Content-Type': 'application/json',
+            },
+        });
+        const data = await response.json();
+
+        if (data.success) {
+            showToast(data.message, 'success');
+            // Reload the page to show "no token" state
+            location.reload();
+        } else {
+            showToast(data.error || 'Failed to delete token', 'error');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        showToast('Failed to delete token', 'error');
+    }
+}
+
+async function copyToClipboard(elementId) {
+    const input = document.getElementById(elementId);
+    const text = input.value;
+
+    try {
+        await navigator.clipboard.writeText(text);
+        showToast('Token copied to clipboard', 'success');
+    } catch (err) {
+        // Fallback for older browsers
+        input.select();
+        input.setSelectionRange(0, 99999);
+        document.execCommand('copy');
+        showToast('Token copied to clipboard', 'success');
+    }
+}
+</script>
+{% endblock %}

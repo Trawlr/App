@@ -1,0 +1,361 @@
+{% extends "base.html" %}
+
+{% block title %}{{ account.name }} - Trawlr{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-start mb-4">
+    <div>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-2">
+                <li class="breadcrumb-item"><a href="{% url 'accounts:telegram_accounts' %}">Accounts</a></li>
+                <li class="breadcrumb-item active">{{ account.name }}</li>
+            </ol>
+        </nav>
+        <h2 class="d-flex align-items-center gap-3">
+            <div class="avatar">
+                <i class="bi bi-person" style="font-size: 24px;"></i>
+            </div>
+            {{ account.name }}
+        </h2>
+    </div>
+    <div class="d-flex gap-2">
+        {% if account.is_authenticated %}
+        <button type="button" class="btn btn-outline-primary" id="sync-btn"
+                hx-post="{% url 'accounts:telegram_account_sync' account.pk %}"
+                hx-swap="none"
+                hx-indicator="#sync-spinner">
+            <span id="sync-spinner" class="htmx-indicator spinner-border spinner-border-sm me-1"></span>
+            <i class="bi bi-arrow-clockwise me-1 sync-icon" style="font-size: 18px;"></i>
+            Sync Channels
+        </button>
+        {% else %}
+        <a href="{% url 'accounts:telegram_account_auth' account.pk %}" class="btn btn-primary">
+            <i class="bi bi-key me-1" style="font-size: 18px;"></i>
+            Authenticate
+        </a>
+        {% endif %}
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-lg-8">
+        <!-- Account Info Card -->
+        <div class="card border-0 mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Account Information</h5>
+                {% if account.is_authenticated %}
+                    <span class="badge badge-success">Authenticated</span>
+                {% else %}
+                    <span class="badge badge-warning">Not Authenticated</span>
+                {% endif %}
+            </div>
+            <div class="card-body p-4">
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label text-muted small">Phone Number</label>
+                        <div class="fw-bold">{{ account.phone_number }}</div>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label text-muted small">API ID</label>
+                        <div class="fw-bold">{{ account.api_id }}</div>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label text-muted small">Created</label>
+                        <div>{{ account.created_at|date:"M d, Y H:i" }}</div>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label text-muted small">2FA Enabled</label>
+                        <div>
+                            {% if account.two_factor_enabled %}
+                                <i class="bi bi-check text-success" style="font-size: 18px;"></i> Yes
+                            {% else %}
+                                <i class="bi bi-x text-muted" style="font-size: 18px;"></i> No
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                {% if account.is_flood_wait_active %}
+                <div class="alert alert-warning mb-0 mt-2">
+                    <i class="bi bi-exclamation-triangle me-2" style="font-size: 18px;"></i>
+                    <strong>Flood Wait Active</strong> - This account is rate-limited until {{ account.flood_wait_until|date:"M d, Y H:i" }}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Settings Card -->
+        <div class="card border-0 mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Account Settings</h5>
+            </div>
+            <div class="card-body p-4">
+                <form method="post">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label for="display_name" class="form-label">Display Name</label>
+                        <input type="text" name="display_name" id="display_name"
+                               class="form-control" value="{{ account.display_name }}"
+                               placeholder="{{ account.phone_number }}" style="max-width: 300px;">
+                        <div class="form-text text-muted">Friendly name for this account (defaults to phone number)</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="max_concurrent_downloads" class="form-label">Max Concurrent Downloads</label>
+                        <input type="number" name="max_concurrent_downloads" id="max_concurrent_downloads"
+                               class="form-control" value="{{ account.max_concurrent_downloads }}"
+                               min="1" max="10" style="max-width: 150px;">
+                        <div class="form-text text-muted">We recommend setting this to 10 due to Telegram API limits</div>
+                    </div>
+                    <div class="mb-3">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" name="is_active" id="is_active"
+                                   {% if account.is_active %}checked{% endif %}>
+                            <label class="form-check-label" for="is_active">Account Active</label>
+                        </div>
+                        <div class="form-text text-muted">Disable to pause all downloads for this account</div>
+                    </div>
+                    <div class="mb-3">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" name="download_profile_photos" id="download_profile_photos"
+                                   {% if account.download_profile_photos %}checked{% endif %}>
+                            <label class="form-check-label" for="download_profile_photos">Download Profile Photos</label>
+                        </div>
+                        <div class="form-text text-muted">Download user profile photos during member scans and when tracking new users.<br> This will slow down the collection process.</div>
+                    </div>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-save me-1" style="font-size: 18px;"></i>
+                        Save Settings
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Listener Status Card -->
+        <div class="card border-0">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Real-time Listener</h5>
+                {% if account.listener_status == 'running' or account.listener_status == 'flood_wait' %}
+                    <span class="badge badge-success">Running</span>
+                {% elif account.listener_status == 'error' %}
+                    <span class="badge badge-danger">Error</span>
+                {% else %}
+                    <span class="badge badge-warning">Stopped</span>
+                {% endif %}
+            </div>
+            <div class="card-body p-4">
+                {% if not account.is_authenticated %}
+                <div class="alert alert-info mb-0">
+                    <i class="bi bi-info-circle me-2" style="font-size: 18px;"></i>
+                    Authenticate this account to enable real-time listeners.
+                </div>
+                {% else %}
+                <p class="text-muted mb-3">
+                    The listener monitors all channels for new messages in real-time.
+                </p>
+
+                {% if account.listener_error %}
+                <div class="alert alert-danger mb-3">
+                    <strong>Error:</strong> {{ account.listener_error }}
+                </div>
+                {% endif %}
+
+                {% if account.listener_started_at %}
+                <p class="small text-muted mb-3">
+                    Started: {{ account.listener_started_at|date:"M d, Y H:i" }}
+                </p>
+                {% endif %}
+
+                <div class="d-flex gap-2" id="listener-controls">
+                    {% if account.listener_status == 'running' or account.listener_status == 'flood_wait' %}
+                    <button type="button" class="btn btn-outline-danger listener-btn"
+                            hx-post="{% url 'accounts:telegram_listener_stop' account.pk %}"
+                            hx-swap="none">
+                        <i class="bi bi-stop-fill me-1" style="font-size: 18px;"></i>
+                        Stop Listener
+                    </button>
+                    {% else %}
+                    <button type="button" class="btn btn-primary listener-btn"
+                            hx-post="{% url 'accounts:telegram_listener_start' account.pk %}"
+                            hx-swap="none">
+                        <i class="bi bi-play me-1" style="font-size: 18px;"></i>
+                        Start Listener
+                    </button>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        <!-- Quick Stats -->
+        <div class="card border-0 mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Statistics</h5>
+            </div>
+            <div class="card-body p-4">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <span class="text-muted">Channels/Groups</span>
+                    <span class="fw-bold">{{ channel_count }}</span>
+                </div>
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <span class="text-muted">Status</span>
+                    <span>
+                        {% if account.is_active %}
+                            <span class="text-success">Active</span>
+                        {% else %}
+                            <span class="text-warning">Paused</span>
+                        {% endif %}
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Join Channel -->
+        {% if account.is_authenticated %}
+        <div class="card border-0 mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Join Channel/Group</h5>
+            </div>
+            <div class="card-body p-4">
+                <form method="post" action="{% url 'accounts:telegram_account_join_channel' account.pk %}">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <input type="text" name="channel_url" class="form-control"
+                               placeholder="t.me/channel or invite link"
+                               required>
+                        <div class="form-text text-muted">
+                            Enter a public username (t.me/example) or private invite link (t.me/+abc123)
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="bi bi-person-plus me-1" style="font-size: 18px;"></i>
+                        Join
+                    </button>
+                </form>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Quick Actions -->
+        <div class="card border-0">
+            <div class="card-header">
+                <h5 class="mb-0">Actions</h5>
+            </div>
+            <div class="card-body p-4">
+                {% if account.is_authenticated %}
+                <a href="{% url 'accounts:telegram_account_auth' account.pk %}" class="btn btn-outline-secondary w-100 mb-2">
+                    <i class="bi bi-key me-1" style="font-size: 18px;"></i>
+                    Re-authenticate
+                </a>
+                {% endif %}
+
+                <button type="button" class="btn btn-outline-danger w-100" data-bs-toggle="modal" data-bs-target="#deactivateModal">
+                    <i class="bi bi-power me-1" style="font-size: 18px;"></i>
+                    Deactivate Account
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Deactivate Confirmation Modal -->
+<div class="modal fade" id="deactivateModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Deactivate Account</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to deactivate the account <strong>{{ account.name }}</strong>?</p>
+                <p class="text-muted mb-0">
+                    <i class="bi bi-info-circle me-1" style="font-size: 18px;"></i>
+                    The account will be hidden from lists but all data will be preserved. You can reactivate it later from the admin panel.
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <form method="post" action="{% url 'accounts:telegram_account_delete' account.pk %}">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-warning">
+                        <i class="bi bi-power me-1" style="font-size: 18px;"></i>
+                        Deactivate Account
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* Hide sync icon while loading */
+    #sync-btn.htmx-request .sync-icon {
+        display: none;
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('htmx:afterRequest', function(event) {
+    // Handle listener buttons
+    if (event.target.classList.contains('listener-btn')) {
+        const btn = event.target;
+        const isStarting = btn.textContent.includes('Start');
+
+        if (event.detail.successful) {
+            if (isStarting) {
+                showToast('Listener started successfully', 'success');
+                // Update button to Stop
+                btn.outerHTML = `
+                    <button type="button" class="btn btn-outline-danger listener-btn"
+                            hx-post="{% url 'accounts:telegram_listener_stop' account.pk %}"
+                            hx-swap="none">
+                        <i class="bi bi-stop-fill me-1" style="font-size: 18px;"></i>
+                        Stop Listener
+                    </button>`;
+            } else {
+                showToast('Listener stopped', 'info');
+                // Update button to Start
+                btn.outerHTML = `
+                    <button type="button" class="btn btn-primary listener-btn"
+                            hx-post="{% url 'accounts:telegram_listener_start' account.pk %}"
+                            hx-swap="none">
+                        <i class="bi bi-play me-1" style="font-size: 18px;"></i>
+                        Start Listener
+                    </button>`;
+            }
+            htmx.process(document.getElementById('listener-controls'));
+        } else {
+            showToast('Failed to update listener status', 'error');
+        }
+    }
+
+    // Handle sync channels button
+    if (event.target.id === 'sync-btn') {
+        if (event.detail.successful) {
+            try {
+                const response = JSON.parse(event.detail.xhr.responseText);
+                if (response.success) {
+                    showToast(response.message, 'success');
+                    // Update channel count if provided
+                    if (response.channel_count !== undefined) {
+                        const countEl = document.querySelector('.card-body .fw-bold');
+                        if (countEl) countEl.textContent = response.channel_count;
+                    }
+                } else {
+                    showToast(response.error || 'Sync failed', 'error');
+                }
+            } catch (e) {
+                showToast('Sync completed', 'success');
+            }
+        } else {
+            showToast('Failed to sync channels', 'error');
+        }
+    }
+});
+</script>
+{% endblock %}

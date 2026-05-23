@@ -1,0 +1,55 @@
+<form method="post" hx-post="{% url 'audit:source_config' source.pk %}" hx-swap="outerHTML">
+    {% csrf_token %}
+
+    <div class="mb-3">
+        <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" name="auto_download_enabled" id="auto_download_enabled"
+                   {% if config.auto_download_enabled %}checked{% endif %}>
+            <label class="form-check-label" for="auto_download_enabled">
+                Auto-download new media
+            </label>
+        </div>
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label small text-muted">Content Types</label>
+        <div class="form-check">
+            <input class="form-check-input" type="checkbox" name="download_photos" id="download_photos"
+                   {% if config.download_photos %}checked{% endif %}>
+            <label class="form-check-label" for="download_photos">Photos</label>
+        </div>
+        <div class="form-check">
+            <input class="form-check-input" type="checkbox" name="download_videos" id="download_videos"
+                   {% if config.download_videos %}checked{% endif %}>
+            <label class="form-check-label" for="download_videos">Videos</label>
+        </div>
+        <div class="form-check">
+            <input class="form-check-input" type="checkbox" name="download_files" id="download_files"
+                   {% if config.download_files %}checked{% endif %}>
+            <label class="form-check-label" for="download_files">Files</label>
+        </div>
+    </div>
+
+    <div class="mb-3">
+        <label for="priority" class="form-label small text-muted">Priority</label>
+        <select name="priority" id="priority" class="form-select form-select-sm">
+            {% for value, label in form.fields.priority.choices %}
+            <option value="{{ value }}" {% if config.priority == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <div class="mb-3">
+        <label for="deduplication_mode" class="form-label small text-muted">Deduplication</label>
+        <select name="deduplication_mode" id="deduplication_mode" class="form-select form-select-sm">
+            {% for value, label in form.fields.deduplication_mode.choices %}
+            <option value="{{ value }}" {% if config.deduplication_mode == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <button type="submit" class="btn btn-primary btn-sm">
+        <i class="bi bi-save me-1" style="font-size: 14px;"></i>
+        Save
+    </button>
+</form>

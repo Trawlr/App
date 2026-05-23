@@ -1,0 +1,71 @@
+{% extends "graph/map_base.html" %}
+
+{% block map_controls %}
+<div class="d-flex align-items-center gap-2">
+    <label class="btn-map" style="cursor: default;">
+        Min Channels:
+        <select id="min-channels" onchange="applyFilters()" style="background: transparent; border: none; color: inherit; cursor: pointer;">
+            <option value="2">2+</option>
+            <option value="3">3+</option>
+            <option value="4">4+</option>
+            <option value="5">5+</option>
+        </select>
+    </label>
+    <label class="btn-map" style="cursor: default;">
+        Min Posts:
+        <select id="min-posts" onchange="applyFilters()" style="background: transparent; border: none; color: inherit; cursor: pointer;">
+            <option value="1">1+</option>
+            <option value="5">5+</option>
+            <option value="10" selected>10+</option>
+            <option value="25">25+</option>
+            <option value="50">50+</option>
+            <option value="100">100+</option>
+        </select>
+    </label>
+    <button class="btn-map active" id="labels-btn" onclick="toggleLabels()" title="Show/hide labels">
+        <i class="bi bi-tag-fill" style="font-size: 14px;" id="labels-icon"></i>
+    </button>
+    <button class="btn-map" onclick="togglePhysics()" id="physics-btn" title="Pause/Resume physics">
+        <i class="bi bi-pause-fill" style="font-size: 14px;" id="physics-icon"></i>
+    </button>
+    <button class="btn-map" onclick="resetZoom()" title="Fit to screen">
+        <i class="bi bi-arrows-fullscreen" style="font-size: 14px;"></i>
+    </button>
+</div>
+{% endblock %}
+
+{% block map_legend %}
+<div class="legend-item">
+    <span class="legend-dot" style="background: #64748b;"></span>
+    <span>Channels</span>
+</div>
+<div class="legend-item">
+    <span class="legend-dot" style="background: #f97316;"></span>
+    <span>Cross-posters</span>
+</div>
+<div class="legend-item small text-muted mt-2">
+    Edge thickness = post count
+</div>
+{% endblock %}
+
+{% block map_js %}
+<script>
+// Override physics for less jiggle on this dense graph
+options.physics.barnesHut.gravitationalConstant = -5000;
+options.physics.barnesHut.springLength = 200;
+options.physics.barnesHut.damping = 0.5;
+options.physics.barnesHut.avoidOverlap = 0.5;
+options.physics.stabilization.iterations = 200;
+options.physics.maxVelocity = 30;
+
+function applyFilters() {
+    const minChannels = document.getElementById('min-channels').value;
+    const minPosts = document.getElementById('min-posts').value;
+    loadMapData('{% url "graph:api_crosspost" %}', `min_channels=${minChannels}&min_posts=${minPosts}`);
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    applyFilters();
+});
+</script>
+{% endblock %}

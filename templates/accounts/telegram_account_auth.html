@@ -1,0 +1,215 @@
+{% extends "base.html" %}
+
+{% block title %}Authenticate Account - Trawlr{% endblock %}
+
+{% block extra_css %}
+<style>
+    .btn-loading .spinner-border {
+        display: inline-block;
+    }
+    .btn-loading .btn-text {
+        display: none;
+    }
+    .btn:not(.btn-loading) .spinner-border {
+        display: none;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header mb-4">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb mb-2">
+            <li class="breadcrumb-item"><a href="{% url 'accounts:telegram_accounts' %}">Accounts</a></li>
+            <li class="breadcrumb-item active">{{ account.phone_number }}</li>
+        </ol>
+    </nav>
+    <h2>Authenticate Account</h2>
+    <p>Complete the Telegram authentication process for {{ account.phone_number }}.</p>
+</div>
+
+<div class="row">
+    <div class="col-lg-6">
+        <!-- Progress Steps -->
+        <div class="d-flex mb-4 gap-2">
+            <div class="flex-fill">
+                <div class="rounded-pill py-2 px-3 text-center {% if auth_step == 'send_code' %}bg-primary text-dark{% else %}bg-dark{% endif %}">
+                    <small class="fw-bold">1. Send Code</small>
+                </div>
+            </div>
+            <div class="flex-fill">
+                <div class="rounded-pill py-2 px-3 text-center {% if auth_step == 'verify_code' %}bg-primary text-dark{% elif auth_step == 'verify_password' %}bg-success{% else %}bg-dark text-muted{% endif %}">
+                    <small class="fw-bold">2. Verify Code</small>
+                </div>
+            </div>
+            <div class="flex-fill">
+                <div class="rounded-pill py-2 px-3 text-center {% if auth_step == 'verify_password' %}bg-primary text-dark{% else %}bg-dark text-muted{% endif %}">
+                    <small class="fw-bold">3. 2FA (if enabled)</small>
+                </div>
+            </div>
+        </div>
+
+        <div class="card border-0">
+            <div class="card-body p-4">
+                {% if auth_step == 'send_code' %}
+                <!-- Step 1: Send Code -->
+                <div class="text-center mb-4">
+                    <div class="avatar mx-auto mb-3" style="width: 64px; height: 64px;">
+                        <i class="bi bi-phone" style="font-size: 32px;"></i>
+                    </div>
+                    <h5>Request Verification Code</h5>
+                    <p class="text-muted">We'll send a verification code to your Telegram app at {{ account.phone_number }}.</p>
+                </div>
+                <form method="post" class="auth-form">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="send_code">
+                    <button type="submit" class="btn btn-primary w-100 py-2">
+                        <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                        <span class="btn-text">
+                            <i class="bi bi-send me-2" style="font-size: 18px;"></i>
+                            Send Verification Code
+                        </span>
+                        <span class="btn-loading-text" style="display: none;">Sending...</span>
+                    </button>
+                </form>
+
+                {% elif auth_step == 'verify_code' %}
+                <!-- Step 2: Enter Code -->
+                <div class="text-center mb-4">
+                    <div class="avatar mx-auto mb-3 bg-success" style="width: 64px; height: 64px;">
+                        <i class="bi bi-key" style="font-size: 32px;"></i>
+                    </div>
+                    <h5>Enter Verification Code</h5>
+                    <p class="text-muted">Check your Telegram app for the verification code.</p>
+                </div>
+                <form method="post" class="auth-form">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="verify_code">
+                    <div class="mb-4">
+                        <label for="code" class="form-label">Verification Code</label>
+                        <input type="text" name="code" id="code" class="form-control form-control-lg text-center"
+                               placeholder="12345" autocomplete="off" autofocus maxlength="10" aria-label="Verification code">
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100 py-2">
+                        <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                        <span class="btn-text">
+                            <i class="bi bi-check me-2" style="font-size: 18px;"></i>
+                            Verify Code
+                        </span>
+                        <span class="btn-loading-text" style="display: none;">Verifying...</span>
+                    </button>
+                </form>
+                <hr class="my-4">
+                <form method="post" class="text-center">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="resend_code">
+                    <button type="submit" class="btn btn-link text-muted">
+                        <i class="bi bi-arrow-clockwise me-1" style="font-size: 14px;"></i>
+                        Resend Code
+                    </button>
+                </form>
+
+                {% elif auth_step == 'verify_password' %}
+                <!-- Step 3: 2FA Password -->
+                <div class="text-center mb-4">
+                    <div class="avatar mx-auto mb-3 bg-warning" style="width: 64px; height: 64px;">
+                        <i class="bi bi-shield" style="font-size: 32px;"></i>
+                    </div>
+                    <h5>Two-Factor Authentication</h5>
+                    <p class="text-muted">This account has 2FA enabled. Please enter your password.</p>
+                </div>
+                <form method="post" class="auth-form">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="verify_password">
+                    <div class="mb-4">
+                        <label for="password" class="form-label">2FA Password</label>
+                        <input type="password" name="password" id="password" class="form-control form-control-lg"
+                               placeholder="Enter your 2FA password" autofocus aria-label="2FA password">
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100 py-2">
+                        <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                        <span class="btn-text">
+                            <i class="bi bi-unlock me-2" style="font-size: 18px;"></i>
+                            Verify Password
+                        </span>
+                        <span class="btn-loading-text" style="display: none;">Verifying...</span>
+                    </button>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="mt-3">
+            <a href="{% url 'accounts:telegram_account_detail' account.pk %}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left me-1" style="font-size: 18px;"></i>
+                Back to Account
+            </a>
+        </div>
+    </div>
+
+    <div class="col-lg-6">
+        <div class="card border-0 bg-dark bg-opacity-25">
+            <div class="card-body p-4">
+                <h5 class="mb-3">
+                    <i class="bi bi-info-circle me-2" style="font-size: 20px;"></i>
+                    Authentication Info
+                </h5>
+                <ul class="mb-0 text-muted">
+                    <li class="mb-2">Telegram will send a code to your official Telegram app</li>
+                    <li class="mb-2">The code expires after a few minutes</li>
+                    <li class="mb-2">If you have 2FA enabled, you'll need to enter your password</li>
+                    <li>Your session will be saved securely on the server</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="card border-0 bg-dark bg-opacity-25 mt-3">
+            <div class="card-body p-4">
+                <h6 class="text-muted mb-2">Account Details</h6>
+                <table class="table table-sm mb-0">
+                    <tr>
+                        <td class="text-muted">Phone</td>
+                        <td>{{ account.phone_number }}</td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">API ID</td>
+                        <td>{{ account.api_id }}</td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Status</td>
+                        <td>
+                            {% if account.is_authenticated %}
+                                <span class="badge badge-success">Authenticated</span>
+                            {% else %}
+                                <span class="badge badge-warning">Not Authenticated</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Add loading state to auth forms
+    document.querySelectorAll('.auth-form').forEach(function(form) {
+        form.addEventListener('submit', function(e) {
+            var btn = form.querySelector('button[type="submit"]');
+            if (btn && !btn.classList.contains('btn-loading')) {
+                btn.classList.add('btn-loading');
+                btn.disabled = true;
+                // Show loading text if present
+                var loadingText = btn.querySelector('.btn-loading-text');
+                if (loadingText) {
+                    loadingText.style.display = 'inline';
+                }
+            }
+        });
+    });
+});
+</script>
+{% endblock %}

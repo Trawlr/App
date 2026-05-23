@@ -1,0 +1,169 @@
+{% load static %}
+{% comment %}
+Activity Map heatmap partial.
+
+Required context vars:
+  - activity_scope:    'source' | 'user' | 'aggregate'
+  - activity_scope_id: int or None  (channel/user pk; None for aggregate)
+
+Optional:
+  - activity_show_compare: bool (default True)
+  - activity_extra_class:  string of additional CSS classes
+{% endcomment %}
+<div class="activity-heatmap-card card border-0 {{ activity_extra_class|default:'' }}"
+     data-activity-scope="{{ activity_scope }}"
+     {% if activity_scope_id %}data-activity-id="{{ activity_scope_id }}"{% endif %}
+     data-activity-api="{% url 'reports:api_activity' %}">
+    <div class="card-body p-3">
+
+        <!-- Controls bar -->
+        <div class="d-flex flex-wrap align-items-center gap-2 mb-3 activity-controls">
+            <!-- Time range -->
+            <div class="btn-group btn-group-sm" role="group" data-control="days">
+                <button type="button" class="btn btn-outline-secondary" data-days="1">1D</button>
+                <button type="button" class="btn btn-outline-secondary active" data-days="30">30D</button>
+                <button type="button" class="btn btn-outline-secondary" data-days="90">90D</button>
+                <button type="button" class="btn btn-outline-secondary" data-days="180">180D</button>
+                <button type="button" class="btn btn-outline-secondary" data-days="365">1Y</button>
+                <button type="button" class="btn btn-outline-secondary" data-days="custom">
+                    <i class="bi bi-calendar3" style="font-size: 12px;"></i> Custom
+                </button>
+            </div>
+
+            <!-- Custom date range — visible when Custom is selected -->
+            <div class="activity-custom-range d-none align-items-center gap-1">
+                <input type="date" class="form-control form-control-sm activity-start-date" style="width: 130px;">
+                <span class="text-muted">-</span>
+                <input type="date" class="form-control form-control-sm activity-end-date" style="width: 130px;">
+                <button type="button" class="btn btn-sm btn-outline-primary activity-apply-custom" title="Apply custom range">
+                    <i class="bi bi-check2"></i>
+                </button>
+            </div>
+
+            <span class="text-muted small mx-1">|</span>
+
+            <!-- Layout toggle -->
+            <div class="btn-group btn-group-sm" role="group" data-control="layout">
+                <button type="button" class="btn btn-outline-secondary active" data-layout="calendar">
+                    <i class="bi bi-calendar3 me-1" style="font-size: 12px;"></i>Calendar
+                </button>
+                <button type="button" class="btn btn-outline-secondary" data-layout="hourdow">
+                    <i class="bi bi-grid-3x3 me-1" style="font-size: 12px;"></i>Hour&times;DOW
+                </button>
+            </div>
+
+            <span class="text-muted small mx-1">|</span>
+
+            <!-- Metric toggle -->
+            <div class="btn-group btn-group-sm" role="group" data-control="metric">
+                <button type="button" class="btn btn-outline-secondary active" data-metric="posts">
+                    <i class="bi bi-chat-dots me-1" style="font-size: 12px;"></i>Posts
+                </button>
+                <button type="button" class="btn btn-outline-secondary" data-metric="edits">
+                    <i class="bi bi-pencil me-1" style="font-size: 12px;"></i>Edits
+                </button>
+                <button type="button" class="btn btn-outline-secondary" data-metric="deletes">
+                    <i class="bi bi-trash me-1" style="font-size: 12px;"></i>Deletes
+                </button>
+                <button type="button" class="btn btn-outline-secondary" data-metric="joins">
+                    <i class="bi bi-person-plus me-1" style="font-size: 12px;"></i>Joins
+                </button>
+                <button type="button" class="btn btn-outline-secondary" data-metric="media">
+                    <i class="bi bi-image me-1" style="font-size: 12px;"></i>Media
+                </button>
+            </div>
+
+            <span class="text-muted small mx-1">|</span>
+
+            <!-- Timezone selector -->
+            <label class="text-muted small mb-0">TZ</label>
+            <select class="form-select form-select-sm" style="width: auto;" data-control="tz">
+                <option value="UTC" selected>UTC</option>
+                <option value="America/New_York">America/New_York</option>
+                <option value="America/Chicago">America/Chicago</option>
+                <option value="America/Denver">America/Denver</option>
+                <option value="America/Los_Angeles">America/Los_Angeles</option>
+                <option value="Europe/London">Europe/London</option>
+                <option value="Europe/Berlin">Europe/Berlin</option>
+                <option value="Europe/Moscow">Europe/Moscow</option>
+                <option value="Asia/Dubai">Asia/Dubai</option>
+                <option value="Asia/Tehran">Asia/Tehran</option>
+                <option value="Asia/Karachi">Asia/Karachi</option>
+                <option value="Asia/Kolkata">Asia/Kolkata</option>
+                <option value="Asia/Shanghai">Asia/Shanghai</option>
+                <option value="Asia/Tokyo">Asia/Tokyo</option>
+                <option value="Australia/Sydney">Australia/Sydney</option>
+            </select>
+
+            {% if activity_show_compare|default:True %}
+            <span class="text-muted small mx-1">|</span>
+            <div class="form-check form-switch mb-0">
+                <input class="form-check-input" type="checkbox" id="activity-compare-{{ activity_scope }}" data-control="compare">
+                <label class="form-check-label small text-muted" for="activity-compare-{{ activity_scope }}">
+                    Compare to prior period
+                </label>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Heatmap canvas + loading -->
+        <div class="position-relative" style="min-height: 280px;">
+            <div class="activity-loading position-absolute top-0 start-0 end-0 bottom-0 d-flex align-items-center justify-content-center" style="z-index: 5;">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+            </div>
+            <canvas class="activity-canvas" style="max-height: 360px;"></canvas>
+            <div class="activity-empty d-none text-center text-muted py-5">
+                <i class="bi bi-bar-chart" style="font-size: 32px;"></i>
+                <div class="mt-2">No activity in this time range.</div>
+            </div>
+        </div>
+
+        <!-- Color legend + footer summary -->
+        <div class="d-flex justify-content-between align-items-center mt-3 small text-muted flex-wrap gap-2">
+            <div class="activity-legend d-flex align-items-center gap-2">
+                <span>Less</span>
+                <span class="activity-legend-swatch" style="background: rgba(251, 191, 36, 0.10);"></span>
+                <span class="activity-legend-swatch" style="background: rgba(251, 191, 36, 0.30);"></span>
+                <span class="activity-legend-swatch" style="background: rgba(251, 191, 36, 0.55);"></span>
+                <span class="activity-legend-swatch" style="background: rgba(251, 191, 36, 0.85);"></span>
+                <span>More</span>
+                <span class="ms-3">
+                    <span class="activity-legend-swatch" style="background: transparent; border: 2px solid #ef4444;"></span>
+                    Anomaly (z &gt; 2)
+                </span>
+            </div>
+            <div class="activity-summary">&nbsp;</div>
+        </div>
+    </div>
+</div>
+
+<style>
+.activity-legend-swatch {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border-radius: 2px;
+    vertical-align: middle;
+}
+.activity-controls .btn-group .btn.active {
+    background-color: var(--tg-primary, #fbbf24);
+    color: #000;
+    border-color: var(--tg-primary, #fbbf24);
+}
+.activity-heatmap-card .card-body {
+    background: var(--tg-section-bg);
+    border-radius: 8px;
+}
+</style>
+
+<!-- Chart.js + matrix plugin (loaded once per page; safe to include multiple times - browser dedupes by URL) -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-chart-matrix@2.0.1/dist/chartjs-chart-matrix.min.js"></script>
+<script src="{% static 'js/activity_heatmap.js' %}"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.activity-heatmap-card').forEach(initActivityHeatmap);
+});
+</script>

@@ -1,0 +1,441 @@
+{% extends "base.html" %}
+
+{% block title %}Downloads - Trawlr{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-start mb-4">
+    <div>
+        <h2>Downloads</h2>
+        <p>Manage your download queue. <span id="ws-status" class="badge bg-secondary ms-2" style="font-size: 0.7em;">Connecting...</span></p>
+    </div>
+    <div class="d-flex gap-2">
+        {% if tab == 'active' and stats.active > 0 %}
+        <form method="post" action="{% url 'downloads:pause_all' %}">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-outline-warning">
+                <i class="bi bi-pause-circle me-1" style="font-size: 18px;"></i>
+                Pause All
+            </button>
+        </form>
+        {% endif %}
+        {% if tab == 'paused' and stats.paused > 0 %}
+        <form method="post" action="{% url 'downloads:resume_all' %}">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-outline-success">
+                <i class="bi bi-play-circle me-1" style="font-size: 18px;"></i>
+                Resume All
+            </button>
+        </form>
+        {% endif %}
+        {% if tab == 'failed' and stats.failed > 0 %}
+        <form method="post" action="{% url 'downloads:retry_all_failed' %}">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-outline-primary">
+                <i class="bi bi-arrow-clockwise me-1" style="font-size: 18px;"></i>
+                Retry All
+            </button>
+        </form>
+        {% endif %}
+        {% if tab == 'completed' and stats.completed > 0 %}
+        <form method="post" action="{% url 'downloads:clear_completed' %}">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-outline-secondary">
+                <i class="bi bi-trash me-1" style="font-size: 18px;"></i>
+                Clear Completed
+            </button>
+        </form>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Tabs -->
+<ul class="nav nav-tabs mb-4" style="border-color: var(--tg-border);">
+    <li class="nav-item">
+        <a class="nav-link {% if tab == 'active' %}active{% endif %}" href="?tab=active">
+            <i class="bi bi-activity me-1" style="font-size: 16px;"></i>
+            Active
+            <span id="tab-count-active" class="badge badge-tg ms-1" {% if stats.active == 0 %}style="display:none"{% endif %}>{{ stats.active }}</span>
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link {% if tab == 'paused' %}active{% endif %}" href="?tab=paused">
+            <i class="bi bi-pause-circle me-1" style="font-size: 16px;"></i>
+            Paused
+            <span id="tab-count-paused" class="badge badge-warning ms-1" {% if stats.paused == 0 %}style="display:none"{% endif %}>{{ stats.paused }}</span>
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link {% if tab == 'completed' %}active{% endif %}" href="?tab=completed">
+            <i class="bi bi-check-circle me-1" style="font-size: 16px;"></i>
+            Completed
+            <span id="tab-count-completed" class="badge badge-success ms-1" {% if stats.completed == 0 %}style="display:none"{% endif %}>{{ stats.completed }}</span>
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link {% if tab == 'failed' %}active{% endif %}" href="?tab=failed">
+            <i class="bi bi-exclamation-circle me-1" style="font-size: 16px;"></i>
+            Failed
+            <span id="tab-count-failed" class="badge badge-danger ms-1" {% if stats.failed == 0 %}style="display:none"{% endif %}>{{ stats.failed }}</span>
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link {% if tab == 'queue' %}active{% endif %}" href="?tab=queue">
+            <i class="bi bi-list-task me-1" style="font-size: 16px;"></i>
+            Queue Management
+        </a>
+    </li>
+</ul>
+
+{% if tab == 'queue' %}
+<!-- Queue Management -->
+<div class="card border-0">
+    <div class="card-body p-4">
+        <p class="text-muted mb-3">Manage the download queue. Clear stuck or unwanted items.</p>
+
+        <!-- Queue Stats -->
+        <div class="row g-3 mb-4">
+            <div class="col-md-3">
+                <div class="border rounded p-3 text-center" style="border-color: var(--tg-border) !important;">
+                    <div class="fs-4 fw-bold text-warning">{{ queue_stats.pending }}</div>
+                    <div class="small text-muted">Pending</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="border rounded p-3 text-center" style="border-color: var(--tg-border) !important;">
+                    <div class="fs-4 fw-bold text-info">{{ queue_stats.downloading }}</div>
+                    <div class="small text-muted">Downloading</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="border rounded p-3 text-center" style="border-color: var(--tg-border) !important;">
+                    <div class="fs-4 fw-bold text-danger">{{ queue_stats.failed }}</div>
+                    <div class="small text-muted">Failed</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="border rounded p-3 text-center" style="border-color: var(--tg-border) !important;">
+                    <div class="fs-4 fw-bold text-secondary">{{ queue_stats.paused }}</div>
+                    <div class="small text-muted">Paused</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Clear Actions -->
+        <div class="d-flex flex-wrap gap-2">
+            {% if queue_stats.failed > 0 %}
+            <form method="post" action="{% url 'accounts:clear_download_queue' %}" class="d-inline">
+                {% csrf_token %}
+                <input type="hidden" name="status" value="failed">
+                <button type="submit" class="btn btn-outline-danger"
+                        onclick="return confirm('Delete all {{ queue_stats.failed }} failed items?')">
+                    <i class="bi bi-x-circle me-1" style="font-size: 16px;"></i>
+                    Clear Failed ({{ queue_stats.failed }})
+                </button>
+            </form>
+            {% endif %}
+
+            {% if queue_stats.pending > 0 %}
+            <form method="post" action="{% url 'accounts:clear_download_queue' %}" class="d-inline">
+                {% csrf_token %}
+                <input type="hidden" name="status" value="pending">
+                <button type="submit" class="btn btn-outline-warning"
+                        onclick="return confirm('Delete all {{ queue_stats.pending }} pending items?')">
+                    <i class="bi bi-clock me-1" style="font-size: 16px;"></i>
+                    Clear Pending ({{ queue_stats.pending }})
+                </button>
+            </form>
+            {% endif %}
+
+            {% if queue_stats.paused > 0 %}
+            <form method="post" action="{% url 'accounts:clear_download_queue' %}" class="d-inline">
+                {% csrf_token %}
+                <input type="hidden" name="status" value="paused">
+                <button type="submit" class="btn btn-outline-secondary"
+                        onclick="return confirm('Delete all {{ queue_stats.paused }} paused items?')">
+                    <i class="bi bi-pause-circle me-1" style="font-size: 16px;"></i>
+                    Clear Paused ({{ queue_stats.paused }})
+                </button>
+            </form>
+            {% endif %}
+
+            {% if queue_stats.total > 0 %}
+            <form method="post" action="{% url 'accounts:clear_download_queue' %}" class="d-inline">
+                {% csrf_token %}
+                <input type="hidden" name="status" value="all">
+                <button type="submit" class="btn btn-danger"
+                        onclick="return confirm('Delete ALL {{ queue_stats.total }} items from the queue? This cannot be undone.')">
+                    <i class="bi bi-trash me-1" style="font-size: 16px;"></i>
+                    Clear All ({{ queue_stats.total }})
+                </button>
+            </form>
+            {% else %}
+            <p class="text-muted mb-0">
+                <i class="bi bi-check-circle me-1" style="font-size: 16px;"></i>
+                Queue is empty.
+            </p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% else %}
+<div class="card border-0">
+    <div id="download-queue" class="list-group list-group-flush"
+         hx-get="{% url 'downloads:queue' %}?tab={{ tab }}"
+         hx-trigger="download-refresh from:body"
+         hx-swap="innerHTML">
+        {% include "downloads/partials/queue.html" %}
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .nav-tabs .nav-link {
+        color: var(--tg-text-muted);
+        border: none;
+        border-bottom: 2px solid transparent;
+        background: transparent;
+    }
+    .nav-tabs .nav-link:hover {
+        color: var(--tg-text);
+        border-color: transparent;
+    }
+    .nav-tabs .nav-link.active {
+        color: var(--tg-primary);
+        background: transparent;
+        border-bottom: 2px solid var(--tg-primary);
+    }
+    .pagination .page-link {
+        background: var(--tg-card-bg);
+        border-color: var(--tg-border);
+        color: var(--tg-text);
+    }
+    .pagination .page-link:hover {
+        background: var(--tg-hover-bg);
+        border-color: var(--tg-border);
+        color: var(--tg-primary);
+    }
+    .pagination .page-item.active .page-link {
+        background: var(--tg-primary);
+        border-color: var(--tg-primary);
+    }
+    .pagination .page-item.disabled .page-link {
+        background: var(--tg-card-bg);
+        border-color: var(--tg-border);
+        color: var(--tg-text-muted);
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function() {
+    // WebSocket connection for real-time updates
+    let ws = null;
+    let reconnectAttempts = 0;
+    const maxReconnectAttempts = 5;
+    const reconnectDelay = 3000;
+
+    function formatBytes(bytes) {
+        if (bytes === 0) return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+    }
+
+    function updateWsStatus(status) {
+        const badge = document.getElementById('ws-status');
+        if (!badge) return;
+
+        if (status === 'connected') {
+            badge.className = 'badge bg-success ms-2';
+            badge.textContent = 'Live';
+            badge.style.fontSize = '0.7em';
+        } else if (status === 'connecting') {
+            badge.className = 'badge bg-warning ms-2';
+            badge.textContent = 'Connecting...';
+            badge.style.fontSize = '0.7em';
+        } else {
+            badge.className = 'badge bg-secondary ms-2';
+            badge.textContent = 'Offline';
+            badge.style.fontSize = '0.7em';
+        }
+    }
+
+    function connectWebSocket() {
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${protocol}//${window.location.host}/ws/downloads/`;
+
+        updateWsStatus('connecting');
+
+        try {
+            ws = new WebSocket(wsUrl);
+
+            ws.onopen = function() {
+                console.log('WebSocket connected');
+                updateWsStatus('connected');
+                reconnectAttempts = 0;
+            };
+
+            ws.onmessage = function(event) {
+                const data = JSON.parse(event.data);
+                handleWebSocketMessage(data);
+            };
+
+            ws.onclose = function(event) {
+                console.log('WebSocket closed', event.code);
+                updateWsStatus('offline');
+
+                // Attempt to reconnect
+                if (reconnectAttempts < maxReconnectAttempts) {
+                    reconnectAttempts++;
+                    setTimeout(connectWebSocket, reconnectDelay);
+                }
+            };
+
+            ws.onerror = function(error) {
+                console.error('WebSocket error:', error);
+                updateWsStatus('offline');
+            };
+        } catch (e) {
+            console.error('WebSocket connection error:', e);
+            updateWsStatus('offline');
+        }
+    }
+
+    function handleWebSocketMessage(data) {
+        switch(data.type) {
+            case 'progress':
+                updateProgress(data);
+                break;
+            case 'status_changed':
+                handleStatusChange(data);
+                break;
+            case 'queue_status':
+                updateTabCounts(data.stats);
+                break;
+            case 'queue_update':
+                // Trigger HTMX refresh
+                htmx.trigger(document.body, 'download-refresh');
+                // Request updated tab counts
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({ action: 'get_status' }));
+                }
+                break;
+            case 'pong':
+                // Heartbeat response
+                break;
+        }
+    }
+
+    function updateProgress(data) {
+        const taskId = data.task_id;
+        const row = document.querySelector(`[data-task-id="${taskId}"]`);
+        if (!row) return;
+
+        // Update progress bar
+        const progressBar = row.querySelector('.progress-bar');
+        if (progressBar) {
+            progressBar.style.width = data.progress + '%';
+        }
+
+        // Update percentage text
+        const progressText = row.querySelector('.progress-text');
+        if (progressText) {
+            progressText.textContent = data.progress + '%';
+        }
+
+        // Update speed text
+        const speedText = row.querySelector('.speed-text');
+        if (speedText && data.speed > 0) {
+            speedText.textContent = formatBytes(data.speed) + '/s';
+        }
+    }
+
+    function handleStatusChange(data) {
+        const currentTab = '{{ tab }}';
+        const row = document.querySelector(`[data-task-id="${data.task_id}"]`);
+
+        // Determine if the item is leaving the current tab
+        const leavesTab = row && (
+            (currentTab === 'active' && !['pending', 'downloading'].includes(data.status)) ||
+            (currentTab === 'paused' && data.status !== 'paused') ||
+            (currentTab === 'completed' && !['completed', 'unavailable'].includes(data.status)) ||
+            (currentTab === 'failed' && data.status !== 'failed')
+        );
+
+        if (leavesTab) {
+            // Remove just this row with a fade-out instead of refreshing everything
+            row.style.transition = 'opacity 0.3s ease';
+            row.style.opacity = '0';
+            setTimeout(function() {
+                row.remove();
+                // If no items left, do a refresh to show the empty state
+                if (!document.querySelector('#download-queue [data-task-id]')) {
+                    htmx.trigger(document.body, 'download-refresh');
+                }
+            }, 300);
+        } else if (data.status === 'downloading' && row) {
+            // Transition pending→downloading in-place to avoid HTMX round-trip.
+            // An HTMX refresh would return 0% from DB (progress not persisted) and
+            // drop any progress WS events that arrive while the request is in-flight.
+            const actionsDiv = row.querySelector('.d-flex.align-items-center.gap-2');
+            if (actionsDiv && !actionsDiv.querySelector('.progress-bar')) {
+                actionsDiv.innerHTML = `
+                    <div style="min-width: 160px;">
+                        <div class="d-flex justify-content-between small text-muted mb-1">
+                            <span class="progress-text">0%</span>
+                            <span class="speed-text"></span>
+                        </div>
+                        <div class="progress" style="height: 6px;">
+                            <div class="progress-bar progress-bar-striped progress-bar-animated" style="width: 0%"></div>
+                        </div>
+                    </div>`;
+            }
+        } else {
+            // Item is new to this tab or changed within it - refresh to show updated HTML
+            htmx.trigger(document.body, 'download-refresh');
+        }
+
+        // Always request updated tab counts
+        if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ action: 'get_status' }));
+        }
+    }
+
+    function updateTabCounts(stats) {
+        if (!stats) return;
+
+        ['active', 'paused', 'completed', 'failed'].forEach(function(tab) {
+            const badge = document.getElementById('tab-count-' + tab);
+            if (badge) {
+                const count = stats[tab] || 0;
+                badge.textContent = count;
+                badge.style.display = count > 0 ? 'inline' : 'none';
+            }
+        });
+    }
+
+    // Heartbeat to keep connection alive
+    function sendHeartbeat() {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ action: 'ping' }));
+        }
+    }
+
+    // Initialize
+    connectWebSocket();
+    setInterval(sendHeartbeat, 30000);
+
+    // Cleanup on page unload
+    window.addEventListener('beforeunload', function() {
+        if (ws) {
+            ws.close();
+        }
+    });
+
+})();
+</script>
+{% endblock %}

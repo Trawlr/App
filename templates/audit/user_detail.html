@@ -1,0 +1,1071 @@
+{% extends "audit/user_base.html" %}
+{% load audit_extras %}
+
+{% block title %}{{ telegram_user.first_name }} {{ telegram_user.last_name }} - Trawlr{% endblock %}
+
+{% block user_content %}
+<!-- Profile Information Cards -->
+<div class="row g-3 mb-4">
+    <!-- Basic Info -->
+    <div class="col-md-4">
+        <div class="card border-0 h-100">
+            <div class="card-header py-2">
+                <h6 class="mb-0">
+                    <i class="bi bi-person me-2" style="font-size: 16px;"></i>
+                    Profile Info
+                </h6>
+            </div>
+            <div class="card-body p-0">
+                <table class="table table-sm mb-0">
+                    <tbody>
+                        {% if telegram_user.phone %}
+                        <tr>
+                            <td class="text-muted" style="width: 40%;">
+                                <i class="bi bi-telephone me-1" style="font-size: 14px;"></i>
+                                Phone
+                            </td>
+                            <td>{{ telegram_user.phone }}</td>
+                        </tr>
+                        {% endif %}
+                        {% if telegram_user.birthday %}
+                        <tr>
+                            <td class="text-muted">
+                                <i class="bi bi-cake me-1" style="font-size: 14px;"></i>
+                                Birthday
+                            </td>
+                            <td>{{ telegram_user.birthday }}</td>
+                        </tr>
+                        {% endif %}
+                        {% if telegram_user.private_forward_name %}
+                        <tr>
+                            <td class="text-muted">
+                                <i class="bi bi-forward me-1" style="font-size: 14px;"></i>
+                                Forward Name
+                            </td>
+                            <td>{{ telegram_user.private_forward_name }}</td>
+                        </tr>
+                        {% endif %}
+                        {% if telegram_user.personal_channel_id %}
+                        <tr>
+                            <td class="text-muted">
+                                <i class="bi bi-megaphone me-1" style="font-size: 14px;"></i>
+                                Personal Channel
+                            </td>
+                            <td><code>{{ telegram_user.personal_channel_id }}</code></td>
+                        </tr>
+                        {% endif %}
+                        <tr>
+                            <td class="text-muted">
+                                <i class="bi bi-people me-1" style="font-size: 14px;"></i>
+                                Common Chats
+                            </td>
+                            <td>{{ telegram_user.common_chats_count }}</td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted">
+                                <i class="bi bi-chat-square me-1" style="font-size: 14px;"></i>
+                                Messages
+                            </td>
+                            <td>{{ telegram_user.message_count }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Communication & Privacy -->
+    <div class="col-md-4">
+        <div class="card border-0 h-100">
+            <div class="card-header py-2">
+                <h6 class="mb-0">
+                    <i class="bi bi-shield me-2" style="font-size: 16px;"></i>
+                    Communication
+                </h6>
+            </div>
+            <div class="card-body p-0">
+                <table class="table table-sm mb-0">
+                    <tbody>
+                        <tr>
+                            <td class="text-muted" style="width: 50%;">
+                                <i class="bi bi-telephone-outbound me-1" style="font-size: 14px;"></i>
+                                Phone Calls
+                            </td>
+                            <td>
+                                {% if telegram_user.phone_calls_available %}
+                                <span class="text-success"><i class="bi bi-check" style="font-size: 14px;"></i> Available</span>
+                                {% else %}
+                                <span class="text-muted"><i class="bi bi-x" style="font-size: 14px;"></i> Not available</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted">
+                                <i class="bi bi-camera-video me-1" style="font-size: 14px;"></i>
+                                Video Calls
+                            </td>
+                            <td>
+                                {% if telegram_user.video_calls_available %}
+                                <span class="text-success"><i class="bi bi-check" style="font-size: 14px;"></i> Available</span>
+                                {% else %}
+                                <span class="text-muted"><i class="bi bi-x" style="font-size: 14px;"></i> Not available</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted">
+                                <i class="bi bi-mic me-1" style="font-size: 14px;"></i>
+                                Voice Messages
+                            </td>
+                            <td>
+                                {% if telegram_user.voice_messages_forbidden %}
+                                <span class="text-danger"><i class="bi bi-x" style="font-size: 14px;"></i> Forbidden</span>
+                                {% else %}
+                                <span class="text-success"><i class="bi bi-check" style="font-size: 14px;"></i> Allowed</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted">
+                                <i class="bi bi-star me-1" style="font-size: 14px;"></i>
+                                Premium Required
+                            </td>
+                            <td>
+                                {% if telegram_user.contact_require_premium %}
+                                <span class="text-warning"><i class="bi bi-lock" style="font-size: 14px;"></i> Yes</span>
+                                {% else %}
+                                <span class="text-muted">No</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% if telegram_user.has_pinned_stories %}
+                        <tr>
+                            <td class="text-muted">
+                                <i class="bi bi-circle-fill me-1" style="font-size: 14px;"></i>
+                                Pinned Stories
+                            </td>
+                            <td><span class="text-success"><i class="bi bi-check" style="font-size: 14px;"></i> Yes</span></td>
+                        </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Account Relationship -->
+    <div class="col-md-4">
+        <div class="card border-0 h-100">
+            <div class="card-header py-2">
+                <h6 class="mb-0">
+                    <i class="bi bi-link me-2" style="font-size: 16px;"></i>
+                    Account Relationship
+                </h6>
+            </div>
+            <div class="card-body p-0">
+                <table class="table table-sm mb-0">
+                    <tbody>
+                        <tr>
+                            <td class="text-muted" style="width: 40%;">
+                                <i class="bi bi-phone me-1" style="font-size: 14px;"></i>
+                                Seen By
+                            </td>
+                            <td>
+                                {% for account in seen_by_accounts %}
+                                <span class="badge bg-secondary me-1">
+                                    <a href="{% url 'accounts:telegram_account_detail' account.pk %}" class="text-white text-decoration-none">{{ account.name }}</a>
+                                </span>
+                                {% empty %}
+                                <span class="text-muted">-</span>
+                                {% endfor %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted">
+                                <i class="bi bi-person-lines-fill me-1" style="font-size: 14px;"></i>
+                                Contact Status
+                            </td>
+                            <td>
+                                {% if telegram_user.is_mutual_contact %}
+                                <span class="badge bg-success">Mutual</span>
+                                {% elif telegram_user.is_contact %}
+                                <span class="badge bg-info">Contact</span>
+                                {% else %}
+                                <span class="text-muted">Not a contact</span>
+                                {% endif %}
+                                {% if telegram_user.is_close_friend %}
+                                <span class="badge bg-primary ms-1">Close</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted">
+                                <i class="bi bi-slash-circle me-1" style="font-size: 14px;"></i>
+                                Blocked
+                            </td>
+                            <td>
+                                {% if telegram_user.is_blocked %}
+                                <span class="text-danger"><i class="bi bi-exclamation-circle" style="font-size: 14px;"></i> Yes</span>
+                                {% else %}
+                                <span class="text-muted">No</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% if telegram_user.common_chats_count > 0 %}
+                        <tr>
+                            <td class="text-muted">
+                                <i class="bi bi-chat-square-text me-1" style="font-size: 14px;"></i>
+                                Common Chats
+                            </td>
+                            <td>{{ telegram_user.common_chats_count }}</td>
+                        </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Business Profile (if available) -->
+{% if telegram_user.business_intro or telegram_user.business_location %}
+<div class="card border-0 mb-4">
+    <div class="card-header py-2">
+        <h6 class="mb-0">
+            <i class="bi bi-briefcase me-2" style="font-size: 16px;"></i>
+            Business Profile
+        </h6>
+    </div>
+    <div class="card-body">
+        {% if telegram_user.business_intro %}
+        <div class="mb-3">
+            <div class="small text-muted mb-1">Introduction</div>
+            <div>{{ telegram_user.business_intro }}</div>
+        </div>
+        {% endif %}
+        {% if telegram_user.business_location %}
+        <div class="mb-3">
+            <div class="small text-muted mb-1">Location</div>
+            <div>
+                <i class="bi bi-geo-alt me-1" style="font-size: 14px;"></i>
+                {{ telegram_user.business_location }}
+            </div>
+        </div>
+        {% endif %}
+        {% if telegram_user.business_work_hours %}
+        <div>
+            <div class="small text-muted mb-1">Work Hours</div>
+            <div>
+                <i class="bi bi-clock me-1" style="font-size: 14px;"></i>
+                {% if telegram_user.business_work_hours.timezone %}
+                    Timezone: {{ telegram_user.business_work_hours.timezone }}
+                {% endif %}
+                {% if telegram_user.business_work_hours.open_now %}
+                    <span class="badge bg-success ms-2">Open Now</span>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
+<!-- Profile Fetch Status -->
+{% if telegram_user.full_profile_fetched_at %}
+<div class="small text-muted mb-3 text-end">
+    <i class="bi bi-arrow-clockwise me-1" style="font-size: 12px;"></i>
+    Full profile fetched {{ telegram_user.full_profile_fetched_at|timesince }} ago
+</div>
+{% endif %}
+
+<!-- History Sections (Side by Side) -->
+<div class="row g-3 mb-4">
+    <!-- Change History -->
+    <div class="col-md-6">
+        <div class="card border-0 h-100">
+            <div class="card-header border-bottom d-flex justify-content-between align-items-center">
+                <h6 class="mb-0">
+                    <i class="bi bi-clock-history me-2" style="font-size: 16px;"></i>
+                    Change History
+                </h6>
+                <span class="badge badge-secondary" id="changeHistoryCount">{{ changes|length }} changes</span>
+            </div>
+            <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                <table class="table table-hover table-sm mb-0" id="changeHistoryTable">
+                    <thead>
+                        <tr>
+                            <th style="width: 35%;">Date</th>
+                            <th>Change</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% if changes %}
+                        {% for change in changes %}
+                        <tr class="change-row" {% if forloop.counter > 10 %}style="display: none;"{% endif %}>
+                            <td>
+                                <span class="small">{{ change.date|date:"M j, Y H:i" }}</span>
+                            </td>
+                            <td>
+                                {% if change.username_changed %}
+                                <div class="small">
+                                    <span class="text-muted">Username:</span>
+                                    <span class="change-old">{% if change.old_username %}@{{ change.old_username }}{% else %}-{% endif %}</span>
+                                    <i class="bi bi-arrow-right mx-1 icon-xs text-muted"></i>
+                                    <span class="change-new">{% if change.new_username %}@{{ change.new_username }}{% else %}-{% endif %}</span>
+                                </div>
+                                {% endif %}
+                                {% if change.name_changed %}
+                                <div class="small">
+                                    <span class="text-muted">Name:</span>
+                                    <span class="change-old">{{ change.old_name|default:"-" }}</span>
+                                    <i class="bi bi-arrow-right mx-1 icon-xs text-muted"></i>
+                                    <span class="change-new">{{ change.new_name|default:"-" }}</span>
+                                </div>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                        {% else %}
+                        <tr>
+                            <td colspan="2" class="text-center py-4 text-muted">
+                                No identity changes recorded yet.
+                            </td>
+                        </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+            {% if changes|length > 10 %}
+            <div class="card-footer border-top py-2">
+                <nav aria-label="Change history pagination">
+                    <ul class="pagination pagination-sm justify-content-center mb-0" id="changeHistoryPagination"></ul>
+                </nav>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Membership History -->
+    <div class="col-md-6">
+        <div class="card border-0 h-100">
+            <div class="card-header border-bottom d-flex justify-content-between align-items-center">
+                <h6 class="mb-0">
+                    <i class="bi bi-people me-2" style="font-size: 16px;"></i>
+                    Membership History
+                </h6>
+                <span class="badge badge-secondary" id="membershipHistoryCount">{{ membership_history|length }} events</span>
+            </div>
+            <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                <table class="table table-hover table-sm mb-0" id="membershipHistoryTable">
+                    <thead>
+                        <tr>
+                            <th style="width: 35%;">Date</th>
+                            <th style="width: 25%;">Action</th>
+                            <th>Group/Channel</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% if membership_history %}
+                        {% for event in membership_history %}
+                        <tr class="membership-row" {% if forloop.counter > 10 %}style="display: none;"{% endif %}>
+                            <td>
+                                <span class="small">{{ event.date|date:"M j, Y H:i" }}</span>
+                            </td>
+                            <td>
+                                {% if event.action == 'joined' %}
+                                <span class="badge bg-success">
+                                    <i class="bi bi-box-arrow-in-right me-1" style="font-size: 10px;"></i>
+                                    {{ event.action_display }}
+                                </span>
+                                {% elif event.action == 'rejoined' %}
+                                <span class="badge bg-info">
+                                    <i class="bi bi-arrow-clockwise me-1" style="font-size: 10px;"></i>
+                                    {{ event.action_display }}
+                                </span>
+                                {% elif event.action == 'left' %}
+                                <span class="badge bg-secondary">
+                                    <i class="bi bi-box-arrow-right me-1" style="font-size: 10px;"></i>
+                                    {{ event.action_display }}
+                                </span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <a href="{% url 'audit:source_detail' event.channel.pk %}" class="text-decoration-none small">
+                                    {{ event.channel.title|truncatechars:25 }}
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                        {% else %}
+                        <tr>
+                            <td colspan="3" class="text-center py-4 text-muted">
+                                No membership changes recorded yet.
+                            </td>
+                        </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+            {% if membership_history|length > 10 %}
+            <div class="card-footer border-top py-2">
+                <nav aria-label="Membership history pagination">
+                    <ul class="pagination pagination-sm justify-content-center mb-0" id="membershipHistoryPagination"></ul>
+                </nav>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Group Memberships -->
+<div class="card border-0 mb-4">
+    <div class="card-header border-bottom d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">
+            <i class="bi bi-people me-2 icon-base"></i>
+            Group Memberships
+        </h5>
+        <span class="badge badge-secondary">{{ total_memberships }} groups</span>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-hover mb-0">
+            <thead>
+                <tr>
+                    <th>Group/Channel</th>
+                    <th>Status</th>
+                    <th>Role</th>
+                    <th>Messages</th>
+                    <th>Joined</th>
+                    <th>Last Active</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if memberships %}
+                    {% for membership in memberships %}
+                    <tr>
+                        <td>
+                            <div class="d-flex align-items-center gap-2">
+                                <div class="avatar avatar-sm avatar-neutral">
+                                    {% if membership.channel.channel_type == 'channel' %}
+                                    <i class="bi bi-megaphone icon-md"></i>
+                                    {% else %}
+                                    <i class="bi bi-people icon-md"></i>
+                                    {% endif %}
+                                </div>
+                                <div>
+                                    <a href="{% url 'audit:source_detail' membership.channel.pk %}" class="text-decoration-none fw-semibold">
+                                        {{ membership.channel|display_title }}
+                                    </a>
+                                    {% if membership.channel.username %}
+                                    <div class="small text-muted">@{{ membership.channel.username }}</div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            {% if membership.active %}
+                            <span class="badge bg-success">
+                                <i class="bi bi-check-circle me-1 icon-2xs"></i>
+                                Active member
+                            </span>
+                            {% else %}
+                            <span class="badge bg-secondary">
+                                <i class="bi bi-box-arrow-right me-1 icon-2xs"></i>
+                                Previous member
+                            </span>
+                            {% if membership.left_at %}
+                            <div class="small text-muted mt-1">Left {{ membership.left_at|timesince }} ago</div>
+                            {% endif %}
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if membership.is_creator %}
+                            <span class="badge badge-warning">
+                                <i class="bi bi-crown me-1 icon-2xs"></i>
+                                {{ membership.admin_title|default:"Creator" }}
+                            </span>
+                            {% elif membership.is_admin %}
+                            <span class="badge badge-tg">
+                                <i class="bi bi-shield me-1 icon-2xs"></i>
+                                {{ membership.admin_title|default:"Admin" }}
+                            </span>
+                            {% else %}
+                            <span class="text-muted">Member</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span class="badge badge-secondary">{{ membership.message_count }}</span>
+                        </td>
+                        <td>
+                            {% if membership.first_seen %}
+                            <span class="text-muted" title="{{ membership.first_seen }}">
+                                {{ membership.first_seen|date:"M j, Y" }}
+                            </span>
+                            {% else %}
+                            <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if membership.last_seen %}
+                            <span class="text-muted" title="{{ membership.last_seen }}">
+                                {{ membership.last_seen|timesince }} ago
+                            </span>
+                            {% else %}
+                            <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="6" class="text-center py-4 text-muted">
+                            No group memberships found.
+                        </td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Pagination -->
+    {% if memberships.has_other_pages %}
+    <div class="card-footer border-top py-2">
+        <nav aria-label="Memberships pagination">
+            <ul class="pagination pagination-sm justify-content-center mb-0">
+                {% if memberships.has_previous %}
+                <li class="page-item">
+                    <a class="page-link" href="?page=1">&laquo; First</a>
+                </li>
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ memberships.previous_page_number }}">&lsaquo; Prev</a>
+                </li>
+                {% endif %}
+
+                {% for num in memberships.paginator.page_range %}
+                    {% if memberships.number == num %}
+                    <li class="page-item active"><span class="page-link">{{ num }}</span></li>
+                    {% elif num > memberships.number|add:'-3' and num < memberships.number|add:'3' %}
+                    <li class="page-item"><a class="page-link" href="?page={{ num }}">{{ num }}</a></li>
+                    {% endif %}
+                {% endfor %}
+
+                {% if memberships.has_next %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ memberships.next_page_number }}">Next &rsaquo;</a>
+                </li>
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ memberships.paginator.num_pages }}">Last &raquo;</a>
+                </li>
+                {% endif %}
+            </ul>
+        </nav>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Report Modal -->
+<div class="modal fade" id="reportModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" action="{% url 'audit:report_user' telegram_user.pk %}">
+                {% csrf_token %}
+                <div class="modal-header">
+                    <h5 class="modal-title">Report User to Telegram</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted mb-3">
+                        Report <strong>{{ telegram_user.display_name }}</strong> to Telegram's moderation team.
+                    </p>
+                    <div class="mb-3">
+                        <label class="form-label">Reason <span class="text-danger">*</span></label>
+                        <select name="reason" class="form-select" required>
+                            <option value="">Select a reason...</option>
+                            <option value="spam">Spam</option>
+                            <option value="violence">Violence</option>
+                            <option value="pornography">Adult Content</option>
+                            <option value="child_abuse">Child Abuse</option>
+                            <option value="fake">Fake Account / Scam</option>
+                            <option value="illegal_drugs">Illegal Drugs</option>
+                            <option value="personal_details">Personal Data Exposure</option>
+                            <option value="copyright">Copyright Violation</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Additional Details</label>
+                        <textarea name="message" class="form-control" rows="3"
+                                  placeholder="Provide additional context..."></textarea>
+                        <div class="form-text">Required when selecting "Other"</div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-danger">
+                        <i class="bi bi-flag me-1 icon-base"></i>
+                        Submit Report
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Flag Modal -->
+<div class="modal fade" id="flagModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" action="{% url 'audit:flag_user' telegram_user.pk %}">
+                {% csrf_token %}
+                <div class="modal-header">
+                    <h5 class="modal-title">Flag User for Review</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted mb-3">
+                        Flag <strong>{{ telegram_user.display_name }}</strong> for later review.
+                        This does NOT report to Telegram - it's just for your internal tracking.
+                    </p>
+                    <div class="mb-3">
+                        <label class="form-label">Reason</label>
+                        <select name="reason" class="form-select">
+                            <option value="">Select a reason...</option>
+                            <option value="spam">Spam</option>
+                            <option value="violence">Violence</option>
+                            <option value="pornography">Adult Content</option>
+                            <option value="child_abuse">Child Abuse</option>
+                            <option value="fake">Fake Account / Scam</option>
+                            <option value="illegal_drugs">Illegal Drugs</option>
+                            <option value="personal_details">Personal Data Exposure</option>
+                            <option value="copyright">Copyright Violation</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Notes</label>
+                        <textarea name="notes" class="form-control" rows="3"
+                                  placeholder="Add any notes about why this user is flagged..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-warning">
+                        <i class="bi bi-bookmark me-1 icon-base"></i>
+                        Flag User
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Photo Confirmation Modal -->
+<div class="modal fade" id="photoConfirmModal" tabindex="-1">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">View Profile Photo</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body text-center">
+                <i class="bi bi-exclamation-triangle text-warning mb-3 icon-3xl"></i>
+                <p>
+                    This profile photo has not been reviewed and may contain inappropriate content.
+                </p>
+                <p class="small text-muted">
+                    Are you sure you want to view it?
+                </p>
+            </div>
+            <div class="modal-footer justify-content-center">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="confirmViewPhoto">
+                    <i class="bi bi-eye me-1 icon-base"></i>
+                    View Photo
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Photo Display Modal -->
+<div class="modal fade" id="photoDisplayModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Profile Photo</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body text-center p-4">
+                <img id="profilePhotoImg" src="" alt="Profile Photo"
+                     class="img-fluid rounded" style="max-height: 400px;">
+                <div id="photoUpdatedAt" class="small text-muted mt-2"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Exclude User Modal -->
+<div class="modal fade" id="excludeModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-person-x me-2" style="font-size: 20px;"></i>
+                    Exclude User
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <!-- User Info -->
+                <div class="alert alert-secondary mb-4">
+                    <strong>{{ telegram_user.display_name }}</strong>
+                    <span class="text-muted ms-2">{{ telegram_user.telegram_id }}</span>
+                </div>
+
+                <!-- Existing Exclusions -->
+                {% if exclusions %}
+                <div class="mb-4">
+                    <label class="form-label fw-bold">Existing Exclusions</label>
+                    <div class="border rounded p-2">
+                        {% for exclusion in exclusions %}
+                        <div class="d-flex justify-content-between align-items-center py-1 {% if not forloop.last %}border-bottom{% endif %}">
+                            <div>
+                                {% if exclusion.is_global %}
+                                <span class="badge bg-danger me-2">Global</span>
+                                <span class="text-muted">All sources</span>
+                                {% else %}
+                                <span class="badge bg-primary me-2">Source</span>
+                                <span>{{ exclusion.source.title|truncatechars:30 }}</span>
+                                {% endif %}
+                                {% if not exclusion.is_active %}
+                                <span class="badge bg-secondary ms-2">Inactive</span>
+                                {% endif %}
+                            </div>
+                            <button type="button" class="btn btn-sm btn-outline-danger"
+                                    onclick="deleteExclusion({{ exclusion.pk }})" title="Delete">
+                                <i class="bi bi-trash" style="font-size: 14px;"></i>
+                            </button>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Exclusion Type -->
+                <div class="mb-4">
+                    <label class="form-label fw-bold">Exclusion Type</label>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="exclusionType" id="exclusionTypeGlobal"
+                               value="global" {% if has_global_exclusion %}disabled{% else %}checked{% endif %}
+                               onchange="onExclusionTypeChange()">
+                        <label class="form-check-label" for="exclusionTypeGlobal">
+                            <strong>Global</strong>
+                            <small class="text-muted d-block">Block messages from this user across all sources</small>
+                            {% if has_global_exclusion %}
+                            <small class="text-danger">(Already exists)</small>
+                            {% endif %}
+                        </label>
+                    </div>
+                    <div class="form-check mt-2">
+                        <input class="form-check-input" type="radio" name="exclusionType" id="exclusionTypeSource"
+                               value="source" {% if has_global_exclusion %}checked{% endif %}
+                               onchange="onExclusionTypeChange()">
+                        <label class="form-check-label" for="exclusionTypeSource">
+                            <strong>Source-specific</strong>
+                            <small class="text-muted d-block">Only block messages in selected sources</small>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Source Selection (hidden by default) -->
+                <div class="mb-4" id="sourceSelectionSection" style="display: none;">
+                    <label class="form-label fw-bold">Select Sources</label>
+                    <input type="text" class="form-control" id="sourceSearchInput"
+                           placeholder="Search sources by name, username, or Telegram ID..."
+                           oninput="searchSources(this.value)">
+                    <div id="sourceSearchResults" class="border rounded mt-1" style="max-height: 150px; overflow-y: auto;"></div>
+                    <div id="selectedSourcesDisplay" class="mt-2"></div>
+                </div>
+
+                <!-- Reason -->
+                <div class="mb-0">
+                    <label for="exclusionReason" class="form-label fw-bold">Reason (optional)</label>
+                    <textarea class="form-control" id="exclusionReason" rows="2"
+                              placeholder="Why is this user being excluded?"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="submitExclusion()">
+                    <i class="bi bi-plus me-1" style="font-size: 16px;"></i>
+                    Add Exclusion
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block user_extra_js %}
+<script>
+// ============================================================================
+// Client-side Pagination for History Tables
+// ============================================================================
+
+function setupPagination(tableId, paginationId, rowClass, itemsPerPage = 10) {
+    const rows = document.querySelectorAll(`#${tableId} .${rowClass}`);
+    const paginationEl = document.getElementById(paginationId);
+
+    if (!rows.length || !paginationEl) return;
+
+    const totalPages = Math.ceil(rows.length / itemsPerPage);
+    let currentPage = 1;
+
+    function showPage(page) {
+        currentPage = page;
+        const start = (page - 1) * itemsPerPage;
+        const end = start + itemsPerPage;
+
+        rows.forEach((row, index) => {
+            row.style.display = (index >= start && index < end) ? '' : 'none';
+        });
+
+        renderPagination();
+    }
+
+    function renderPagination() {
+        if (totalPages <= 1) {
+            paginationEl.innerHTML = '';
+            return;
+        }
+
+        let html = '';
+
+        // Previous
+        if (currentPage > 1) {
+            html += `<li class="page-item"><a class="page-link" href="#" onclick="event.preventDefault(); window.${tableId}GoTo(${currentPage - 1})">&lsaquo;</a></li>`;
+        }
+
+        // Page numbers
+        for (let i = 1; i <= totalPages; i++) {
+            if (i === currentPage) {
+                html += `<li class="page-item active"><span class="page-link">${i}</span></li>`;
+            } else if (i === 1 || i === totalPages || (i >= currentPage - 1 && i <= currentPage + 1)) {
+                html += `<li class="page-item"><a class="page-link" href="#" onclick="event.preventDefault(); window.${tableId}GoTo(${i})">${i}</a></li>`;
+            } else if (i === currentPage - 2 || i === currentPage + 2) {
+                html += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+            }
+        }
+
+        // Next
+        if (currentPage < totalPages) {
+            html += `<li class="page-item"><a class="page-link" href="#" onclick="event.preventDefault(); window.${tableId}GoTo(${currentPage + 1})">&rsaquo;</a></li>`;
+        }
+
+        paginationEl.innerHTML = html;
+    }
+
+    // Expose goTo function globally
+    window[`${tableId}GoTo`] = showPage;
+
+    // Initialize
+    showPage(1);
+}
+
+// Initialize pagination on page load
+document.addEventListener('DOMContentLoaded', function() {
+    setupPagination('changeHistoryTable', 'changeHistoryPagination', 'change-row', 10);
+    setupPagination('membershipHistoryTable', 'membershipHistoryPagination', 'membership-row', 10);
+});
+
+document.getElementById('confirmViewPhoto')?.addEventListener('click', async function() {
+    // Close confirmation modal
+    const confirmModal = bootstrap.Modal.getInstance(document.getElementById('photoConfirmModal'));
+    confirmModal.hide();
+
+    // Fetch photo data
+    try {
+        const response = await fetch('{% url "audit:user_profile_photo" telegram_user.pk %}');
+        const data = await response.json();
+
+        if (data.has_photo) {
+            // Set image source
+            document.getElementById('profilePhotoImg').src = 'data:image/jpeg;base64,' + data.photo_base64;
+
+            // Set update date if available
+            if (data.updated_at) {
+                const date = new Date(data.updated_at);
+                document.getElementById('photoUpdatedAt').textContent = 'Photo captured: ' + date.toLocaleDateString();
+            }
+
+            // Show photo modal
+            const photoModal = new bootstrap.Modal(document.getElementById('photoDisplayModal'));
+            photoModal.show();
+        } else {
+            showToast('No profile photo available', 'warning');
+        }
+    } catch (error) {
+        showToast('Failed to load profile photo', 'error');
+    }
+});
+
+// ============================================================================
+// Exclusion Functions
+// ============================================================================
+
+let selectedSources = [];
+
+function onExclusionTypeChange() {
+    const isSourceBased = document.getElementById('exclusionTypeSource').checked;
+    document.getElementById('sourceSelectionSection').style.display = isSourceBased ? 'block' : 'none';
+}
+
+// Initialize on modal show
+document.getElementById('excludeModal')?.addEventListener('shown.bs.modal', function() {
+    onExclusionTypeChange();
+});
+
+function searchSources(query) {
+    const resultsDiv = document.getElementById('sourceSearchResults');
+    if (!query || query.length < 2) {
+        resultsDiv.innerHTML = '';
+        return;
+    }
+
+    fetch(`{% url 'accounts:search_sources_api' %}?q=${encodeURIComponent(query)}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.results.length === 0) {
+                resultsDiv.innerHTML = '<div class="p-2 text-muted">No sources found</div>';
+                return;
+            }
+
+            resultsDiv.innerHTML = data.results.map(source => {
+                const isSelected = selectedSources.some(s => s.id === source.id);
+                return `
+                    <div class="p-2 border-bottom source-result ${isSelected ? 'bg-primary bg-opacity-10' : ''}"
+                         style="cursor: pointer;"
+                         onclick="toggleSource(${source.id}, '${source.text.replace(/'/g, "\\'")}', '${source.telegram_id}')">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>${source.text}</strong>
+                                <small class="text-muted ms-2">${source.telegram_id}</small>
+                            </div>
+                            ${isSelected ? '<i class="bi bi-check text-primary" style="font-size: 16px;"></i>' : ''}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        });
+}
+
+function toggleSource(id, text, telegramId) {
+    const index = selectedSources.findIndex(s => s.id === id);
+    if (index > -1) {
+        selectedSources.splice(index, 1);
+    } else {
+        selectedSources.push({ id, text, telegramId });
+    }
+    updateSelectedSourcesDisplay();
+    // Refresh search results to update checkmarks
+    const query = document.getElementById('sourceSearchInput').value;
+    if (query) searchSources(query);
+}
+
+function removeSource(id) {
+    selectedSources = selectedSources.filter(s => s.id !== id);
+    updateSelectedSourcesDisplay();
+    const query = document.getElementById('sourceSearchInput').value;
+    if (query) searchSources(query);
+}
+
+function updateSelectedSourcesDisplay() {
+    const container = document.getElementById('selectedSourcesDisplay');
+    if (selectedSources.length === 0) {
+        container.innerHTML = '';
+        return;
+    }
+
+    container.innerHTML = '<div class="d-flex flex-wrap gap-2">' +
+        selectedSources.map(source => `
+            <span class="badge bg-primary d-flex align-items-center gap-1">
+                ${source.text}
+                <button type="button" class="btn-close btn-close-white" style="font-size: 0.5rem;"
+                        onclick="event.stopPropagation(); removeSource(${source.id})"></button>
+            </span>
+        `).join('') +
+        '</div>';
+}
+
+function submitExclusion() {
+    const exclusionType = document.querySelector('input[name="exclusionType"]:checked').value;
+    const reason = document.getElementById('exclusionReason').value.trim();
+
+    if (exclusionType === 'source' && selectedSources.length === 0) {
+        showToast('Please select at least one source', 'error');
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('user_id', '{{ telegram_user.pk }}');
+    formData.append('exclusion_type', exclusionType);
+    formData.append('reason', reason);
+
+    if (exclusionType === 'source') {
+        selectedSources.forEach(source => {
+            formData.append('source_ids', source.id);
+        });
+    }
+
+    fetch('{% url "accounts:exclusion_add" %}', {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': '{{ csrf_token }}',
+        },
+        body: formData,
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showToast(data.message || 'Exclusion added', 'success');
+            // Close modal and reload page to show updated status
+            bootstrap.Modal.getInstance(document.getElementById('excludeModal')).hide();
+            setTimeout(() => location.reload(), 500);
+        } else {
+            showToast(data.error || 'Failed to add exclusion', 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showToast('Failed to add exclusion', 'error');
+    });
+}
+
+function deleteExclusion(pk) {
+    if (!confirm('Are you sure you want to delete this exclusion?')) {
+        return;
+    }
+
+    fetch(`{% url 'accounts:exclusion_delete' pk=0 %}`.replace('/0/', `/${pk}/`), {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': '{{ csrf_token }}',
+            'Content-Type': 'application/json',
+        },
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showToast('Exclusion deleted', 'success');
+            // Reload page to show updated status
+            setTimeout(() => location.reload(), 500);
+        } else {
+            showToast(data.error || 'Failed to delete exclusion', 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showToast('Failed to delete exclusion', 'error');
+    });
+}
+</script>
+{% endblock %}

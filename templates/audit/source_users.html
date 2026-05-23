@@ -1,0 +1,221 @@
+{% extends "audit/source_base.html" %}
+
+{% block title %}Users - {{ source.title }} - Trawlr{% endblock %}
+
+{% block source_content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h4 class="mb-0">Tracked Users</h4>
+        {% if page_obj %}
+        <small class="text-muted">{{ page_obj.paginator.count }} users</small>
+        {% endif %}
+    </div>
+    <button type="button" class="btn btn-outline-primary" id="refresh-users-btn"
+            onclick="refreshUsers(this)">
+        <i class="bi bi-arrow-clockwise me-1" style="font-size: 16px;"></i>
+        Refresh Users
+    </button>
+</div>
+
+<div class="card border-0">
+    <!-- Search -->
+    <div class="card-header border-bottom py-2" style="border-color: var(--tg-border) !important;">
+        <form method="get" class="row g-2">
+            <div class="col">
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text">
+                        <i class="bi bi-search" style="font-size: 14px;"></i>
+                    </span>
+                    <input type="text" class="form-control" placeholder="Search users..." name="q" value="{{ search }}">
+                </div>
+            </div>
+            <div class="col-auto">
+                <button type="submit" class="btn btn-primary btn-sm">Search</button>
+                {% if search %}
+                <a href="{% url 'audit:source_users' source.pk %}" class="btn btn-outline-secondary btn-sm">Clear</a>
+                {% endif %}
+            </div>
+        </form>
+    </div>
+
+    <div class="table-responsive">
+        <table class="table table-hover mb-0">
+            <thead>
+                <tr>
+                    <th>User</th>
+                    <th>Username</th>
+                    <th>Telegram ID</th>
+                    <th>Status</th>
+                    <th>Messages</th>
+                    <th>Role</th>
+                    <th>Last Seen</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if memberships %}
+                    {% for membership in memberships %}
+                    <tr>
+                        <td>
+                            <div class="d-flex align-items-center gap-2">
+                                <div class="avatar avatar-sm">
+                                    {% if membership.user.is_bot %}
+                                    <i class="bi bi-robot" style="font-size: 18px;"></i>
+                                    {% else %}
+                                    <i class="bi bi-person" style="font-size: 18px;"></i>
+                                    {% endif %}
+                                </div>
+                                <div>
+                                    <a href="{% url 'audit:user_detail' membership.user.pk %}" class="fw-semibold text-decoration-none">
+                                        {{ membership.user.first_name }} {{ membership.user.last_name }}
+                                    </a>
+                                    {% if membership.user.is_premium %}
+                                    <i class="bi bi-star text-warning ms-1" style="font-size: 12px;" title="Premium"></i>
+                                    {% endif %}
+                                    {% if membership.user.is_verified %}
+                                    <i class="bi bi-patch-check text-primary ms-1" style="font-size: 12px;" title="Verified"></i>
+                                    {% endif %}
+                                    {% if membership.user.is_scam %}
+                                    <span class="badge bg-danger ms-1">Scam</span>
+                                    {% endif %}
+                                    {% if membership.user.is_fake %}
+                                    <span class="badge bg-warning ms-1">Fake</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            {% if membership.user.username %}
+                            <a href="{% url 'audit:user_detail' membership.user.pk %}" class="text-decoration-none">
+                                @{{ membership.user.username }}
+                            </a>
+                            {% else %}
+                            <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <code>{{ membership.user.telegram_id }}</code>
+                        </td>
+                        <td>
+                            {% if membership.active %}
+                            <span class="badge bg-success">
+                                <i class="bi bi-check-circle me-1" style="font-size: 10px;"></i>
+                                Active Member
+                            </span>
+                            {% else %}
+                            <span class="badge bg-secondary">
+                                <i class="bi bi-box-arrow-right me-1" style="font-size: 10px;"></i>
+                                Previous Member
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span class="badge bg-secondary bg-opacity-25 text-muted">{{ membership.message_count }}</span>
+                        </td>
+                        <td>
+                            {% if membership.is_creator %}
+                            <span class="badge bg-warning text-dark">
+                                <i class="bi bi-crown me-1" style="font-size: 10px;"></i>
+                                {{ membership.admin_title|default:"Creator" }}
+                            </span>
+                            {% elif membership.is_admin %}
+                            <span class="badge bg-primary">
+                                <i class="bi bi-shield me-1" style="font-size: 10px;"></i>
+                                {{ membership.admin_title|default:"Admin" }}
+                            </span>
+                            {% else %}
+                            <span class="text-muted">Member</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span class="text-muted" title="{{ membership.last_seen }}">
+                                {{ membership.last_seen|timesince }} ago
+                            </span>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="7" class="text-center py-5 text-muted">
+                            <i class="bi bi-people mb-2" style="font-size: 48px; opacity: 0.5;"></i>
+                            <p class="mb-0">No users tracked yet.</p>
+                            <p class="small">Users are automatically tracked when they post messages.</p>
+                            <p class="small">Click "Refresh Users" to scan the member list.</p>
+                        </td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Pagination -->
+    {% if page_obj.has_other_pages %}
+    <div class="card-footer border-top py-2" style="border-color: var(--tg-border) !important;">
+        <nav aria-label="Users pagination">
+            <ul class="pagination pagination-sm justify-content-center mb-0">
+                {% if page_obj.has_previous %}
+                <li class="page-item">
+                    <a class="page-link" href="?page=1{% if search %}&q={{ search }}{% endif %}">&laquo; First</a>
+                </li>
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if search %}&q={{ search }}{% endif %}">&lsaquo; Prev</a>
+                </li>
+                {% endif %}
+
+                {% for num in page_obj.paginator.page_range %}
+                    {% if page_obj.number == num %}
+                    <li class="page-item active"><span class="page-link">{{ num }}</span></li>
+                    {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                    <li class="page-item"><a class="page-link" href="?page={{ num }}{% if search %}&q={{ search }}{% endif %}">{{ num }}</a></li>
+                    {% endif %}
+                {% endfor %}
+
+                {% if page_obj.has_next %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if search %}&q={{ search }}{% endif %}">Next &rsaquo;</a>
+                </li>
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if search %}&q={{ search }}{% endif %}">Last &raquo;</a>
+                </li>
+                {% endif %}
+            </ul>
+        </nav>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block source_extra_js %}
+<script>
+async function refreshUsers(btn) {
+    const originalHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Scanning...';
+
+    try {
+        const response = await fetch('{% url "audit:source_scan_members" source.pk %}', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            showToast(data.message || 'User scan started', 'success');
+            btn.innerHTML = '<i class="bi bi-check me-1" style="font-size: 16px;"></i> Started';
+        } else {
+            showToast(data.error || 'Failed to start scan', 'error');
+            btn.disabled = false;
+            btn.innerHTML = originalHtml;
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        showToast('Failed to start scan', 'error');
+        btn.disabled = false;
+        btn.innerHTML = originalHtml;
+    }
+}
+</script>
+{% endblock %}

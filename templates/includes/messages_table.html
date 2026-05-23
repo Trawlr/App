@@ -1,0 +1,40 @@
+{% load audit_extras %}
+
+{% if messages %}
+<div class="table-responsive">
+    <table class="table table-hover mb-0" style="--bs-table-bg: transparent;" id="{{ table_id|default:'messagesTable' }}">
+        <thead>
+            <tr class="text-muted small" style="border-color: var(--tg-border);">
+                <th style="width: 60px; border-color: var(--tg-border);">ID</th>
+                <th style="width: 70px; border-color: var(--tg-border);">Thumb</th>
+                {% if show_source %}
+                <th style="width: 180px; border-color: var(--tg-border);">Source</th>
+                {% endif %}
+                <th style="width: 160px; border-color: var(--tg-border);">Sender</th>
+                <th style="border-color: var(--tg-border);">Content</th>
+                <th style="width: {% if show_extended_date %}200{% else %}140{% endif %}px; border-color: var(--tg-border);">Date</th>
+                <th style="width: 100px; border-color: var(--tg-border);">Status</th>
+                <th style="width: 80px; border-color: var(--tg-border);"></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for post in messages %}
+            {% include "includes/messages_table_row.html" with post=post pending_message_ids=pending_message_ids known_users=known_users show_source=show_source show_topic_info=show_topic_info show_album_info=show_album_info show_extended_date=show_extended_date show_details_modal=show_details_modal search_highlight=search_highlight album_info=album_info col_count=col_count %}
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="text-center py-5 text-muted">
+    <i class="bi bi-{{ empty_icon|default:'inbox' }} mb-2" style="font-size: 48px; opacity: 0.5;"></i>
+    <p class="mb-0">{{ empty_message|default:"No posts found." }}</p>
+    {% if search or media_filter or channel_filter %}
+    <p class="small">Try adjusting your filters.</p>
+    {% if clear_filters_url %}
+    <a href="{{ clear_filters_url }}" class="btn btn-outline-secondary btn-sm mt-2">Clear Filters</a>
+    {% endif %}
+    {% elif empty_submessage %}
+    <p class="small">{{ empty_submessage }}</p>
+    {% endif %}
+</div>
+{% endif %}

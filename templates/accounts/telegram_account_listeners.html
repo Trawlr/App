@@ -1,0 +1,277 @@
+{% extends "base.html" %}
+
+{% block title %}Listener Status - {{ account.name }} - Trawlr{% endblock %}
+
+{% block content %}
+<div class="page-header mb-4">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb mb-2">
+            <li class="breadcrumb-item"><a href="{% url 'accounts:telegram_accounts' %}">Accounts</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'accounts:telegram_account_detail' account.pk %}">{{ account.name }}</a></li>
+            <li class="breadcrumb-item active">Listeners</li>
+        </ol>
+    </nav>
+    <h2>Listener Status</h2>
+    <p>Manage real-time message listeners for {{ account.name }}.</p>
+</div>
+
+<div class="row">
+    <div class="col-lg-8">
+        <!-- Listener Status Card -->
+        <div class="card border-0 mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="bi bi-broadcast me-2" style="font-size: 20px;"></i>
+                    Listener Process
+                </h5>
+                {% if account.listener_status == 'running' or account.listener_status == 'flood_wait' %}
+                    <span class="badge badge-success">Running</span>
+                {% elif account.listener_status == 'error' %}
+                    <span class="badge badge-danger">Error</span>
+                {% else %}
+                    <span class="badge badge-warning">Stopped</span>
+                {% endif %}
+            </div>
+            <div class="card-body p-4">
+                {% if not account.is_authenticated %}
+                <div class="alert alert-warning mb-0">
+                    <i class="bi bi-exclamation-triangle me-2" style="font-size: 18px;"></i>
+                    <strong>Authentication Required</strong><br>
+                    You must authenticate this account before enabling the listener.
+                    <a href="{% url 'accounts:telegram_account_auth' account.pk %}" class="alert-link">Authenticate now</a>
+                </div>
+                {% else %}
+                <div class="row mb-4">
+                    <div class="col-md-4">
+                        <div class="text-muted small">Status</div>
+                        <div class="fw-bold">
+                            {% if account.listener_status == 'running' or account.listener_status == 'flood_wait' %}
+                                <span class="text-success">
+                                    <i class="bi bi-check-circle me-1" style="font-size: 16px;"></i>
+                                    Running
+                                </span>
+                            {% elif account.listener_status == 'error' %}
+                                <span class="text-danger">
+                                    <i class="bi bi-x-circle me-1" style="font-size: 16px;"></i>
+                                    Error
+                                </span>
+                            {% else %}
+                                <span class="text-warning">
+                                    <i class="bi bi-pause-circle me-1" style="font-size: 16px;"></i>
+                                    Stopped
+                                </span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="text-muted small">Started At</div>
+                        <div class="fw-bold">
+                            {% if account.listener_started_at %}
+                                {{ account.listener_started_at|date:"M d, Y H:i" }}
+                            {% else %}
+                                -
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="text-muted small">Account</div>
+                        <div class="fw-bold">{{ account.name }}</div>
+                    </div>
+                </div>
+
+                {% if account.listener_error %}
+                <div class="alert alert-danger mb-4">
+                    <h6 class="alert-heading">
+                        <i class="bi bi-exclamation-circle me-1" style="font-size: 18px;"></i>
+                        Last Error
+                    </h6>
+                    <p class="mb-0 font-monospace small">{{ account.listener_error }}</p>
+                </div>
+                {% endif %}
+
+                <div class="d-flex gap-2" id="listener-controls">
+                    {% if account.listener_status == 'running' or account.listener_status == 'flood_wait' %}
+                    <button type="button" class="btn btn-outline-danger listener-btn"
+                            hx-post="{% url 'accounts:telegram_listener_stop' account.pk %}"
+                            hx-swap="none">
+                        <i class="bi bi-stop-fill me-1" style="font-size: 18px;"></i>
+                        Stop Listener
+                    </button>
+                    {% else %}
+                    <button type="button" class="btn btn-primary listener-btn"
+                            hx-post="{% url 'accounts:telegram_listener_start' account.pk %}"
+                            hx-swap="none">
+                        <i class="bi bi-play me-1" style="font-size: 18px;"></i>
+                        Start Listener
+                    </button>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- How it works -->
+        <div class="card border-0">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-info-circle me-2" style="font-size: 20px;"></i>
+                    How Listeners Work
+                </h5>
+            </div>
+            <div class="card-body p-4">
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <div class="d-flex gap-3">
+                            <div class="avatar avatar-sm flex-shrink-0">
+                                <i class="bi bi-lightning" style="font-size: 18px;"></i>
+                            </div>
+                            <div>
+                                <h6 class="mb-1">Real-time Updates</h6>
+                                <p class="text-muted small mb-0">Receives new messages instantly as they're posted</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <div class="d-flex gap-3">
+                            <div class="avatar avatar-sm flex-shrink-0">
+                                <i class="bi bi-download" style="font-size: 18px;"></i>
+                            </div>
+                            <div>
+                                <h6 class="mb-1">Auto-queue Downloads</h6>
+                                <p class="text-muted small mb-0">Media files are automatically queued for download</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <div class="d-flex gap-3">
+                            <div class="avatar avatar-sm flex-shrink-0">
+                                <i class="bi bi-gear" style="font-size: 18px;"></i>
+                            </div>
+                            <div>
+                                <h6 class="mb-1">Per-channel Config</h6>
+                                <p class="text-muted small mb-0">Configure which channels to monitor in Sources</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <div class="d-flex gap-3">
+                            <div class="avatar avatar-sm flex-shrink-0">
+                                <i class="bi bi-shield" style="font-size: 18px;"></i>
+                            </div>
+                            <div>
+                                <h6 class="mb-1">Auto-recovery</h6>
+                                <p class="text-muted small mb-0">Automatically restarts if disconnected</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        <!-- Quick Actions -->
+        <div class="card border-0 mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Quick Actions</h5>
+            </div>
+            <div class="card-body p-4">
+                <a href="{% url 'accounts:telegram_account_detail' account.pk %}" class="btn btn-outline-secondary w-100 mb-2">
+                    <i class="bi bi-arrow-left me-1" style="font-size: 18px;"></i>
+                    Back to Account
+                </a>
+                {% if account.is_authenticated %}
+                <button type="button" class="btn btn-outline-primary w-100" id="sync-btn"
+                        hx-post="{% url 'accounts:telegram_account_sync' account.pk %}"
+                        hx-swap="none">
+                    <span class="htmx-indicator spinner-border spinner-border-sm me-1"></span>
+                    <i class="bi bi-arrow-clockwise me-1 sync-icon" style="font-size: 18px;"></i>
+                    Sync Channels
+                </button>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Flood Wait Warning -->
+        {% if account.is_flood_wait_active %}
+        <div class="card border-0 border-warning">
+            <div class="card-body p-4">
+                <div class="d-flex align-items-start gap-3">
+                    <i class="bi bi-exclamation-triangle text-warning flex-shrink-0" style="font-size: 24px;"></i>
+                    <div>
+                        <h6 class="mb-1">Flood Wait Active</h6>
+                        <p class="text-muted small mb-0">
+                            This account is rate-limited until<br>
+                            <strong>{{ account.flood_wait_until|date:"M d, Y H:i" }}</strong>
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* Hide sync icon while loading */
+    #sync-btn.htmx-request .sync-icon {
+        display: none;
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('htmx:afterRequest', function(event) {
+    if (event.target.classList.contains('listener-btn')) {
+        const btn = event.target;
+        const isStarting = btn.textContent.includes('Start');
+
+        if (event.detail.successful) {
+            if (isStarting) {
+                showToast('Listener started successfully', 'success');
+                btn.outerHTML = `
+                    <button type="button" class="btn btn-outline-danger listener-btn"
+                            hx-post="{% url 'accounts:telegram_listener_stop' account.pk %}"
+                            hx-swap="none">
+                        <i class="bi bi-stop-fill me-1" style="font-size: 18px;"></i>
+                        Stop Listener
+                    </button>`;
+            } else {
+                showToast('Listener stopped', 'info');
+                btn.outerHTML = `
+                    <button type="button" class="btn btn-primary listener-btn"
+                            hx-post="{% url 'accounts:telegram_listener_start' account.pk %}"
+                            hx-swap="none">
+                        <i class="bi bi-play me-1" style="font-size: 18px;"></i>
+                        Start Listener
+                    </button>`;
+            }
+            htmx.process(document.getElementById('listener-controls'));
+        } else {
+            showToast('Failed to update listener status', 'error');
+        }
+    }
+
+    // Handle sync channels button
+    if (event.target.id === 'sync-btn') {
+        if (event.detail.successful) {
+            try {
+                const response = JSON.parse(event.detail.xhr.responseText);
+                if (response.success) {
+                    showToast(response.message, 'success');
+                } else {
+                    showToast(response.error || 'Sync failed', 'error');
+                }
+            } catch (e) {
+                showToast('Sync completed', 'success');
+            }
+        } else {
+            showToast('Failed to sync channels', 'error');
+        }
+    }
+});
+</script>
+{% endblock %}

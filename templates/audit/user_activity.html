@@ -1,0 +1,104 @@
+{% extends "audit/user_base.html" %}
+
+{% block title %}Activity Map - {{ telegram_user.display_name }} - Trawlr{% endblock %}
+
+{% block user_content %}
+<div class="card border-0 mb-3">
+    <div class="card-body p-3 d-flex align-items-center justify-content-between">
+        <div>
+            <h5 class="mb-0">
+                <i class="bi bi-calendar3-week me-2" style="font-size: 18px;"></i>
+                Activity Map
+            </h5>
+            <p class="text-muted small mb-0">
+                When this user posts, aggregated across every channel they're in. Tick a channel on the right to filter the heatmap.
+            </p>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3">
+    <!-- Heatmap (Layout B: narrower than full width) -->
+    <div class="col-lg-9">
+        {% include "activity/heatmap.html" with activity_scope='user' activity_scope_id=telegram_user.pk %}
+    </div>
+
+    <!-- Per-channel sidebar -->
+    <div class="col-lg-3">
+        <div class="card border-0 h-100">
+            <div class="card-body p-3">
+                <h6 class="mb-3">Filter by channel</h6>
+                <div class="form-check mb-2">
+                    <input class="form-check-input" type="checkbox" id="user-act-chan-all" checked
+                           data-user-channel-filter="all">
+                    <label class="form-check-label small" for="user-act-chan-all">
+                        <strong>All channels</strong>
+                    </label>
+                </div>
+                <hr class="my-2">
+                {% for c in top_channels %}
+                <div class="form-check mb-2 d-flex justify-content-between align-items-center gap-2">
+                    <div>
+                        <input class="form-check-input me-2" type="checkbox"
+                               id="user-act-chan-{{ c.channel_id }}"
+                               value="{{ c.channel_id }}"
+                               data-user-channel-filter="one">
+                        <label class="form-check-label small" for="user-act-chan-{{ c.channel_id }}">
+                            {{ c.title|truncatechars:30 }}
+                        </label>
+                    </div>
+                    <span class="badge bg-secondary bg-opacity-25 text-body">{{ c.count }}</span>
+                </div>
+                {% empty %}
+                <p class="text-muted small mb-0">No recent posts to filter by.</p>
+                {% endfor %}
+
+                <hr class="my-3">
+                <div class="small text-muted">
+                    <div><strong>First seen</strong></div>
+                    <div class="mb-2">{{ telegram_user.first_seen|date:"Y-m-d" }}</div>
+                    <div><strong>Last seen</strong></div>
+                    <div>{{ telegram_user.last_seen|date:"Y-m-d" }}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Wire the channel checklist to the heatmap card.
+(function () {
+    const card = document.querySelector('.activity-heatmap-card[data-activity-scope="user"]');
+    if (!card) return;
+
+    const allEl = document.getElementById('user-act-chan-all');
+    const oneEls = document.querySelectorAll('input[data-user-channel-filter="one"]');
+
+    function applyFilter() {
+        if (!card.activitySetChannelFilter) {
+            // Card may not be initialised yet; defer.
+            setTimeout(applyFilter, 100);
+            return;
+        }
+        if (allEl.checked) {
+            card.activitySetChannelFilter([]);
+        } else {
+            const ids = Array.from(oneEls).filter(e => e.checked).map(e => e.value);
+            card.activitySetChannelFilter(ids);
+        }
+    }
+
+    allEl.addEventListener('change', () => {
+        if (allEl.checked) oneEls.forEach(e => e.checked = false);
+        applyFilter();
+    });
+    oneEls.forEach(el => {
+        el.addEventListener('change', () => {
+            const anyOne = Array.from(oneEls).some(e => e.checked);
+            allEl.checked = !anyOne;
+            applyFilter();
+        });
+    });
+})();
+</script>
+{% endblock %}

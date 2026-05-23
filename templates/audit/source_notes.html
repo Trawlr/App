@@ -1,0 +1,154 @@
+{% extends "audit/source_base.html" %}
+
+{% block title %}Notes - {{ source.title }} - Trawlr{% endblock %}
+
+{% block source_content %}
+<div class="row">
+    <div class="col-lg-8">
+        <!-- Add Note Form -->
+        <div class="card border-0 mb-4">
+            <div class="card-header py-3">
+                <h5 class="mb-0">
+                    <i class="bi bi-plus me-2" style="font-size: 18px;"></i>
+                    Add Note
+                </h5>
+            </div>
+            <div class="card-body">
+                <form method="post" action="{% url 'audit:source_notes_add' source.pk %}">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <textarea name="text" class="form-control" rows="3"
+                                  placeholder="Write a note about this source..." required></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-save me-1" style="font-size: 16px;"></i>
+                        Save Note
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Notes List -->
+        <div class="card border-0">
+            <div class="card-header py-3 d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="bi bi-sticky me-2" style="font-size: 18px;"></i>
+                    Notes
+                    {% if notes_count %}<span class="text-muted">({{ notes_count }})</span>{% endif %}
+                </h5>
+            </div>
+            <div class="card-body p-0">
+                {% if notes %}
+                <div class="list-group list-group-flush">
+                    {% for note in notes %}
+                    <div class="list-group-item py-3" id="note-{{ note.pk }}">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <div class="small text-muted">
+                                <i class="bi bi-person me-1" style="font-size: 12px;"></i>
+                                {{ note.created_by.username|default:"Unknown" }}
+                                <span class="mx-1">-</span>
+                                <i class="bi bi-clock me-1" style="font-size: 12px;"></i>
+                                {{ note.created_at|date:"M j, Y H:i" }}
+                                {% if note.is_edited %}
+                                <span class="ms-1 text-muted" title="Last edited {{ note.updated_at|date:'M j, Y H:i' }}">(edited)</span>
+                                {% endif %}
+                            </div>
+                            <div class="d-flex gap-2 note-actions">
+                                <button type="button" class="btn btn-sm btn-link text-secondary p-0" title="Edit note"
+                                        onclick="startEdit({{ note.pk }})">
+                                    <i class="bi bi-pencil" style="font-size: 14px;"></i>
+                                </button>
+                                <form method="post" action="{% url 'audit:source_notes_delete' source.pk note.pk %}"
+                                      class="d-inline" onsubmit="return confirm('Delete this note?');">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-sm btn-link text-danger p-0" title="Delete note">
+                                        <i class="bi bi-trash" style="font-size: 14px;"></i>
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                        <!-- Display mode -->
+                        <div class="note-display" id="note-display-{{ note.pk }}">
+                            <div class="note-text" style="white-space: pre-wrap;">{{ note.text }}</div>
+                        </div>
+                        <!-- Edit mode (hidden by default) -->
+                        <div class="note-edit" id="note-edit-{{ note.pk }}" style="display: none;">
+                            <form method="post" action="{% url 'audit:source_notes_edit' source.pk note.pk %}" onsubmit="return submitEdit(event, {{ note.pk }})">
+                                {% csrf_token %}
+                                <textarea name="text" class="form-control mb-2" rows="3" required>{{ note.text }}</textarea>
+                                <div class="d-flex gap-2">
+                                    <button type="submit" class="btn btn-sm btn-primary">
+                                        <i class="bi bi-save me-1" style="font-size: 14px;"></i>
+                                        Save
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="cancelEdit({{ note.pk }})">
+                                        Cancel
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="text-center py-5 text-muted">
+                    <i class="bi bi-sticky mb-3" style="font-size: 48px; opacity: 0.3;"></i>
+                    <p class="mb-0">No notes yet. Add your first note above.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        <!-- Quick Info -->
+        <div class="card border-0 mb-4">
+            <div class="card-header py-3">
+                <h5 class="mb-0">About Notes</h5>
+            </div>
+            <div class="card-body">
+                <p class="small text-muted mb-2">
+                    Use notes to keep track of important information about this source,
+                    such as investigation notes, findings, or reminders.
+                </p>
+                <ul class="small text-muted mb-0 ps-3">
+                    <li>Notes are visible to all users with access to this source</li>
+                    <li>Each note records who created it and when</li>
+                    <li>Edit history is tracked for all changes</li>
+                    <li>Notes are sorted by most recent first</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block source_extra_js %}
+<script>
+function startEdit(noteId) {
+    document.getElementById('note-display-' + noteId).style.display = 'none';
+    document.getElementById('note-edit-' + noteId).style.display = 'block';
+    document.querySelector('#note-' + noteId + ' .note-actions').style.display = 'none';
+    // Focus the textarea
+    document.querySelector('#note-edit-' + noteId + ' textarea').focus();
+}
+
+function cancelEdit(noteId) {
+    document.getElementById('note-display-' + noteId).style.display = 'block';
+    document.getElementById('note-edit-' + noteId).style.display = 'none';
+    document.querySelector('#note-' + noteId + ' .note-actions').style.display = 'flex';
+}
+
+function submitEdit(event, noteId) {
+    // Allow normal form submission - just prevent double-click
+    const btn = event.target.querySelector('button[type="submit"]');
+    if (btn.disabled) {
+        event.preventDefault();
+        return false;
+    }
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+    return true;
+}
+</script>
+{% endblock %}

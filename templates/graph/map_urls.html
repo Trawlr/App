@@ -1,0 +1,157 @@
+{% extends "graph/map_base.html" %}
+
+{% block map_controls %}
+<div style="display: flex; align-items: center; gap: 8px; position: relative;">
+    <input type="text"
+           class="btn-map"
+           id="domain-search"
+           placeholder="Search domain..."
+           list="domain-list"
+           style="min-width: 180px;"
+           autocomplete="off">
+    <datalist id="domain-list"></datalist>
+    <button class="btn-map" onclick="clearSearch()" title="Clear search" style="padding: 8px 12px;">
+        <i class="bi bi-x-lg" style="font-size: 12px;"></i>
+    </button>
+</div>
+<select class="btn-map" id="mode-filter" onchange="reloadMap()">
+    <option value="domain">Group by Domain</option>
+    <option value="url">Show Full URLs</option>
+</select>
+<select class="btn-map" id="time-filter" onchange="reloadMap()">
+    <option value="0">All Time</option>
+    <option value="1">Last 24 Hours</option>
+    <option value="7" selected>Last 7 Days</option>
+    <option value="30">Last 30 Days</option>
+    <option value="90">Last 90 Days</option>
+</select>
+<select class="btn-map" id="min-shares-filter" onchange="reloadMap()">
+    <option value="2">2+ shares</option>
+    <option value="5" selected>5+ shares</option>
+    <option value="10">10+ shares</option>
+    <option value="25">25+ shares</option>
+    <option value="50">50+ shares</option>
+    <option value="100">100+ shares</option>
+</select>
+<select class="btn-map" id="limit-filter" onchange="reloadMap()">
+    <option value="50">Top 50</option>
+    <option value="100" selected>Top 100</option>
+    <option value="200">Top 200</option>
+    <option value="500">Top 500</option>
+</select>
+<button class="btn-map active" id="labels-btn" onclick="toggleLabels()" title="Show/hide all labels (master)">
+    <i class="bi bi-tag-fill" style="font-size: 14px;" id="labels-icon"></i>
+</button>
+<button class="btn-map active" id="channel-labels-btn" onclick="toggleChannelLabels()" title="Show/hide source/channel labels">
+    <i class="bi bi-broadcast-pin" style="font-size: 14px;" id="channel-labels-icon"></i>
+</button>
+<button class="btn-map" onclick="togglePhysics()" id="physics-btn" title="Pause/Resume physics">
+    <i class="bi bi-pause-fill" style="font-size: 14px;" id="physics-icon"></i>
+</button>
+<button class="btn-map" onclick="resetZoom()">
+    <i class="bi bi-arrows-fullscreen" style="font-size: 14px;"></i>
+</button>
+{% endblock %}
+
+{% block map_legend %}
+<div class="legend-item">
+    <span class="legend-dot" style="background: #64748b;"></span>
+    <span>Channels</span>
+</div>
+<div class="legend-item">
+    <span class="legend-dot" style="background: #06b6d4;"></span>
+    <span>URLs/Domains (size = volume)</span>
+</div>
+{% endblock %}
+
+{% block map_js %}
+<script>
+let searchTimeout = null;
+
+function toggleChannelLabels() {
+    const btn = document.getElementById('channel-labels-btn');
+    if (hiddenLabelTypes.has('channel')) {
+        hiddenLabelTypes.delete('channel');
+        btn.classList.add('active');
+    } else {
+        hiddenLabelTypes.add('channel');
+        btn.classList.remove('active');
+    }
+    updateFocus();
+}
+
+function getFilterParams() {
+    const mode = document.getElementById('mode-filter').value;
+    const days = document.getElementById('time-filter').value;
+    const minShares = document.getElementById('min-shares-filter').value;
+    const limit = document.getElementById('limit-filter').value;
+    const search = document.getElementById('domain-search').value.trim();
+
+    let params = `mode=${mode}&days=${days}&min_shares=${minShares}&limit=${limit}`;
+    if (search) {
+        params += `&search=${encodeURIComponent(search)}`;
+    }
+    return params;
+}
+
+function reloadMap() {
+    loadMapData('{% url "graph:api_urls" %}', getFilterParams());
+}
+
+function clearSearch() {
+    document.getElementById('domain-search').value = '';
+    reloadMap();
+}
+
+async function loadDomainSuggestions(query) {
+    const url = query
+        ? `{% url "graph:api_domains" %}?q=${encodeURIComponent(query)}&limit=50`
+        : `{% url "graph:api_domains" %}?limit=50`;
+
+    try {
+        const response = await fetch(url, {
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        });
+        const data = await response.json();
+
+        const datalist = document.getElementById('domain-list');
+        datalist.innerHTML = '';
+
+        for (const domain of data.domains) {
+            const option = document.createElement('option');
+            option.value = domain.name;
+            option.label = `${domain.name} (${domain.count})`;
+            datalist.appendChild(option);
+        }
+    } catch (error) {
+        console.error('Failed to load domains:', error);
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    const searchInput = document.getElementById('domain-search');
+
+    // Load initial suggestions
+    loadDomainSuggestions('');
+
+    // Update suggestions as user types
+    searchInput.addEventListener('input', function() {
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(() => {
+            loadDomainSuggestions(this.value);
+        }, 300);
+    });
+
+    // Reload map when user selects from dropdown or presses Enter
+    searchInput.addEventListener('change', reloadMap);
+    searchInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            reloadMap();
+        }
+    });
+
+    reloadMap();
+});
+</script>
+{% endblock %}

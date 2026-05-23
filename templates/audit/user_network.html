@@ -1,0 +1,225 @@
+{% extends "audit/user_base.html" %}
+{% load static %}
+
+{% block title %}Network - {{ telegram_user.display_name }} - Trawlr{% endblock %}
+
+{% block user_extra_css %}
+<style>
+/* Swim lanes — visual language matches the CIB amplifier-chain page,
+   adapted to one row per group rather than one row per cluster. */
+.un-lane-row {
+    display: grid;
+    grid-template-columns: 200px 60px 1fr;
+    gap: 12px;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--tg-border, rgba(255,255,255,0.06));
+}
+.un-lane-row:last-child { border-bottom: none; }
+.un-lane-label {
+    font-size: 13px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.un-lane-label a { color: var(--tg-text); text-decoration: none; }
+.un-lane-label a:hover { color: var(--tg-primary); }
+.un-lane-count {
+    font-size: 12px;
+    color: var(--tg-text-muted);
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+.un-lane-track {
+    position: relative;
+    height: 16px;
+    background: rgba(255,255,255,0.04);
+    border-radius: 8px;
+}
+.un-lane-pin {
+    position: absolute;
+    top: 4px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    transform: translateX(-50%);
+    background: var(--tg-primary, #fbbf24);
+    cursor: pointer;
+}
+.un-lane-pin.kind-forward { background: #06b6d4; }
+.un-lane-pin.kind-edit    { background: #a855f7; }
+.un-lane-pin.kind-delete  { background: #ef4444; }
+.un-lane-axis {
+    display: grid;
+    grid-template-columns: 200px 60px 1fr;
+    gap: 12px;
+    margin-top: 8px;
+    padding-top: 6px;
+    border-top: 1px dashed var(--tg-border, rgba(255,255,255,0.06));
+}
+.un-lane-axis-ticks {
+    grid-column: 3;
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    color: var(--tg-text-muted);
+    font-variant-numeric: tabular-nums;
+}
+.un-legend {
+    display: flex;
+    gap: 16px;
+    font-size: 12px;
+    color: var(--tg-text-muted);
+    align-items: center;
+}
+.un-legend-dot {
+    display: inline-block;
+    width: 8px; height: 8px; border-radius: 50%;
+    margin-right: 4px;
+    vertical-align: middle;
+}
+
+/* Sankey — d3-sankey paints into this SVG. */
+#un-flow-svg { width: 100%; height: 360px; display: block; }
+.un-flow-link { fill: none; stroke-opacity: 0.35; }
+.un-flow-link:hover { stroke-opacity: 0.6; }
+.un-flow-node rect { stroke: var(--tg-section-bg, #111); stroke-width: 1; }
+.un-flow-node text {
+    font-size: 11px;
+    fill: var(--tg-text, #f1f5f9);
+    pointer-events: none;
+}
+
+/* Co-poster vis.js panel */
+#un-copost-graph {
+    width: 100%;
+    height: 380px;
+    background: var(--tg-bg, #0b0b0e);
+    border-radius: 8px;
+    box-shadow: inset 0 0 0 1px var(--tg-border, rgba(255,255,255,0.06));
+}
+
+.un-empty {
+    text-align: center;
+    color: var(--tg-text-muted);
+    padding: 32px 16px;
+    font-size: 13px;
+}
+.un-loading {
+    text-align: center;
+    padding: 24px 16px;
+}
+</style>
+{% endblock %}
+
+{% block user_content %}
+<!-- Page header + range selector -->
+<div class="card border-0 mb-3">
+    <div class="card-body p-3 d-flex align-items-center justify-content-between gap-3 flex-wrap">
+        <div>
+            <h5 class="mb-0">
+                <i class="bi bi-diagram-3 me-2" style="font-size: 18px;"></i>
+                Network
+            </h5>
+            <p class="text-muted small mb-0">
+                Where this user is sending data, who else echoes them, and how content flows in and out.
+                Distinct from the Activity heatmap, which shows posting cadence rather than relationships.
+            </p>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            <label class="small text-muted mb-0">Range</label>
+            <select class="form-select form-select-sm" id="un-days" style="width: auto;">
+                <option value="7">7 days</option>
+                <option value="30" selected>30 days</option>
+                <option value="90">90 days</option>
+            </select>
+        </div>
+    </div>
+</div>
+
+<!-- Panel 1: group activity swim lanes -->
+<div class="card border-0 mb-3">
+    <div class="card-body p-3">
+        <div class="d-flex justify-content-between align-items-baseline mb-2">
+            <h6 class="mb-0">Group activity</h6>
+            <div class="un-legend">
+                <span><span class="un-legend-dot" style="background: #fbbf24;"></span>post</span>
+                <span><span class="un-legend-dot" style="background: #06b6d4;"></span>forward</span>
+                <span><span class="un-legend-dot" style="background: #a855f7;"></span>edit</span>
+                <span><span class="un-legend-dot" style="background: #ef4444;"></span>delete</span>
+            </div>
+        </div>
+        <div id="un-lanes-container">
+            <div class="un-loading text-muted">
+                <div class="spinner-border spinner-border-sm me-2"></div>Loading…
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Panel 2 + 3: side by side on lg+, stacked on smaller -->
+<div class="row g-3">
+    <div class="col-lg-7">
+        <div class="card border-0 h-100">
+            <div class="card-body p-3">
+                <div class="d-flex justify-content-between align-items-baseline mb-2">
+                    <h6 class="mb-0">Content flow</h6>
+                    <small class="text-muted" id="un-flow-summary"></small>
+                </div>
+                <div id="un-flow-container">
+                    <div class="un-loading text-muted">
+                        <div class="spinner-border spinner-border-sm me-2"></div>Loading…
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-5">
+        <div class="card border-0 h-100">
+            <div class="card-body p-3">
+                <div class="d-flex justify-content-between align-items-baseline mb-2">
+                    <h6 class="mb-0">Co-posters</h6>
+                    <div class="d-flex align-items-center gap-2">
+                        <label class="small text-muted mb-0">±</label>
+                        <select class="form-select form-select-sm" id="un-copost-window" style="width: auto;">
+                            <option value="60">60s</option>
+                            <option value="300" selected>5m</option>
+                            <option value="900">15m</option>
+                            <option value="3600">1h</option>
+                        </select>
+                        <label class="small text-muted mb-0 ms-2">≥</label>
+                        <input type="number" id="un-copost-min" min="2" max="50" value="3"
+                               class="form-control form-control-sm" style="width: 56px;">
+                    </div>
+                </div>
+                <div id="un-copost-container">
+                    <div class="un-loading text-muted">
+                        <div class="spinner-border spinner-border-sm me-2"></div>Loading…
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block user_extra_js %}
+<script src="https://unpkg.com/vis-network@9.1.6/dist/vis-network.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/d3-sankey@0.12.3/dist/d3-sankey.min.js"></script>
+<script src="{% static 'js/user_network.js' %}"></script>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    initUserNetwork({
+        userPk: {{ telegram_user.pk }},
+        urls: {
+            lanes:  '{% url "reports:api_user_lanes"  telegram_user.pk %}',
+            flow:   '{% url "reports:api_user_flow"   telegram_user.pk %}',
+            copost: '{% url "reports:api_user_copost" telegram_user.pk %}',
+            sourcePosts: '{% url "audit:source_posts_v3" 0 %}'.replace('/0/', '/__SOURCE_PK__/') + '?goto_msg=__MSG_ID__',
+            userDetail:  '{% url "audit:user_detail" 0 %}'.replace('/0/', '/__USER_PK__/'),
+        },
+    });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,696 @@
+{% extends "base.html" %}
+
+{% block title %}{{ map_title }} - Trawlr{% endblock %}
+
+{% block extra_css %}
+<style>
+    .map-container {
+        height: calc(100vh - 240px);
+        min-height: 400px;
+        background: var(--tg-surface);
+        border-radius: 8px;
+        box-shadow: inset 0 0 0 1px var(--tg-border);
+        position: relative;
+    }
+
+    #network-graph {
+        width: 100%;
+        height: 100%;
+    }
+
+    .map-controls {
+        position: absolute;
+        top: 16px;
+        left: 16px;
+        z-index: 100;
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+
+    .map-legend {
+        position: absolute;
+        bottom: 16px;
+        left: 16px;
+        z-index: 100;
+        background: var(--tg-bg);
+        border: 1px solid var(--tg-border);
+        border-radius: 6px;
+        padding: 12px;
+        font-size: 12px;
+    }
+
+    .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 6px;
+    }
+
+    .legend-item:last-child {
+        margin-bottom: 0;
+    }
+
+    .legend-dot {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+    }
+
+    .map-info {
+        position: absolute;
+        top: 16px;
+        right: 16px;
+        z-index: 100;
+        background: var(--tg-bg);
+        border: 1px solid var(--tg-border);
+        border-radius: 6px;
+        padding: 12px;
+        min-width: 200px;
+        max-width: 300px;
+        display: none;
+    }
+
+    .map-info.show {
+        display: block;
+    }
+
+    .map-info h6 {
+        margin-bottom: 8px;
+        color: var(--tg-primary);
+    }
+
+    .map-info-row {
+        display: flex;
+        justify-content: space-between;
+        font-size: 12px;
+        padding: 4px 0;
+        border-bottom: 1px solid var(--tg-border);
+    }
+
+    .map-info-row:last-child {
+        border-bottom: none;
+    }
+
+    .map-stats {
+        display: flex;
+        gap: 24px;
+        margin-bottom: 16px;
+    }
+
+    .map-stat {
+        text-align: center;
+    }
+
+    .map-stat-value {
+        font-size: 24px;
+        font-weight: 600;
+        color: var(--tg-primary);
+    }
+
+    .map-stat-label {
+        font-size: 12px;
+        color: var(--tg-text-muted);
+        text-transform: uppercase;
+    }
+
+    .btn-map {
+        background: var(--tg-surface);
+        border: 1px solid var(--tg-border);
+        color: var(--tg-text);
+        padding: 8px 16px;
+        border-radius: 6px;
+        font-size: 13px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    /* Fix for select dropdowns appearing white */
+    select.btn-map {
+        appearance: none;
+        -webkit-appearance: none;
+        -moz-appearance: none;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23f1f5f9' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 10px center;
+        padding-right: 30px;
+    }
+
+    select.btn-map option {
+        background: var(--tg-surface);
+        color: var(--tg-text);
+    }
+
+    /* Input styling for search fields */
+    input.btn-map {
+        outline: none;
+    }
+
+    input.btn-map::placeholder {
+        color: var(--tg-text-muted);
+    }
+
+    input.btn-map:focus {
+        border-color: var(--tg-primary);
+    }
+
+    .btn-map:hover {
+        background: var(--tg-hover-bg);
+        border-color: var(--tg-primary);
+    }
+
+    .btn-map.active {
+        background: var(--tg-primary);
+        color: #000;
+        border-color: var(--tg-primary);
+    }
+
+    .loading-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(12, 13, 15, 0.8);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 200;
+        border-radius: 8px;
+    }
+
+    .loading-overlay.hidden {
+        display: none;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb mb-0">
+            <li class="breadcrumb-item"><a href="{% url 'graph:index' %}">Map</a></li>
+            <li class="breadcrumb-item active">{{ map_title }}</li>
+        </ol>
+    </nav>
+
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <h2 class="mb-1">{{ map_title }}</h2>
+            <p class="text-muted mb-0">{{ map_description }}</p>
+        </div>
+    </div>
+
+    <!-- Map Container -->
+    <div class="map-container">
+        <!-- Loading Overlay -->
+        <div class="loading-overlay" id="loading-overlay">
+            <div class="text-center">
+                <div class="spinner-border text-primary mb-2" role="status"></div>
+                <div class="text-muted">Loading map data...</div>
+            </div>
+        </div>
+
+        <!-- Controls -->
+        <div class="map-controls">
+            {% block map_controls %}
+            <button class="btn-map" onclick="togglePhysics()" id="physics-btn" title="Pause/Resume physics">
+                <i class="bi bi-pause-fill" style="font-size: 14px;" id="physics-icon"></i>
+            </button>
+            <button class="btn-map" onclick="resetZoom()" title="Fit to screen">
+                <i class="bi bi-arrows-fullscreen" style="font-size: 14px;"></i>
+            </button>
+            {% endblock %}
+        </div>
+
+        <!-- Legend -->
+        <div class="map-legend" id="map-legend">
+            {% block map_legend %}{% endblock %}
+        </div>
+
+        <!-- Info Panel -->
+        <div class="map-info" id="map-info">
+            <h6 id="info-title">Node Details</h6>
+            <div id="info-content"></div>
+            <div class="mt-2">
+                <a href="#" id="info-link" class="btn btn-sm btn-outline-primary w-100">
+                    View Details
+                </a>
+            </div>
+        </div>
+
+        <!-- Network Graph -->
+        <div id="network-graph"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- Vis.js Network -->
+<script src="https://unpkg.com/vis-network@9.1.6/dist/vis-network.min.js"></script>
+
+<script>
+let network = null;
+let storedNodes = null;
+let storedEdges = null;
+let selectedNodeId = null;
+let selectedNodeType = null;
+let showLabels = true;
+// Per-type label suppression: when a node.type is in this set, its label is
+// hidden even if the master `showLabels` toggle is on. Lets a map (e.g. URLs)
+// independently hide one class of labels without affecting the others.
+let hiddenLabelTypes = new Set();
+
+function labelFor(node, isConnected) {
+    if (!showLabels) return '';
+    if (!isConnected) return '';
+    if (node && node.type && hiddenLabelTypes.has(node.type)) return '';
+    return node.label;
+}
+
+// Color scheme matching theme
+const colors = {
+    owned: '#fbbf24',      // Primary amber - our channels
+    external: '#3b82f6',   // Blue - external sources
+    user: '#10b981',       // Green - users
+    bridge: '#8b5cf6',     // Purple - users connecting multiple channels
+    admin: '#ef4444',      // Red - admins
+    creator: '#f59e0b',    // Accent orange - creators
+    focus: '#fbbf24',      // Focus node
+    channel: '#64748b',    // Slate - generic channel
+    url: '#06b6d4',        // Cyan - URLs
+    mentioned: '#a855f7',  // Purple - mentioned users
+    mentioner: '#22c55e',  // Green - mentioners
+    crossposter: '#f97316', // Orange - crossposters
+    edge: '#374151',       // Gray - edges
+    edgeHighlight: '#fbbf24',
+};
+
+// Vis.js options
+const options = {
+    nodes: {
+        shape: 'dot',
+        font: {
+            color: '#f1f5f9',
+            size: 12,
+            face: 'Inter, sans-serif',
+        },
+        borderWidth: 2,
+        borderWidthSelected: 3,
+    },
+    edges: {
+        color: {
+            color: colors.edge,
+            highlight: colors.edgeHighlight,
+            hover: colors.edgeHighlight,
+        },
+        width: 1,
+        smooth: {
+            type: 'continuous',
+            roundness: 0.5,
+        },
+        arrows: {
+            to: {
+                enabled: true,
+                scaleFactor: 0.5,
+            },
+        },
+    },
+    physics: {
+        enabled: true,
+        barnesHut: {
+            gravitationalConstant: -4000,
+            centralGravity: 0.2,
+            springLength: 180,
+            springConstant: 0.03,
+            damping: 0.4,
+            avoidOverlap: 0.3,
+        },
+        stabilization: {
+            enabled: true,
+            iterations: 150,
+            updateInterval: 25,
+            fit: true,
+        },
+        maxVelocity: 40,
+        minVelocity: 0.75,
+    },
+    interaction: {
+        hover: true,
+        tooltipDelay: 200,
+        hideEdgesOnDrag: true,
+        hideEdgesOnZoom: true,
+    },
+    layout: {
+        improvedLayout: true,
+    },
+};
+
+function initNetwork(nodes, edges) {
+    const container = document.getElementById('network-graph');
+
+    const visNodes = nodes.map(node => ({
+        id: node.id,
+        label: node.label,
+        title: buildTooltip(node),
+        color: {
+            background: colors[node.group] || colors.channel,
+            border: colors[node.group] || colors.channel,
+            highlight: {
+                background: colors.focus,
+                border: colors.focus,
+            },
+        },
+        size: node.size || (node.type === 'channel' ? 20 : 12),
+        data: node,
+    }));
+
+    const visEdges = edges.map((edge, idx) => ({
+        id: idx,
+        from: edge.from,
+        to: edge.to,
+        title: edge.title || '',
+        value: edge.value || 1,
+    }));
+
+    const data = {
+        nodes: new vis.DataSet(visNodes),
+        edges: new vis.DataSet(visEdges),
+    };
+
+    network = new vis.Network(container, data, options);
+
+    network.on('stabilizationIterationsDone', function() {
+        hideLoading();
+    });
+
+    updateStats(visNodes.length, visEdges.length);
+}
+
+function buildTooltip(node) {
+    let tooltip = `<strong>${node.label}</strong><br>`;
+    tooltip += `Type: ${node.type}<br>`;
+    if (node.telegram_id) {
+        tooltip += `Telegram ID: ${node.telegram_id}<br>`;
+    }
+    if (node.message_count) {
+        tooltip += `Messages: ${node.message_count}<br>`;
+    }
+    if (node.channel_count) {
+        tooltip += `In ${node.channel_count} channels<br>`;
+    }
+    if (node.total_shares) {
+        tooltip += `Shared ${node.total_shares} times<br>`;
+    }
+    return tooltip;
+}
+
+function showNodeInfo(node) {
+    const infoPanel = document.getElementById('map-info');
+    const titleEl = document.getElementById('info-title');
+    const contentEl = document.getElementById('info-content');
+    const linkEl = document.getElementById('info-link');
+
+    titleEl.textContent = node.label;
+
+    let html = '';
+    html += `<div class="map-info-row"><span class="text-muted">Type</span><span>${node.type}</span></div>`;
+
+    if (node.telegram_id) {
+        html += `<div class="map-info-row"><span class="text-muted">Telegram ID</span><span>${node.telegram_id}</span></div>`;
+    }
+    if (node.message_count) {
+        html += `<div class="map-info-row"><span class="text-muted">Messages</span><span>${node.message_count}</span></div>`;
+    }
+    if (node.channel_count) {
+        html += `<div class="map-info-row"><span class="text-muted">Channels</span><span>${node.channel_count}</span></div>`;
+    }
+    if (node.total_shares) {
+        html += `<div class="map-info-row"><span class="text-muted">Total Shares</span><span>${node.total_shares}</span></div>`;
+    }
+    // Shared media map stats
+    if (node.originated_count !== undefined) {
+        html += `<div class="map-info-row"><span class="text-muted">Files Originated</span><span>${node.originated_count}</span></div>`;
+    }
+    if (node.republished_count !== undefined) {
+        html += `<div class="map-info-row"><span class="text-muted">Files Republished</span><span>${node.republished_count}</span></div>`;
+    }
+    if (node.total_shared_count !== undefined) {
+        html += `<div class="map-info-row"><span class="text-muted">Total Shared Files</span><span>${node.total_shared_count}</span></div>`;
+    }
+    if (node.full_url) {
+        html += `<div class="map-info-row"><span class="text-muted">URL</span><span class="text-truncate" style="max-width: 150px;">${node.full_url}</span></div>`;
+    }
+
+    contentEl.innerHTML = html;
+
+    // Set link based on type
+    if (node.type === 'channel') {
+        const channelId = node.id.replace('c_', '');
+        linkEl.href = `/audit/source/${channelId}/`;
+        linkEl.style.display = 'block';
+    } else if (node.type === 'user' && node.telegram_id) {
+        linkEl.href = `/audit/user/${node.telegram_id}/`;
+        linkEl.style.display = 'block';
+    } else if (node.type === 'url' && node.full_url) {
+        linkEl.href = node.full_url;
+        linkEl.target = '_blank';
+        linkEl.textContent = 'Open URL';
+        linkEl.style.display = 'block';
+    } else {
+        linkEl.style.display = 'none';
+    }
+
+    infoPanel.classList.add('show');
+}
+
+function hideNodeInfo() {
+    document.getElementById('map-info').classList.remove('show');
+}
+
+function updateStats(nodes, edges) {
+    const nodesEl = document.getElementById('stat-nodes');
+    const edgesEl = document.getElementById('stat-edges');
+    if (nodesEl) nodesEl.textContent = nodes;
+    if (edgesEl) edgesEl.textContent = edges;
+}
+
+function showLoading() {
+    document.getElementById('loading-overlay').classList.remove('hidden');
+}
+
+function hideLoading() {
+    document.getElementById('loading-overlay').classList.add('hidden');
+}
+
+let physicsEnabled = true;
+
+function togglePhysics() {
+    if (network) {
+        physicsEnabled = !physicsEnabled;
+        network.setOptions({ physics: { enabled: physicsEnabled } });
+
+        const icon = document.getElementById('physics-icon');
+        if (physicsEnabled) {
+            icon.className = 'bi bi-pause-fill';
+        } else {
+            icon.className = 'bi bi-play-fill';
+        }
+    }
+}
+
+function resetZoom() {
+    if (network) {
+        network.fit({
+            animation: {
+                duration: 500,
+                easingFunction: 'easeInOutQuad',
+            },
+        });
+    }
+}
+
+async function loadMapData(endpoint, params = '') {
+    showLoading();
+    hideNodeInfo();
+
+    const url = params ? `${endpoint}?${params}` : endpoint;
+
+    try {
+        const response = await fetch(url, {
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+        });
+        const data = await response.json();
+
+        if (data.error) {
+            showToast(data.error, 'error');
+            hideLoading();
+            return;
+        }
+
+        if (data.nodes.length === 0) {
+            showToast('No data available for this map', 'info');
+            hideLoading();
+            updateStats(0, 0);
+            if (network) {
+                network.destroy();
+                network = null;
+            }
+            return;
+        }
+
+        // Store for focus system
+        storedNodes = data.nodes;
+        storedEdges = data.edges;
+        selectedNodeId = null;
+        selectedNodeType = null;
+
+        // Apply initial label visibility (master toggle + per-type suppression)
+        const processedNodes = data.nodes.map(n => ({
+            ...n,
+            label: labelFor(n, true)
+        }));
+
+        initNetwork(processedNodes, data.edges);
+
+        // Add click handler for focus system
+        network.on('click', function(params) {
+            if (params.nodes.length > 0) {
+                onFocusClick(params.nodes[0]);
+            } else {
+                // Clicked empty space - deselect
+                selectedNodeId = null;
+                selectedNodeType = null;
+                updateFocus();
+            }
+        });
+    } catch (error) {
+        console.error('Error loading map:', error);
+        showToast('Failed to load map data', 'error');
+        hideLoading();
+    }
+}
+
+// ============================================================================
+// Focus System - Click a node to highlight it and connected nodes
+// ============================================================================
+
+function toggleLabels() {
+    showLabels = !showLabels;
+    const icon = document.getElementById('labels-icon');
+    const btn = document.getElementById('labels-btn');
+
+    if (icon && btn) {
+        if (showLabels) {
+            icon.className = 'bi bi-tag-fill';
+            btn.classList.add('active');
+        } else {
+            icon.className = 'bi bi-tag';
+            btn.classList.remove('active');
+        }
+    }
+
+    updateFocus();
+}
+
+function onFocusClick(nodeId) {
+    const node = storedNodes ? storedNodes.find(n => n.id === nodeId) : null;
+    if (!node) return;
+
+    // Show node info
+    showNodeInfo(node);
+
+    // Toggle selection - click same node to deselect
+    if (selectedNodeId === nodeId) {
+        selectedNodeId = null;
+        selectedNodeType = null;
+    } else {
+        selectedNodeId = nodeId;
+        selectedNodeType = node.type || node.group || 'unknown';
+    }
+    updateFocus();
+}
+
+function updateFocus() {
+    if (!network || !storedNodes || !storedEdges) return;
+
+    // Find connected nodes and edges
+    let connectedNodeIds = new Set();
+    let connectedEdgeIds = new Set();
+
+    if (selectedNodeId) {
+        connectedNodeIds.add(selectedNodeId);
+
+        // Find all edges connected to the selected node (in either direction)
+        storedEdges.forEach((e, idx) => {
+            if (e.from === selectedNodeId) {
+                connectedNodeIds.add(e.to);
+                connectedEdgeIds.add(idx);
+            }
+            if (e.to === selectedNodeId) {
+                connectedNodeIds.add(e.from);
+                connectedEdgeIds.add(idx);
+            }
+        });
+    }
+
+    // Update nodes
+    const nodeUpdates = storedNodes.map(n => {
+        const isConnected = !selectedNodeId || connectedNodeIds.has(n.id);
+        const nodeColor = colors[n.group] || colors.channel;
+
+        return {
+            id: n.id,
+            label: labelFor(n, isConnected),
+            color: isConnected ? {
+                background: nodeColor,
+                border: nodeColor,
+                highlight: { background: colors.focus, border: colors.focus }
+            } : {
+                background: hexToRgba(nodeColor, 0.15),
+                border: hexToRgba(nodeColor, 0.15),
+                highlight: { background: hexToRgba(nodeColor, 0.15), border: hexToRgba(nodeColor, 0.15) }
+            },
+            font: {
+                color: isConnected ? '#f1f5f9' : 'rgba(241, 245, 249, 0.2)'
+            }
+        };
+    });
+
+    // Update edges
+    const edgeUpdates = storedEdges.map((e, idx) => {
+        const isConnected = !selectedNodeId || connectedEdgeIds.has(idx);
+        return {
+            id: idx,
+            color: {
+                color: isConnected ? colors.edge : 'rgba(55, 65, 81, 0.1)',
+                highlight: isConnected ? colors.edgeHighlight : 'rgba(55, 65, 81, 0.1)',
+                hover: isConnected ? colors.edgeHighlight : 'rgba(55, 65, 81, 0.1)'
+            }
+        };
+    });
+
+    network.body.data.nodes.update(nodeUpdates);
+    network.body.data.edges.update(edgeUpdates);
+}
+
+// Helper to convert hex color to rgba
+function hexToRgba(hex, alpha) {
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    if (result) {
+        const r = parseInt(result[1], 16);
+        const g = parseInt(result[2], 16);
+        const b = parseInt(result[3], 16);
+        return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    }
+    return hex;
+}
+
+</script>
+
+{% block map_js %}{% endblock %}
+{% endblock %}

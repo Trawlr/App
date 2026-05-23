@@ -1,0 +1,54 @@
+<div class="table-responsive">
+    <table class="table table-sm mb-0">
+        <thead>
+            <tr>
+                <th>Task</th>
+                <th>Interval</th>
+                <th>Last Run</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for task in core_tasks %}
+            <tr class="{% if task.is_disabled %}text-muted{% endif %}">
+                <td class="small">{{ task.name }}</td>
+                <td>
+                    {% if task.is_disabled %}
+                    <span class="badge bg-secondary">Disabled</span>
+                    {% else %}
+                    <span class="small">{{ task.interval_display }}</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if task.last_run %}
+                        {% if task.last_run.completed_at %}
+                        <span class="small text-muted">{{ task.last_run.completed_at|timesince }} ago</span>
+                        {% elif task.last_run.status == 'running' %}
+                        <span class="small text-primary">Running...</span>
+                        {% else %}
+                        <span class="small text-muted">-</span>
+                        {% endif %}
+                    {% else %}
+                    <span class="small text-muted">Never</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if task.last_run %}
+                    <span class="badge
+                        {% if task.last_run.status == 'completed' %}bg-success
+                        {% elif task.last_run.status == 'running' %}bg-primary
+                        {% elif task.last_run.status == 'failed' %}bg-danger
+                        {% else %}bg-secondary{% endif %}">
+                        {{ task.last_run.get_status_display }}
+                    </span>
+                    {% elif task.is_disabled %}
+                    <span class="badge bg-secondary">-</span>
+                    {% else %}
+                    <span class="badge bg-warning">Pending</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>

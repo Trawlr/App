@@ -1,0 +1,606 @@
+{% extends "base.html" %}
+{% load audit_extras %}
+
+{% block extra_css %}
+<style>
+    .tag-badge-sm { font-size: 0.7em; padding: 0.25em 0.5em; font-weight: 500; color: #fff !important; }
+    .tag-blue { background-color: #3b82f6 !important; }
+    .tag-green { background-color: #22c55e !important; }
+    .tag-red { background-color: #ef4444 !important; }
+    .tag-yellow { background-color: #eab308 !important; }
+    .tag-purple { background-color: #a855f7 !important; }
+    .tag-orange { background-color: #f97316 !important; }
+    .tag-pink { background-color: #ec4899 !important; }
+    .tag-teal { background-color: #14b8a6 !important; }
+    .tag-grey { background-color: #6b7280 !important; }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Breadcrumb -->
+<nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb mb-0">
+        <li class="breadcrumb-item"><a href="{% url 'audit:sources' %}">Sources</a></li>
+        <li class="breadcrumb-item active">{{ source|display_title }}</li>
+    </ol>
+</nav>
+
+<!-- Source Header -->
+<div class="card border-0 mb-4">
+    <div class="card-body p-4">
+        <div class="d-flex justify-content-between align-items-start">
+            <div class="d-flex align-items-center gap-3">
+                <div class="avatar" style="width: 64px; height: 64px; font-size: 24px;">
+                    {% if source.channel_type == 'channel' %}
+                        <i class="bi bi-megaphone" style="font-size: 32px;"></i>
+                    {% elif source.channel_type == 'supergroup' or source.channel_type == 'group' %}
+                        <i class="bi bi-people" style="font-size: 32px;"></i>
+                    {% else %}
+                        <i class="bi bi-person" style="font-size: 32px;"></i>
+                    {% endif %}
+                </div>
+                <div>
+                    <div class="d-flex align-items-center gap-2">
+                        <h2 class="mb-0">{{ source|display_title }}</h2>
+                        <button type="button" class="btn btn-link p-0 monitor-toggle"
+                                hx-post="{% url 'audit:source_toggle_monitor' source.pk %}"
+                                hx-swap="none"
+                                title="{% if is_monitored %}Unpin from sidebar{% else %}Pin to sidebar{% endif %}">
+                            {% if is_monitored %}
+                                <i class="bi bi-pin text-primary" style="font-size: 20px; fill: currentColor;"></i>
+                            {% else %}
+                                <i class="bi bi-pin text-muted" style="font-size: 20px;"></i>
+                            {% endif %}
+                        </button>
+                    </div>
+                    <div class="d-flex align-items-center gap-2 mt-1">
+                        <span class="badge bg-secondary bg-opacity-25 text-body">{{ source.get_channel_type_display }}</span>
+                        {% if source.username %}
+                            <a href="https://t.me/{{ source.username }}" target="_blank" class="small">@{{ source.username }}</a>
+                        {% else %}
+                            <span class="text-muted small">Private</span>
+                        {% endif %}
+                        {% if source.member_count %}
+                            <span class="text-muted small">{{ source.member_count }} members</span>
+                        {% endif %}
+                    </div>
+                    <!-- Status badges -->
+                    <div class="d-flex gap-2 mt-2 flex-wrap align-items-center">
+                        {% if not source.active %}
+                            <span class="badge bg-secondary">Inactive</span>
+                        {% elif source.availability_status == 'active' %}
+                            <span class="badge bg-success">Active</span>
+                        {% elif source.availability_status == 'deleted' %}
+                            <span class="badge bg-danger">Deleted/Banned</span>
+                        {% elif source.availability_status == 'private' %}
+                            <span class="badge bg-secondary">Private/Left</span>
+                        {% elif source.availability_status == 'restricted' %}
+                            <span class="badge bg-warning text-dark">Restricted</span>
+                        {% endif %}
+                        {% if source.availability_status != 'active' and source.availability_error %}
+                            <span class="text-danger small">
+                                <i class="bi bi-exclamation-circle icon-sm me-1"></i>{{ source.availability_error }}
+                            </span>
+                        {% endif %}
+                        {% if config.is_paused %}
+                            <span class="badge badge-warning">Paused</span>
+                        {% endif %}
+                        {% if config.auto_download_enabled %}
+                            <span class="badge badge-success">Auto-download</span>
+                        {% endif %}
+                        {% if source.is_verified %}
+                            <span class="badge bg-primary">Verified</span>
+                        {% endif %}
+                        {% if source.is_scam %}
+                            <span class="badge bg-danger">Scam</span>
+                        {% endif %}
+                        {% if source.is_fake %}
+                            <span class="badge bg-warning text-dark">Fake</span>
+                        {% endif %}
+                    </div>
+                    {% if source.tags.all %}
+                    <div class="d-flex gap-2 mt-2 flex-wrap">
+                        {% for tag in source.tags.all %}
+                        <span class="badge tag-badge-sm tag-{{ tag.colour }}">{{ tag.name }}</span>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% if source.telegram_link %}
+            <a href="{{ source.telegram_link }}" target="_blank" class="btn btn-outline-primary btn-sm">
+                <i class="bi bi-box-arrow-up-right me-1" style="font-size: 14px;"></i>
+                Open in Telegram
+            </a>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Navigation & Actions Bar -->
+<div class="card border-0 mb-4" style="overflow: visible; position: relative; z-index: 100;">
+    <div class="card-body py-2 px-3">
+        <div class="d-flex justify-content-between align-items-center">
+            <!-- Content Navigation -->
+            <ul class="nav nav-pills gap-1">
+                <li class="nav-item">
+                    <a class="nav-link py-2 px-3 {% if active_tab == 'overview' %}active{% endif %}" href="{% url 'audit:source_detail' source.pk %}">
+                        <i class="bi bi-info-circle me-1" style="font-size: 16px;"></i>
+                        Overview
+                    </a>
+                </li>
+                <li class="nav-item dropdown dropdown-hover">
+                    <a class="nav-link py-2 px-3 dropdown-toggle {% if active_tab == 'posts' %}active{% endif %}" href="{% url 'audit:source_posts' source.pk %}">
+                        <i class="bi bi-list me-1" style="font-size: 16px;"></i>
+                        Posts
+                    </a>
+                    <ul class="dropdown-menu" style="min-width: 200px;">
+                        <li>
+                            <a class="dropdown-item py-2" href="{% url 'audit:source_posts' source.pk %}">
+                                <i class="bi bi-table me-2" style="font-size: 16px;"></i>
+                                Table View (Default)
+                            </a>
+                        </li>
+                        <li>
+                            <a class="dropdown-item py-2" href="{% url 'audit:source_posts_v2' source.pk %}">
+                                <i class="bi bi-chat-square me-2" style="font-size: 16px;"></i>
+                                Chat View
+                            </a>
+                        </li>
+                        <li>
+                            <a class="dropdown-item py-2" href="{% url 'audit:source_posts_feed' source.pk %}">
+                                <i class="bi bi-phone me-2" style="font-size: 16px;"></i>
+                                Feed View
+                            </a>
+                        </li>
+                    </ul>
+                </li>
+                <li class="nav-item dropdown dropdown-hover">
+                    <a class="nav-link py-2 px-3 dropdown-toggle {% if active_tab == 'files' %}active{% endif %}" href="{% url 'audit:source_files' source.pk %}">
+                        <i class="bi bi-folder me-1" style="font-size: 16px;"></i>
+                        Files
+                        {% if file_counts.total %}<span class="badge bg-secondary bg-opacity-50 ms-1">{{ file_counts.total }}</span>{% endif %}
+                    </a>
+                    <ul class="dropdown-menu" style="min-width: 200px;">
+                        <li>
+                            <a class="dropdown-item py-2" href="{% url 'audit:source_files' source.pk %}">
+                                <i class="bi bi-list me-2" style="font-size: 16px;"></i>
+                                List View (Default)
+                            </a>
+                        </li>
+                        <li>
+                            <a class="dropdown-item py-2" href="{% url 'audit:source_files_gallery' source.pk %}">
+                                <i class="bi bi-grid me-2" style="font-size: 16px;"></i>
+                                Gallery View
+                            </a>
+                        </li>
+                    </ul>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link py-2 px-3 {% if active_tab == 'users' %}active{% endif %}" href="{% url 'audit:source_users' source.pk %}">
+                        <i class="bi bi-people me-1" style="font-size: 16px;"></i>
+                        Users
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link py-2 px-3 {% if active_tab == 'activity' %}active{% endif %}" href="{% url 'audit:source_activity' source.pk %}">
+                        <i class="bi bi-calendar3-week me-1" style="font-size: 16px;"></i>
+                        Activity
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link py-2 px-3 {% if active_tab == 'config' %}active{% endif %}" href="{% url 'audit:source_config' source.pk %}">
+                        <i class="bi bi-sliders me-1" style="font-size: 16px;"></i>
+                        Config
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link py-2 px-3 {% if active_tab == 'notes' %}active{% endif %}" href="{% url 'audit:source_notes' source.pk %}">
+                        <i class="bi bi-sticky me-1" style="font-size: 16px;"></i>
+                        Notes
+                        {% if notes_count %}<span class="badge bg-secondary bg-opacity-50 ms-1">{{ notes_count }}</span>{% endif %}
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link py-2 px-3 {% if active_tab == 'tags' %}active{% endif %}" href="{% url 'audit:source_tags' source.pk %}">
+                        <i class="bi bi-tags me-1" style="font-size: 16px;"></i>
+                        Tags
+                        {% if tag_count %}<span class="badge bg-secondary bg-opacity-50 ms-1">{{ tag_count }}</span>{% endif %}
+                    </a>
+                </li>
+            </ul>
+
+            <!-- Actions -->
+            <div class="d-flex align-items-center gap-2">
+                <button type="button" class="btn {% if config.auto_download_enabled %}btn-success{% else %}btn-danger{% endif %} py-2 px-3" id="btn-toggle-auto"
+                        onclick="ajaxAction('{% url 'audit:source_toggle_auto' source.pk %}', this)">
+                    <i class="bi bi-{% if config.auto_download_enabled %}check{% else %}x{% endif %} me-1" style="font-size: 16px;"></i>
+                    {% if config.auto_download_enabled %}Auto Download Enabled{% else %}Auto Download Disabled{% endif %}
+                </button>
+                <div class="dropdown dropdown-hover">
+                    <button class="btn btn-outline-secondary py-2 px-3 dropdown-toggle" type="button" id="actionsDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                        <i class="bi bi-gear me-1" style="font-size: 16px;"></i>
+                        Actions
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="actionsDropdown" style="min-width: 220px; z-index: 1050;">
+                        <li>
+                            <a class="dropdown-item py-2" href="#" id="btn-scan-history" onclick="event.preventDefault(); ajaxAction('{% url 'audit:source_scan' source.pk %}', this)">
+                                <i class="bi bi-clock-history me-2" style="font-size: 18px;"></i>
+                                Fetch Historical Data
+                            </a>
+                        </li>
+                        <li>
+                            <a class="dropdown-item py-2" href="#" onclick="event.preventDefault(); scanWithoutThumbnails(this)">
+                                <i class="bi bi-image me-2" style="font-size: 18px;"></i>
+                                Fetch without Thumbnails
+                            </a>
+                        </li>
+                        <li>
+                            <a class="dropdown-item py-2" href="#" onclick="event.preventDefault(); ajaxAction('{% url 'audit:source_backfill_thumbnails' source.pk %}', this)">
+                                <i class="bi bi-image me-2" style="font-size: 18px;"></i>
+                                Refresh Post Thumbnails
+                            </a>
+                        </li>
+                        <li>
+                            <a class="dropdown-item py-2" href="#" onclick="event.preventDefault(); ajaxAction('{% url 'audit:source_sync_missing_media' source.pk %}', this)">
+                                <i class="bi bi-download me-2" style="font-size: 18px;"></i>
+                                Sync Missing Media
+                            </a>
+                        </li>
+                        <li>
+                            <a class="dropdown-item py-2" href="#" onclick="event.preventDefault(); ajaxAction('{% url 'audit:source_scan_members' source.pk %}', this)">
+                                <i class="bi bi-people me-2" style="font-size: 18px;"></i>
+                                Refresh Users
+                            </a>
+                        </li>
+                        <li>
+                            <a class="dropdown-item py-2" href="#" onclick="event.preventDefault(); refreshUsersWithoutPhotos(this)">
+                                <i class="bi bi-person-x me-2" style="font-size: 18px;"></i>
+                                Refresh Users without Photos
+                            </a>
+                        </li>
+                        <li>
+                            <a class="dropdown-item py-2" href="#" onclick="event.preventDefault(); ajaxAction('{% url 'audit:source_fetch_profiles' source.pk %}', this)">
+                                <i class="bi bi-person-lines-fill me-2" style="font-size: 18px;"></i>
+                                Fetch Full Profiles
+                            </a>
+                        </li>
+                        <li>
+                            <a class="dropdown-item py-2" href="#" id="btn-pause" onclick="event.preventDefault(); ajaxAction('{% url 'audit:source_pause' source.pk %}', this)">
+                                <i class="bi bi-{% if config.is_paused %}play{% else %}pause{% endif %} me-2" style="font-size: 18px;"></i>
+                                {% if config.is_paused %}Resume Downloads{% else %}Pause Downloads{% endif %}
+                            </a>
+                        </li>
+                        <li>
+                            <a class="dropdown-item py-2" href="#" onclick="event.preventDefault(); ajaxAction('{% url 'audit:check_source_availability' source.pk %}', this)">
+                                <i class="bi bi-search me-2" style="font-size: 18px;"></i>
+                                Check Availability
+                            </a>
+                        </li>
+                        <li><hr class="dropdown-divider"></li>
+                        {% if source.active %}
+                        <li>
+                            <a class="dropdown-item py-2 text-warning" href="#" data-bs-toggle="modal" data-bs-target="#archiveModal">
+                                <i class="bi bi-archive me-2" style="font-size: 18px;"></i>
+                                Archive
+                            </a>
+                        </li>
+                        {% else %}
+                        <li>
+                            <a class="dropdown-item py-2 text-success" href="#" onclick="event.preventDefault(); ajaxAction('{% url 'audit:unarchive_source' source.pk %}', this)">
+                                <i class="bi bi-arrow-counterclockwise me-2" style="font-size: 18px;"></i>
+                                Unarchive
+                            </a>
+                        </li>
+                        {% endif %}
+                        <li>
+                            <a class="dropdown-item py-2 text-danger" href="#" data-bs-toggle="modal" data-bs-target="#reportModal">
+                                <i class="bi bi-flag me-2" style="font-size: 18px;"></i>
+                                Report to Telegram
+                            </a>
+                        </li>
+                        {% if source.active and not source.has_left %}
+                        <li>
+                            <a class="dropdown-item py-2 text-danger" href="#" data-bs-toggle="modal" data-bs-target="#leaveModal">
+                                <i class="bi bi-box-arrow-right me-2" style="font-size: 18px;"></i>
+                                Leave Channel
+                            </a>
+                        </li>
+                        {% endif %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Page Content -->
+{% block source_content %}{% endblock %}
+
+<!-- Report Modal -->
+<div class="modal fade" id="reportModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" action="{% url 'audit:report_source' source.pk %}">
+                {% csrf_token %}
+                <div class="modal-header">
+                    <h5 class="modal-title">Report to Telegram</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted mb-3">
+                        Report <strong>{{ source|display_title }}</strong> to Telegram's moderation team.
+                    </p>
+                    <div class="mb-3">
+                        <label class="form-label">Reason <span class="text-danger">*</span></label>
+                        <select name="reason" class="form-select" required>
+                            <option value="">Select a reason...</option>
+                            <option value="spam">Spam</option>
+                            <option value="violence">Violence</option>
+                            <option value="pornography">Adult Content</option>
+                            <option value="child_abuse">Child Abuse</option>
+                            <option value="fake">Fake Account / Scam</option>
+                            <option value="illegal_drugs">Illegal Drugs</option>
+                            <option value="personal_details">Personal Data Exposure</option>
+                            <option value="copyright">Copyright Violation</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Additional Details</label>
+                        <textarea name="message" class="form-control" rows="3"
+                                  placeholder="Provide additional context..."></textarea>
+                        <div class="form-text">Required when selecting "Other"</div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-danger">
+                        <i class="bi bi-flag me-1" style="font-size: 16px;"></i>
+                        Submit Report
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Leave Channel Modal -->
+<div class="modal fade" id="leaveModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Leave Channel</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-warning mb-3">
+                    <i class="bi bi-exclamation-triangle me-2" style="font-size: 18px;"></i>
+                    <strong>Warning:</strong> This action will leave the channel on Telegram.
+                </div>
+                <p>Are you sure you want to leave <strong>{{ source|display_title }}</strong>?</p>
+                <p class="text-muted small mb-0">
+                    This will:
+                    <ul class="text-muted small mt-1 mb-0">
+                        <li>Leave the channel/group on Telegram</li>
+                        <li>Disable auto-download for this source</li>
+                        <li>Mark this source as inactive</li>
+                        <li>Retain all existing data in Trawlr</li>
+                    </ul>
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" id="btn-leave-channel" onclick="leaveChannel(this)">
+                    <i class="bi bi-box-arrow-right me-1" style="font-size: 16px;"></i>
+                    Leave Channel
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Archive Source Modal -->
+<div class="modal fade" id="archiveModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Archive Source</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to archive <strong>{{ source|display_title }}</strong>?</p>
+                <p class="text-muted small mb-3">
+                    Archiving will:
+                    <ul class="text-muted small mt-1 mb-0">
+                        <li>Hide this source from the main sources list</li>
+                        <li>Disable auto-download for this source</li>
+                        <li>Retain all existing data in Trawlr</li>
+                    </ul>
+                </p>
+                {% if not source.has_left %}
+                <div class="form-check mt-3">
+                    <input class="form-check-input" type="checkbox" id="archiveLeaveCheckbox">
+                    <label class="form-check-label" for="archiveLeaveCheckbox">
+                        Also leave this channel/group on Telegram
+                    </label>
+                    <p class="text-muted small mt-1 mb-0">If checked, your account will leave this channel on Telegram.</p>
+                </div>
+                {% endif %}
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-warning" id="btn-archive-confirm" onclick="archiveSource(this)">
+                    <i class="bi bi-archive me-1" style="font-size: 16px;"></i>
+                    Archive
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Monitor/Pin toggle handler
+document.addEventListener('htmx:afterRequest', function(event) {
+    if (event.target.classList.contains('monitor-toggle')) {
+        const btn = event.target;
+        const icon = btn.querySelector('svg, i');
+        const isMonitored = icon.classList.contains('text-primary') ||
+                            (icon.style && icon.style.fill === 'currentColor');
+
+        if (isMonitored) {
+            btn.innerHTML = '<i class="bi bi-pin text-muted" style="font-size: 20px;"></i>';
+            btn.title = 'Pin to sidebar';
+        } else {
+            btn.innerHTML = '<i class="bi bi-pin text-primary" style="font-size: 20px; fill: currentColor;"></i>';
+            btn.title = 'Unpin from sidebar';
+        }
+    }
+});
+
+// AJAX action for buttons with toast feedback
+async function ajaxAction(url, btn, formData = null) {
+    const originalHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+
+    try {
+        const fetchOptions = {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+        };
+
+        if (formData) {
+            fetchOptions.body = formData;
+        }
+
+        const response = await fetch(url, fetchOptions);
+
+        const data = await response.json();
+
+        if (response.ok) {
+            showToast(data.message || 'Action completed', 'success');
+            if (data.reload) {
+                setTimeout(() => location.reload(), 500);
+            } else if (data.update) {
+                if (data.update.auto_download !== undefined) {
+                    const autoBtn = document.getElementById('btn-toggle-auto');
+                    if (data.update.auto_download) {
+                        autoBtn.className = 'btn btn-success py-2 px-3';
+                        autoBtn.innerHTML = '<i class="bi bi-check me-1" style="font-size: 16px;"></i>Auto Download Enabled';
+                    } else {
+                        autoBtn.className = 'btn btn-danger py-2 px-3';
+                        autoBtn.innerHTML = '<i class="bi bi-x me-1" style="font-size: 16px;"></i>Auto Download Disabled';
+                    }
+                }
+                if (data.update.is_paused !== undefined) {
+                    setTimeout(() => location.reload(), 300);
+                }
+            }
+        } else {
+            showToast(data.error || 'Action failed', 'error');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        showToast('Action failed', 'error');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalHtml;
+    }
+}
+
+function scanWithoutThumbnails(btn) {
+    const fd = new FormData();
+    fd.append('skip_thumbnails', 'true');
+    ajaxAction('{% url "audit:source_scan" source.pk %}', btn, fd);
+}
+
+function refreshUsersWithoutPhotos(btn) {
+    const fd = new FormData();
+    fd.append('skip_profile_photos', 'true');
+    ajaxAction('{% url "audit:source_scan_members" source.pk %}', btn, fd);
+}
+
+async function leaveChannel(btn) {
+    const originalHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Leaving...';
+
+    try {
+        const response = await fetch('{% url "audit:leave_source" source.pk %}', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            showToast(data.message || 'Successfully left the channel', 'success');
+            // Close modal and reload page
+            const modal = bootstrap.Modal.getInstance(document.getElementById('leaveModal'));
+            if (modal) modal.hide();
+            setTimeout(() => location.reload(), 500);
+        } else {
+            showToast(data.error || 'Failed to leave channel', 'error');
+            btn.disabled = false;
+            btn.innerHTML = originalHtml;
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        showToast('Failed to leave channel', 'error');
+        btn.disabled = false;
+        btn.innerHTML = originalHtml;
+    }
+}
+
+async function archiveSource(btn) {
+    const originalHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Archiving...';
+
+    const leaveCheckbox = document.getElementById('archiveLeaveCheckbox');
+    const leaveChannel = leaveCheckbox && leaveCheckbox.checked ? '1' : '0';
+
+    try {
+        const formData = new FormData();
+        formData.append('leave_channel', leaveChannel);
+
+        const response = await fetch('{% url "audit:archive_source" source.pk %}', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+            body: formData,
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            showToast(data.message || 'Source archived', 'success');
+            const modal = bootstrap.Modal.getInstance(document.getElementById('archiveModal'));
+            if (modal) modal.hide();
+            setTimeout(() => location.reload(), 500);
+        } else {
+            showToast(data.error || 'Failed to archive source', 'error');
+            btn.disabled = false;
+            btn.innerHTML = originalHtml;
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        showToast('Failed to archive source', 'error');
+        btn.disabled = false;
+        btn.innerHTML = originalHtml;
+    }
+}
+</script>
+{% block source_extra_js %}{% endblock %}
+{% endblock %}

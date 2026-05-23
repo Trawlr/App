@@ -1,0 +1,258 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{% block report_title %}Reports{% endblock %} - Trawlr{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Header -->
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3">
+        <div>
+            <h4 class="mb-1">{% block report_heading %}Reports{% endblock %}</h4>
+            <p class="text-muted small mb-0">{% block report_description %}{% endblock %}</p>
+        </div>
+
+        <div class="d-flex flex-wrap align-items-center gap-2">
+            <!-- Date Range Presets -->
+            <div class="btn-group btn-group-sm" role="group" id="dateRangeSelector">
+                {% for key, value in date_presets.items %}
+                <button type="button"
+                        class="btn {% if days_label == key %}btn-primary{% else %}btn-outline-secondary{% endif %}"
+                        data-days="{{ key }}">
+                    {% if key == '1' %}1D{% elif key == '365' %}1Y{% else %}{{ key }}D{% endif %}
+                </button>
+                {% endfor %}
+            </div>
+
+            <!-- Custom Date Range -->
+            <div class="d-flex align-items-center gap-1">
+                <input type="date" id="startDate" class="form-control form-control-sm" style="width: 130px;"
+                       value="{{ start_date|date:'Y-m-d' }}">
+                <span class="text-muted">-</span>
+                <input type="date" id="endDate" class="form-control form-control-sm" style="width: 130px;"
+                       value="{{ end_date|date:'Y-m-d' }}">
+                <button type="button" class="btn btn-sm btn-outline-primary" id="applyCustomDate">
+                    <i class="bi bi-calendar" style="font-size: 14px;"></i>
+                </button>
+            </div>
+
+            <!-- Export Dropdown -->
+            <div class="dropdown">
+                <button class="btn btn-sm btn-outline-primary dropdown-toggle" type="button"
+                        data-bs-toggle="dropdown" aria-expanded="false">
+                    <i class="bi bi-download" style="font-size: 14px;"></i>
+                    Export
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end">
+                    <li>
+                        <a class="dropdown-item" href="{% block export_url %}{% endblock %}?format=csv{% if days_label != 'custom' %}&days={{ days_label }}{% else %}&start={{ start_date|date:'Y-m-d' }}&end={{ end_date|date:'Y-m-d' }}{% endif %}">
+                            <i class="bi bi-file-earmark-spreadsheet me-2" style="font-size: 16px;"></i>
+                            Export CSV
+                        </a>
+                    </li>
+                    <li>
+                        <a class="dropdown-item" href="{% block export_url_json %}{% endblock %}?format=json{% if days_label != 'custom' %}&days={{ days_label }}{% else %}&start={{ start_date|date:'Y-m-d' }}&end={{ end_date|date:'Y-m-d' }}{% endif %}">
+                            <i class="bi bi-filetype-json me-2" style="font-size: 16px;"></i>
+                            Export JSON
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    {% block report_content %}{% endblock %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+<script>
+// Chart.js defaults for dark theme
+Chart.defaults.color = 'rgba(255, 255, 255, 0.7)';
+Chart.defaults.borderColor = 'rgba(255, 255, 255, 0.1)';
+
+// Current date params
+let currentDays = '{{ days_label }}';
+let currentStart = '{{ start_date|date:"Y-m-d" }}';
+let currentEnd = '{{ end_date|date:"Y-m-d" }}';
+
+// Build query string for API calls
+function getDateParams() {
+    if (currentDays === 'custom') {
+        return `start=${currentStart}&end=${currentEnd}`;
+    }
+    return `days=${currentDays}`;
+}
+
+// Date preset buttons
+document.querySelectorAll('#dateRangeSelector button').forEach(btn => {
+    btn.addEventListener('click', function() {
+        const days = this.dataset.days;
+        window.location.href = `?days=${days}`;
+    });
+});
+
+// Custom date range
+document.getElementById('applyCustomDate').addEventListener('click', function() {
+    const start = document.getElementById('startDate').value;
+    const end = document.getElementById('endDate').value;
+    if (start && end) {
+        window.location.href = `?start=${start}&end=${end}`;
+    }
+});
+
+// Common chart options
+const chartDefaults = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+        legend: {
+            position: 'bottom',
+            labels: {
+                boxWidth: 12,
+                padding: 15,
+            }
+        },
+        tooltip: {
+            backgroundColor: 'rgba(30, 30, 30, 0.95)',
+            padding: 12,
+            cornerRadius: 8,
+            callbacks: {
+                label: function(context) {
+                    let label = context.dataset.label || '';
+                    if (label) label += ': ';
+                    // Use raw value which works for all chart types
+                    const value = context.raw;
+                    if (value !== null && value !== undefined) {
+                        label += value.toLocaleString();
+                    }
+                    return label;
+                }
+            }
+        }
+    }
+};
+
+const lineChartOptions = {
+    ...chartDefaults,
+    interaction: {
+        intersect: false,
+        mode: 'index',
+    },
+    scales: {
+        y: {
+            beginAtZero: true,
+            grid: { color: 'rgba(255, 255, 255, 0.05)' },
+            ticks: {
+                precision: 0,
+                callback: function(value) { return value.toLocaleString(); }
+            }
+        },
+        x: {
+            grid: { display: false }
+        }
+    }
+};
+
+const barChartOptions = {
+    ...chartDefaults,
+    indexAxis: 'y',
+    scales: {
+        x: {
+            beginAtZero: true,
+            grid: { color: 'rgba(255, 255, 255, 0.05)' },
+            ticks: {
+                precision: 0,
+                callback: function(value) { return value.toLocaleString(); }
+            }
+        },
+        y: {
+            grid: { display: false }
+        }
+    }
+};
+
+const doughnutChartOptions = {
+    ...chartDefaults,
+    cutout: '60%',
+};
+
+// Utility function to create/update a chart
+function createOrUpdateChart(chartVar, ctx, type, data, options) {
+    if (chartVar) {
+        chartVar.data = data;
+        chartVar.update();
+        return chartVar;
+    }
+    return new Chart(ctx, { type, data, options });
+}
+
+// Format numbers with commas
+function formatNumber(num) {
+    return num.toLocaleString();
+}
+</script>
+
+{% block report_js %}{% endblock %}
+
+<style>
+.stat-card {
+    background: var(--tg-section-bg);
+    border: 1px solid var(--tg-border);
+    border-radius: 8px;
+    padding: 1.25rem;
+}
+.stat-card .stat-value {
+    font-size: 2rem;
+    font-weight: 700;
+    line-height: 1.2;
+}
+.stat-card .stat-label {
+    font-size: 0.875rem;
+    color: var(--bs-secondary);
+}
+.stat-card .stat-change {
+    font-size: 0.75rem;
+}
+.chart-container {
+    position: relative;
+    height: 300px;
+}
+.chart-container-sm {
+    position: relative;
+    height: 200px;
+}
+.card {
+    background: var(--tg-section-bg);
+    border: 1px solid var(--tg-border);
+}
+.card-header {
+    background: transparent;
+    border-bottom: 1px solid var(--tg-border);
+}
+.table {
+    --bs-table-bg: transparent;
+}
+.table th {
+    border-color: var(--tg-border);
+    font-weight: 600;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--bs-secondary);
+}
+.table td {
+    border-color: var(--tg-border);
+    vertical-align: middle;
+}
+.badge-status {
+    font-size: 0.7rem;
+    padding: 0.25em 0.5em;
+}
+</style>
+
+{% block report_css %}{% endblock %}
+{% endblock %}

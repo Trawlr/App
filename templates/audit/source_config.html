@@ -1,0 +1,245 @@
+{% extends "audit/source_base.html" %}
+
+{% block title %}Config - {{ source.title }} - Trawlr{% endblock %}
+
+{% block source_content %}
+<div class="row">
+    <div class="col-lg-8">
+        <!-- Download Configuration -->
+        <div class="card border-0 mb-4">
+            <div class="card-header py-3">
+                <h5 class="mb-0">Download Configuration</h5>
+            </div>
+            <div class="card-body p-4">
+                <form method="post">
+                    {% csrf_token %}
+
+                    <div class="row">
+                        <!-- Content Types Column -->
+                        <div class="col-md-6 mb-4">
+                            <h6 class="text-muted mb-3">Content Types</h6>
+                            <div class="form-check form-switch mb-2">
+                                <input class="form-check-input" type="checkbox" name="download_photos" id="download_photos"
+                                       {% if config.download_photos %}checked{% endif %}>
+                                <label class="form-check-label" for="download_photos">
+                                    <i class="bi bi-image me-1" style="font-size: 16px;"></i>
+                                    Photos
+                                </label>
+                            </div>
+                            <div class="form-check form-switch mb-2">
+                                <input class="form-check-input" type="checkbox" name="download_videos" id="download_videos"
+                                       {% if config.download_videos %}checked{% endif %}>
+                                <label class="form-check-label" for="download_videos">
+                                    <i class="bi bi-camera-video me-1" style="font-size: 16px;"></i>
+                                    Videos
+                                </label>
+                            </div>
+                            <div class="form-check form-switch mb-3">
+                                <input class="form-check-input" type="checkbox" name="download_files" id="download_files"
+                                       {% if config.download_files %}checked{% endif %}>
+                                <label class="form-check-label" for="download_files">
+                                    <i class="bi bi-file-earmark me-1" style="font-size: 16px;"></i>
+                                    Documents & Audio
+                                </label>
+                            </div>
+
+                            <h6 class="text-muted mb-2">Priority Order</h6>
+                            <p class="text-muted small mb-2">Top = downloaded first</p>
+                            <input type="hidden" name="file_type_priority_input" id="file_type_priority_input" value="{{ config.get_effective_file_type_priority|join:',' }}">
+                            <ul class="list-group" id="priority-list" style="max-width: 220px;">
+                                {% for ft in config.get_effective_file_type_priority %}
+                                <li class="list-group-item d-flex justify-content-between align-items-center py-2" data-type="{{ ft }}" style="cursor: grab;">
+                                    <span class="small">
+                                        {% if ft == 'photo' %}
+                                        <i class="bi bi-image me-2" style="font-size: 14px;"></i>Photos
+                                        {% elif ft == 'video' %}
+                                        <i class="bi bi-camera-video me-2" style="font-size: 14px;"></i>Videos
+                                        {% else %}
+                                        <i class="bi bi-file-earmark me-2" style="font-size: 14px;"></i>Files
+                                        {% endif %}
+                                    </span>
+                                    <span class="d-flex gap-1">
+                                        <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-1 move-up" title="Move up">
+                                            <i class="bi bi-chevron-up" style="font-size: 12px;"></i>
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-1 move-down" title="Move down">
+                                            <i class="bi bi-chevron-down" style="font-size: 12px;"></i>
+                                        </button>
+                                    </span>
+                                </li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+
+                        <!-- Options Column -->
+                        <div class="col-md-6 mb-4">
+                            <h6 class="text-muted mb-3">Options</h6>
+                            <div class="form-check form-switch mb-2">
+                                <input class="form-check-input" type="checkbox" name="auto_download_enabled" id="auto_download_enabled"
+                                       {% if config.auto_download_enabled %}checked{% endif %}>
+                                <label class="form-check-label" for="auto_download_enabled">
+                                    Auto-download new media
+                                </label>
+                            </div>
+                            <div class="form-check form-switch mb-2">
+                                <input class="form-check-input" type="checkbox" name="download_thumbnails" id="download_thumbnails"
+                                       {% if config.download_thumbnails %}checked{% endif %}>
+                                <label class="form-check-label" for="download_thumbnails">
+                                    Download thumbnails
+                                </label>
+                            </div>
+                            <div class="ms-4 mb-3" id="thumbnail_size_container" {% if not config.download_thumbnails %}style="display: none;"{% endif %}>
+                                <select name="thumbnail_size" id="thumbnail_size" class="form-select form-select-sm" style="max-width: 160px;">
+                                    {% for value, label in form.fields.thumbnail_size.choices %}
+                                    <option value="{{ value }}" {% if config.thumbnail_size == value %}selected{% endif %}>{{ label }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="form-check form-switch mb-2">
+                                <input class="form-check-input" type="checkbox" name="is_paused" id="is_paused"
+                                       {% if config.is_paused %}checked{% endif %}>
+                                <label class="form-check-label" for="is_paused">
+                                    Pause downloads
+                                </label>
+                            </div>
+                            <div class="form-check form-switch mb-4">
+                                <input class="form-check-input" type="checkbox" name="bypass_listener" id="bypass_listener"
+                                       {% if config.bypass_listener %}checked{% endif %}>
+                                <label class="form-check-label" for="bypass_listener">
+                                    Bypass real-time messages
+                                </label>
+                            </div>
+
+                            <div class="row g-3">
+                                <div class="col-6">
+                                    <label for="priority" class="form-label small">Priority</label>
+                                    <select name="priority" id="priority" class="form-select form-select-sm">
+                                        {% for value, label in form.fields.priority.choices %}
+                                        <option value="{{ value }}" {% if config.priority == value %}selected{% endif %}>{{ label }}{% if value == 10 %} (High){% elif value == 1 %} (Low){% endif %}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <div class="col-6">
+                                    <label for="deduplication_mode" class="form-label small">Deduplication</label>
+                                    <select name="deduplication_mode" id="deduplication_mode" class="form-select form-select-sm">
+                                        {% for value, label in form.fields.deduplication_mode.choices %}
+                                        <option value="{{ value }}" {% if config.deduplication_mode == value %}selected{% endif %}>{{ label }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-save me-1" style="font-size: 16px;"></i>
+                        Save Configuration
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        <!-- Download Progress -->
+        {% if config.total_messages > 0 %}
+        <div class="card border-0 mb-4">
+            <div class="card-body p-3">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span class="small text-muted">Download Progress</span>
+                    <span class="fw-bold">{{ config.download_progress_percent }}%</span>
+                </div>
+                <div class="progress mb-2" style="height: 8px;">
+                    <div class="progress-bar" role="progressbar" style="width: {{ config.download_progress_percent }}%"></div>
+                </div>
+                <div class="small text-muted">{{ config.downloaded_messages }} / {{ config.total_messages }} messages processed</div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Quick Stats -->
+        <div class="card border-0 mb-4">
+            <div class="card-header py-3">
+                <h5 class="mb-0">Current Stats</h5>
+            </div>
+            <div class="card-body p-0">
+                <table class="table mb-0">
+                    <tbody>
+                        <tr>
+                            <td class="text-muted">
+                                <i class="bi bi-image me-1" style="font-size: 16px;"></i>
+                                Photos
+                            </td>
+                            <td class="fw-bold text-end">{{ file_counts.photos }}</td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted">
+                                <i class="bi bi-camera-video me-1" style="font-size: 16px;"></i>
+                                Videos
+                            </td>
+                            <td class="fw-bold text-end">{{ file_counts.videos }}</td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted">
+                                <i class="bi bi-file-earmark me-1" style="font-size: 16px;"></i>
+                                Files
+                            </td>
+                            <td class="fw-bold text-end">{{ file_counts.files }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block source_extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Thumbnail size visibility toggle
+    const thumbnailCheckbox = document.getElementById('download_thumbnails');
+    const thumbnailSizeContainer = document.getElementById('thumbnail_size_container');
+    if (thumbnailCheckbox && thumbnailSizeContainer) {
+        thumbnailCheckbox.addEventListener('change', function() {
+            thumbnailSizeContainer.style.display = this.checked ? 'block' : 'none';
+        });
+    }
+
+    const priorityList = document.getElementById('priority-list');
+    const priorityInput = document.getElementById('file_type_priority_input');
+
+    function updatePriorityInput() {
+        const items = priorityList.querySelectorAll('li');
+        const order = Array.from(items).map(item => item.dataset.type);
+        priorityInput.value = order.join(',');
+    }
+
+    // Move up button
+    priorityList.querySelectorAll('.move-up').forEach(btn => {
+        btn.addEventListener('click', function(e) {
+            e.preventDefault();
+            const li = this.closest('li');
+            const prev = li.previousElementSibling;
+            if (prev) {
+                li.parentNode.insertBefore(li, prev);
+                updatePriorityInput();
+            }
+        });
+    });
+
+    // Move down button
+    priorityList.querySelectorAll('.move-down').forEach(btn => {
+        btn.addEventListener('click', function(e) {
+            e.preventDefault();
+            const li = this.closest('li');
+            const next = li.nextElementSibling;
+            if (next) {
+                li.parentNode.insertBefore(next, li);
+                updatePriorityInput();
+            }
+        });
+    });
+});
+</script>
+{% endblock %}

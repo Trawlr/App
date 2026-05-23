@@ -1,0 +1,66 @@
+<!-- Post Detail Modal -->
+<div class="modal fade" id="post-modal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content" style="background: var(--tg-card-bg); color: var(--tg-text);">
+            <div class="modal-header border-0">
+                <h5 class="modal-title" style="color: var(--tg-text);">Post Details</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="post-modal-body" style="color: var(--tg-text);">
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Report Post Modal -->
+<div class="modal fade" id="reportPostModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" id="reportPostForm" action="">
+                {% csrf_token %}
+                <div class="modal-header">
+                    <h5 class="modal-title">Report Post to Telegram</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted mb-3">
+                        Report message <strong id="reportMessageId">#</strong> to Telegram's moderation team.
+                    </p>
+                    <div class="mb-3">
+                        <label class="form-label">Reason <span class="text-danger">*</span></label>
+                        <select name="reason" class="form-select" required>
+                            <option value="">Select a reason...</option>
+                            <option value="spam">Spam</option>
+                            <option value="violence">Violence</option>
+                            <option value="pornography">Adult Content</option>
+                            <option value="child_abuse">Child Abuse</option>
+                            <option value="fake">Fake Account / Scam</option>
+                            <option value="illegal_drugs">Illegal Drugs</option>
+                            <option value="personal_details">Personal Data Exposure</option>
+                            <option value="copyright">Copyright Violation</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Additional Details</label>
+                        <textarea name="message" class="form-control" rows="3"
+                                  placeholder="Provide additional context..."></textarea>
+                        <div class="form-text">Required when selecting "Other"</div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-danger">
+                        <i class="bi bi-flag me-1" style="font-size: 18px;"></i>
+                        Submit Report
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>

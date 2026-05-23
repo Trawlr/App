@@ -1,0 +1,198 @@
+{% load audit_extras %}
+<style>
+    /* Fix hover colors for colored rows */
+    .activity-table tbody tr {
+        cursor: pointer;
+    }
+    .activity-table tbody tr:hover {
+        background-color: rgba(var(--bs-secondary-rgb), 0.1) !important;
+    }
+    .activity-table .activity-error {
+        background-color: rgba(var(--bs-danger-rgb), 0.15);
+    }
+    .activity-table .activity-error:hover {
+        background-color: rgba(var(--bs-danger-rgb), 0.25) !important;
+    }
+    .activity-table .activity-warning {
+        background-color: rgba(var(--bs-warning-rgb), 0.15);
+    }
+    .activity-table .activity-warning:hover {
+        background-color: rgba(var(--bs-warning-rgb), 0.25) !important;
+    }
+    /* Expanded details styling */
+    .activity-details {
+        background-color: rgba(var(--bs-pink-rgb), 0.1);
+        border-left: 3px solid var(--bs-pink);
+    }
+    .activity-details code {
+        color: var(--bs-pink);
+    }
+
+    /* Responsive table columns */
+    .activity-table th, .activity-table td {
+        white-space: nowrap;
+    }
+    .activity-table .col-desc {
+        white-space: normal;
+        min-width: 200px;
+    }
+
+    /* Hide columns on smaller screens */
+    @media (max-width: 1200px) {
+        .activity-table .col-timestamp { display: none; }
+    }
+    @media (max-width: 992px) {
+        .activity-table .col-source { display: none; }
+    }
+    @media (max-width: 768px) {
+        .activity-table .col-channel { display: none; }
+    }
+</style>
+
+<div class="table-responsive">
+    <table class="table table-sm mb-0 activity-table">
+        <thead>
+            <tr>
+                <th class="col-timestamp">Timestamp</th>
+                <th class="col-ago">Ago</th>
+                <th class="col-type">Type</th>
+                <th class="col-source">Source</th>
+                <th class="col-channel">Channel</th>
+                <th class="col-desc">Description</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% if page_obj %}
+                {% for activity in page_obj %}
+                <tr class="activity-row {% if activity.activity_type == 'error' %}activity-error{% elif activity.activity_type == 'flood_wait' %}activity-warning{% endif %}"
+                    onclick="toggleDetails({{ activity.pk }})"
+                    {% if activity.details %}data-has-details="true"{% endif %}>
+                    <td class="col-timestamp">
+                        <span class="text-muted">
+                            {{ activity.timestamp|date:"Y-m-d H:i:s" }}
+                        </span>
+                    </td>
+                    <td class="col-ago">
+                        <span class="text-muted">
+                            {{ activity.timestamp|timesince }} ago
+                        </span>
+                    </td>
+                    <td class="col-type">
+                        <span class="badge
+                            {% if activity.activity_type == 'message_processed' %}badge-cyan
+                            {% elif activity.activity_type == 'user_tracked' %}badge-success
+                            {% elif activity.activity_type == 'photo_downloaded' %}badge-teal
+                            {% elif activity.activity_type == 'download_started' %}badge-cyan
+                            {% elif activity.activity_type == 'download_completed' %}badge-success
+                            {% elif activity.activity_type == 'download_failed' or activity.activity_type == 'error' %}badge-danger
+                            {% elif activity.activity_type == 'download_queued' %}badge-purple
+                            {% elif activity.activity_type == 'history_scan_started' or activity.activity_type == 'history_scan_completed' %}badge-purple
+                            {% elif activity.activity_type == 'history_scan_cancelled' %}badge-secondary
+                            {% elif activity.activity_type == 'member_scan_started' or activity.activity_type == 'member_scan_completed' %}badge-pink
+                            {% elif activity.activity_type == 'member_scan_cancelled' %}badge-secondary
+                            {% elif activity.activity_type == 'profile_fetch_started' or activity.activity_type == 'profile_fetch_completed' or activity.activity_type == 'profile_fetched' %}badge-teal
+                            {% elif activity.activity_type == 'availability_check_started' or activity.activity_type == 'availability_check_completed' %}badge-orange
+                            {% elif activity.activity_type == 'channel_sync_started' or activity.activity_type == 'channel_sync_completed' %}badge-info
+                            {% elif activity.activity_type == 'channel_sync_cancelled' %}badge-secondary
+                            {% elif activity.activity_type == 'refresh_stats_started' or activity.activity_type == 'refresh_stats_completed' %}badge-info
+                            {% elif activity.activity_type == 'media_counts_updated' %}badge-info
+                            {% elif activity.activity_type == 'flood_wait' %}badge-warning
+                            {% else %}badge-purple
+                            {% endif %}">{{ activity.get_activity_type_display }}</span>
+                    </td>
+                    <td class="col-source">
+                        <span class="badge
+                            {% if activity.source == 'listener' %}badge-success
+                            {% elif activity.source == 'worker' %}badge-cyan
+                            {% elif activity.source == 'worker_telegram' %}badge-orange
+                            {% else %}badge-purple
+                            {% endif %}">{{ activity.get_source_display }}</span>
+                    </td>
+                    <td class="col-channel">
+                        {% if activity.channel %}
+                        <a href="{% url 'audit:source_detail' activity.channel.pk %}" class="text-decoration-none" onclick="event.stopPropagation();">
+                            {{ activity.channel|display_title|truncatechars:30 }}
+                        </a>
+                        {% else %}
+                        <span class="text-muted">-</span>
+                        {% endif %}
+                    </td>
+                    <td class="col-desc">
+                        <span>{{ activity.description|truncatechars:100 }}</span>
+                        {% if activity.details %}
+                        <i class="bi bi-chevron-down ms-1 details-chevron" id="chevron-{{ activity.pk }}" style="font-size: 12px; transition: transform 0.2s;"></i>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% if activity.details %}
+                <tr class="activity-details collapse" id="details-row-{{ activity.pk }}">
+                    <td colspan="6" class="py-2 px-3">
+                        <code class="small" style="font-size: 11px; word-break: break-all; white-space: pre-wrap;">{{ activity.details }}</code>
+                    </td>
+                </tr>
+                {% endif %}
+                {% endfor %}
+            {% else %}
+                <tr>
+                    <td colspan="6" class="text-center py-5 text-muted">
+                        <i class="bi bi-activity mb-2" style="font-size: 48px; opacity: 0.5;"></i>
+                        <p class="mb-0">No activity recorded yet.</p>
+                        <p class="small">Activities will appear here as the system processes messages and downloads.</p>
+                    </td>
+                </tr>
+            {% endif %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Pagination -->
+{% if page_obj.has_other_pages %}
+<div class="card-footer border-top py-2" style="border-color: var(--tg-border) !important;">
+    <nav aria-label="Activity pagination">
+        <ul class="pagination pagination-sm justify-content-center mb-0">
+            {% if page_obj.has_previous %}
+            <li class="page-item">
+                <a class="page-link" href="?page=1{% if search %}&q={{ search }}{% endif %}{% if activity_type %}&type={{ activity_type }}{% endif %}{% if source %}&source={{ source }}{% endif %}{% if channel_id %}&channel={{ channel_id }}{% endif %}{% if date_range %}&date={{ date_range }}{% endif %}">&laquo; First</a>
+            </li>
+            <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if search %}&q={{ search }}{% endif %}{% if activity_type %}&type={{ activity_type }}{% endif %}{% if source %}&source={{ source }}{% endif %}{% if channel_id %}&channel={{ channel_id }}{% endif %}{% if date_range %}&date={{ date_range }}{% endif %}">&lsaquo; Prev</a>
+            </li>
+            {% endif %}
+
+            {% for num in page_obj.paginator.page_range %}
+                {% if page_obj.number == num %}
+                <li class="page-item active"><span class="page-link">{{ num }}</span></li>
+                {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                <li class="page-item"><a class="page-link" href="?page={{ num }}{% if search %}&q={{ search }}{% endif %}{% if activity_type %}&type={{ activity_type }}{% endif %}{% if source %}&source={{ source }}{% endif %}{% if channel_id %}&channel={{ channel_id }}{% endif %}{% if date_range %}&date={{ date_range }}{% endif %}">{{ num }}</a></li>
+                {% endif %}
+            {% endfor %}
+
+            {% if page_obj.has_next %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if search %}&q={{ search }}{% endif %}{% if activity_type %}&type={{ activity_type }}{% endif %}{% if source %}&source={{ source }}{% endif %}{% if channel_id %}&channel={{ channel_id }}{% endif %}{% if date_range %}&date={{ date_range }}{% endif %}">Next &rsaquo;</a>
+            </li>
+            <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if search %}&q={{ search }}{% endif %}{% if activity_type %}&type={{ activity_type }}{% endif %}{% if source %}&source={{ source }}{% endif %}{% if channel_id %}&channel={{ channel_id }}{% endif %}{% if date_range %}&date={{ date_range }}{% endif %}">Last &raquo;</a>
+            </li>
+            {% endif %}
+        </ul>
+    </nav>
+</div>
+{% endif %}
+
+<script>
+function toggleDetails(activityId) {
+    const detailsRow = document.getElementById('details-row-' + activityId);
+    const chevron = document.getElementById('chevron-' + activityId);
+
+    if (detailsRow) {
+        if (detailsRow.classList.contains('show')) {
+            detailsRow.classList.remove('show');
+            if (chevron) chevron.style.transform = 'rotate(0deg)';
+        } else {
+            detailsRow.classList.add('show');
+            if (chevron) chevron.style.transform = 'rotate(180deg)';
+        }
+    }
+}
+</script>

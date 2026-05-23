@@ -1,0 +1,32 @@
+{% extends "graph/map_base.html" %}
+
+{% block map_controls %}
+<button class="btn-map active" id="labels-btn" onclick="toggleLabels()" title="Show/hide labels">
+    <i class="bi bi-tag-fill" style="font-size: 14px;" id="labels-icon"></i>
+</button>
+<button class="btn-map" onclick="togglePhysics()" id="physics-btn" title="Pause/Resume physics">
+    <i class="bi bi-pause-fill" style="font-size: 14px;" id="physics-icon"></i>
+</button>
+<button class="btn-map" onclick="resetZoom()" title="Fit to screen">
+    <i class="bi bi-arrows-fullscreen" style="font-size: 14px;"></i>
+</button>
+{% endblock %}
+
+{% block map_legend %}
+<div class="legend-item">
+    <span class="legend-dot" style="background: #22c55e;"></span>
+    <span>Mentioners</span>
+</div>
+<div class="legend-item">
+    <span class="legend-dot" style="background: #a855f7;"></span>
+    <span>Mentioned</span>
+</div>
+{% endblock %}
+
+{% block map_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    loadMapData('{% url "graph:api_mentions" %}');
+});
+</script>
+{% endblock %}

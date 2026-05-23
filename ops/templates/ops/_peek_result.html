@@ -1,0 +1,33 @@
+{% if error %}
+<div class="alert alert-danger small py-2 my-2">Peek failed: {{ error }}</div>
+{% elif not messages %}
+<div class="alert alert-info small py-2 my-2">
+    No READY messages in <code>{{ queue_name }}</code>. (Unacked messages held by a consumer
+    are not visible here — use <strong>Evict+Purge</strong> or close the consumer's connection
+    to release them first.)
+</div>
+{% else %}
+<div class="card border-0 shadow-sm my-2">
+    <div class="card-header py-1 small">
+        <strong>{{ messages|length }} message(s)</strong> from <code>{{ queue_name }}</code>
+        <span class="text-muted">(non-destructive peek — messages re-queued)</span>
+    </div>
+    <div class="card-body p-0">
+        <table class="table table-sm mb-0">
+            <thead class="table-light">
+                <tr><th>Actor</th><th>Args</th><th>Kwargs</th><th>Message ID</th></tr>
+            </thead>
+            <tbody>
+                {% for m in messages %}
+                <tr>
+                    <td class="small font-monospace">{{ m.actor|default:"?" }}</td>
+                    <td class="small font-monospace">{{ m.args|default_if_none:"[]"|truncatechars:60 }}</td>
+                    <td class="small font-monospace">{{ m.kwargs|default_if_none:"{}"|truncatechars:60 }}</td>
+                    <td class="small font-monospace text-muted">{{ m.message_id|default:""|truncatechars:12 }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}

@@ -1,0 +1,104 @@
+{% load audit_extras %}
+
+{% for post in posts %}
+<div class="feed-post" id="msg-{{ post.message_id }}">
+    <!-- Sender Header -->
+    <div class="feed-post-header">
+        <div class="feed-avatar">
+            {% if post.sender_username or post.sender_name %}
+                <i class="bi bi-person"></i>
+            {% else %}
+                <i class="bi bi-megaphone"></i>
+            {% endif %}
+        </div>
+        <div class="feed-sender">
+            {% if post.sender_username %}
+                {% if post.sender_id and post.sender_id in known_users %}
+                    <a href="{% url 'audit:user_detail' known_users|get_item:post.sender_id %}" class="feed-sender-name">
+                        {% if post.sender_name %}{{ post.sender_name }}{% else %}@{{ post.sender_username }}{% endif %}
+                    </a>
+                {% else %}
+                    <span class="feed-sender-name">{% if post.sender_name %}{{ post.sender_name }}{% else %}@{{ post.sender_username }}{% endif %}</span>
+                {% endif %}
+                {% if post.sender_name %}<span class="feed-sender-username">@{{ post.sender_username }}</span>{% endif %}
+            {% elif post.sender_name %}
+                {% if post.sender_id and post.sender_id in known_users %}
+                    <a href="{% url 'audit:user_detail' known_users|get_item:post.sender_id %}" class="feed-sender-name">{{ post.sender_name }}</a>
+                {% else %}
+                    <span class="feed-sender-name">{{ post.sender_name }}</span>
+                {% endif %}
+            {% else %}
+                <span class="feed-sender-name text-muted">Channel Post</span>
+            {% endif %}
+        </div>
+        <span class="feed-time">{{ post.telegram_date|post_datetime }}</span>
+    </div>
+
+    <!-- Thumbnail / Media -->
+    {% if post.has_media %}
+    <div class="feed-media">
+        {% if post.thumbnail_path %}
+            <img src="{% url 'audit:serve_post_thumbnail' post.pk %}" alt="Media" class="feed-thumbnail" loading="lazy">
+        {% else %}
+            <div class="feed-media-placeholder">
+                {% if post.media_type == 'photo' %}
+                    <i class="bi bi-image"></i>
+                    <span>Photo</span>
+                {% elif post.media_type == 'video' %}
+                    <i class="bi bi-play-circle"></i>
+                    <span>Video{% if post.media_duration %} &middot; {{ post.media_duration }}s{% endif %}</span>
+                {% else %}
+                    <i class="bi bi-file-earmark"></i>
+                    <span>{{ post.original_filename|default:"File" }}</span>
+                {% endif %}
+                {% if post.file_size %}<span class="feed-media-size">{{ post.file_size|filesizeformat }}</span>{% endif %}
+            </div>
+        {% endif %}
+        {% if post.is_downloaded %}
+            <a href="{% url 'downloads:file_detail' post.downloaded_file.pk %}" class="feed-media-badge badge-downloaded" title="View downloaded file">
+                <i class="bi bi-eye-fill"></i>
+            </a>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- Text Content -->
+    {% if post.text %}
+    <div class="feed-text" onclick="this.classList.toggle('expanded')">
+        <div class="feed-text-preview">{{ post.text|truncatechars:300 }}</div>
+        <div class="feed-text-full">{{ post.text }}</div>
+        {% if post.text|length > 300 %}
+        <span class="feed-text-toggle">Show more</span>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- Engagement Footer -->
+    <div class="feed-footer">
+        <div class="feed-engagement">
+            {% if post.views %}
+                <span class="feed-stat"><i class="bi bi-eye"></i> {{ post.views|intcomma_short }}</span>
+            {% endif %}
+            {% if post.forwards %}
+                <span class="feed-stat"><i class="bi bi-share"></i> {{ post.forwards|intcomma_short }}</span>
+            {% endif %}
+            {% if post.reactions %}
+                {% for emoji, count in post.reactions.items %}
+                    <span class="feed-reaction">{{ emoji }} {{ count }}</span>
+                {% endfor %}
+            {% endif %}
+        </div>
+        <span class="feed-msg-id">#{{ post.message_id }}</span>
+    </div>
+</div>
+{% endfor %}
+
+{% if has_more %}
+<div hx-get="{% url 'audit:source_posts_feed' source.pk %}?cursor_date={{ next_cursor_date }}&cursor_id={{ next_cursor_id }}"
+     hx-trigger="intersect once threshold:0.1"
+     hx-swap="outerHTML"
+     class="feed-loader">
+    <div class="spinner-border spinner-border-sm text-muted" role="status"></div>
+    <span class="text-muted small">Loading more...</span>
+</div>
+{% endif %}

@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+
+{% block title %}Queues - Ops - Trawlr{% endblock %}
+
+{% block content %}
+<div class="page-header mb-4">
+    <h2>Dramatiq queues</h2>
+    <p class="text-muted mb-0">Live view of RabbitMQ queue state, consumers, and recent task executions.</p>
+</div>
+
+{% if error %}
+<div class="alert alert-danger">{{ error }}</div>
+{% endif %}
+
+<div class="card border-0 mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0"><i class="bi bi-diagram-3 me-2"></i>Trawlr queues</h5>
+        <a href="" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-clockwise"></i> Refresh</a>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table mb-0 align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>Queue</th>
+                        <th class="text-end">Main<br><small class="text-muted fw-normal">ready / unacked</small></th>
+                        <th class="text-end">.DQ (delayed)<br><small class="text-muted fw-normal">ready / unacked</small></th>
+                        <th class="text-end">.XQ (dead)<br><small class="text-muted fw-normal">ready / unacked</small></th>
+                        <th>Consumers</th>
+                        <th class="text-end">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in queue_rows %}
+                    <tr>
+                        <td class="fw-bold">{{ row.name }}</td>
+                        <td class="text-end">
+                            {% if row.main %}{{ row.main.messages_ready }} / {{ row.main.messages_unacknowledged }}{% else %}—{% endif %}
+                        </td>
+                        <td class="text-end">
+                            {% if row.dq %}{{ row.dq.messages_ready }} / {{ row.dq.messages_unacknowledged }}{% else %}—{% endif %}
+                        </td>
+                        <td class="text-end">
+                            {% if row.xq %}{{ row.xq.messages_ready }} / {{ row.xq.messages_unacknowledged }}{% else %}—{% endif %}
+                        </td>
+                        <td>
+                            {% if row.consumers %}
+                                {% for c in row.consumers %}
+                                    <div class="small font-monospace d-flex align-items-center gap-2 mb-1">
+                                        <span>{{ c.connection|truncatechars:40 }}</span>
+                                        <button type="button" class="btn btn-sm btn-outline-danger py-0 px-1"
+                                                hx-post="{% url 'ops:connection_close' %}"
+                                                hx-vals='{"name": "{{ c.connection|escapejs }}"}'
+                                                hx-confirm="Force-close this connection? The worker will auto-reconnect."
+                                                hx-target="this" hx-swap="outerHTML">close</button>
+                                    </div>
+                                {% endfor %}
+                            {% else %}
+                                <span class="text-muted small">none</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end">
+                            <button type="button" class="btn btn-sm btn-outline-primary"
+                                    hx-post="{% url 'ops:queue_peek' name=row.name %}"
+                                    hx-target="#peek-result-{{ forloop.counter }}"
+                                    hx-swap="innerHTML"
+                                    hx-vals='{"count": 20}'>
+                                <i class="bi bi-eye"></i> Peek
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-warning"
+                                    hx-post="{% url 'ops:queue_purge' name=row.name %}"
+                                    hx-confirm="Purge ready messages on {{ row.name }}? (unacked messages are not affected)"
+                                    hx-target="#action-result-{{ forloop.counter }}" hx-swap="innerHTML">
+                                <i class="bi bi-trash"></i> Purge
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-danger"
+                                    hx-post="{% url 'ops:queue_evict_purge' name=row.name %}"
+                                    hx-confirm="Force-close consumers and purge {{ row.name }} + .DQ + .XQ? Workers will auto-reconnect."
+                                    hx-target="#action-result-{{ forloop.counter }}" hx-swap="innerHTML">
+                                <i class="bi bi-lightning"></i> Evict+Purge
+                            </button>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td colspan="6">
+                            <div id="action-result-{{ forloop.counter }}" class="small text-muted"></div>
+                            <div id="peek-result-{{ forloop.counter }}"></div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="6" class="text-center text-muted py-4">No trawlr.* queues found.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-6">
+        <div class="card border-0 h-100">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-activity me-2"></i>Dramatiq executions (last hour)</h5>
+            </div>
+            <div class="card-body p-0">
+                <table class="table mb-0 table-sm">
+                    <thead class="table-light">
+                        <tr><th>Actor</th><th>Status</th><th class="text-end">Count</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for t in task_summary %}
+                        <tr>
+                            <td class="small font-monospace">{{ t.actor_name }}</td>
+                            <td>
+                                {% if t.status == 'failed' %}<span class="badge bg-danger">{{ t.status }}</span>
+                                {% elif t.status == 'done' %}<span class="badge bg-success">{{ t.status }}</span>
+                                {% elif t.status == 'running' %}<span class="badge bg-warning text-dark">{{ t.status }}</span>
+                                {% else %}<span class="badge bg-secondary">{{ t.status }}</span>{% endif %}
+                            </td>
+                            <td class="text-end">{{ t.n }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="3" class="text-center text-muted py-3">No recent dramatiq tasks.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <div class="card-footer small text-muted">
+                <a href="/admin/django_dramatiq/task/">Open Django admin → Tasks</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-6">
+        <div class="card border-0 h-100">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-exclamation-triangle me-2"></i>Possibly-orphaned TaskRuns</h5>
+            </div>
+            <div class="card-body p-0">
+                <table class="table mb-0 table-sm">
+                    <thead class="table-light">
+                        <tr><th>Type</th><th>Channel</th><th>Progress</th><th>Started</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for o in orphans %}
+                        <tr>
+                            <td class="small">{{ o.task_type }}</td>
+                            <td class="small">{{ o.channel_id|default:"—" }}</td>
+                            <td class="small text-muted">{{ o.progress_message|truncatechars:40 }}</td>
+                            <td class="small">{{ o.started_at|date:"H:i:s" }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="4" class="text-center text-muted py-3">None — all running TaskRuns are fresh.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <div class="card-footer small text-muted">
+                TaskRuns in <em>running</em> state for > 10 minutes. Likely orphans if no dramatiq
+                execution is visible in the left panel.
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

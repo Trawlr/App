@@ -1,0 +1,381 @@
+{% extends "base.html" %}
+{% load audit_extras %}
+
+{% block extra_css %}
+<style>
+    .tag-badge-sm { font-size: 0.7em; padding: 0.25em 0.5em; font-weight: 500; color: #fff !important; }
+    .tag-blue { background-color: #3b82f6 !important; }
+    .tag-green { background-color: #22c55e !important; }
+    .tag-red { background-color: #ef4444 !important; }
+    .tag-yellow { background-color: #eab308 !important; }
+    .tag-purple { background-color: #a855f7 !important; }
+    .tag-orange { background-color: #f97316 !important; }
+    .tag-pink { background-color: #ec4899 !important; }
+    .tag-teal { background-color: #14b8a6 !important; }
+    .tag-grey { background-color: #6b7280 !important; }
+</style>
+{% block user_extra_css %}{% endblock %}
+{% endblock %}
+
+{% block content %}
+<div class="page-header mb-3">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb mb-2">
+            <li class="breadcrumb-item"><a href="{% url 'audit:users' %}">Telegram Users</a></li>
+            <li class="breadcrumb-item active">{{ telegram_user.first_name }} {{ telegram_user.last_name }}</li>
+        </ol>
+    </nav>
+</div>
+
+<!-- Status Alerts -->
+{% if telegram_user.is_flagged %}
+<div class="alert alert-warning d-flex align-items-center mb-4">
+    <i class="bi bi-exclamation-triangle me-2 icon-lg"></i>
+    <div class="flex-grow-1">
+        <strong>Flagged for review:</strong> {{ telegram_user.get_flagged_reason_display }}
+        {% if telegram_user.flagged_notes %}<br><small class="text-muted">{{ telegram_user.flagged_notes }}</small>{% endif %}
+    </div>
+    <form method="post" action="{% url 'audit:unflag_user' telegram_user.pk %}">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-sm btn-outline-secondary">Remove Flag</button>
+    </form>
+</div>
+{% endif %}
+
+{% if telegram_user.reported_to_telegram %}
+<div class="alert alert-success d-flex align-items-center mb-4">
+    <i class="bi bi-check-circle me-2 icon-lg"></i>
+    <div>
+        <strong>Reported to Telegram</strong>
+        {% if telegram_user.reported_at %}
+        <span class="text-muted">on {{ telegram_user.reported_at|date:"M j, Y" }}</span>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
+<!-- User Profile Card -->
+<div class="card border-0 mb-4">
+    <div class="card-body py-4">
+        <div class="d-flex align-items-center gap-4">
+            <!-- Avatar / Profile Photo Button -->
+            <div class="position-relative flex-shrink-0">
+                <div class="avatar avatar-lg" id="user-avatar">
+                    {% if telegram_user.is_bot %}
+                    <i class="bi bi-robot"></i>
+                    {% else %}
+                    <i class="bi bi-person"></i>
+                    {% endif %}
+                </div>
+                {% if telegram_user.profile_photo_base64 %}
+                <button type="button" class="btn btn-sm btn-dark position-absolute bottom-0 end-0 btn-photo-preview"
+                        data-bs-toggle="modal" data-bs-target="#photoConfirmModal"
+                        title="View profile photo">
+                    <i class="bi bi-eye icon-xs"></i>
+                </button>
+                {% endif %}
+            </div>
+            <div class="flex-grow-1">
+                <h4 class="mb-1">
+                    {{ telegram_user.first_name }} {{ telegram_user.last_name }}
+                    {% if telegram_user.is_premium %}
+                    <i class="bi bi-star-fill text-warning ms-1 icon-base" title="Premium"></i>
+                    {% endif %}
+                    {% if telegram_user.is_verified %}
+                    <i class="bi bi-patch-check-fill text-primary ms-1 icon-base" title="Verified"></i>
+                    {% endif %}
+                </h4>
+                <div class="d-flex align-items-center gap-3 flex-wrap">
+                    {% if telegram_user.username %}
+                    <a href="https://t.me/{{ telegram_user.username }}" target="_blank" class="text-decoration-none">
+                        @{{ telegram_user.username }}
+                    </a>
+                    {% endif %}
+                    <code class="small">{{ telegram_user.telegram_id }}</code>
+                    {% if telegram_user.is_bot %}
+                    <span class="badge bg-info">Bot</span>
+                    {% endif %}
+                    {% if telegram_user.is_scam %}
+                    <span class="badge bg-danger">Scam</span>
+                    {% endif %}
+                    {% if telegram_user.is_fake %}
+                    <span class="badge bg-warning text-dark">Fake</span>
+                    {% endif %}
+                    {% if telegram_user.is_restricted %}
+                    <span class="badge bg-secondary">Restricted</span>
+                    {% endif %}
+                    {% if telegram_user.is_blocked %}
+                    <span class="badge bg-dark">Blocked</span>
+                    {% endif %}
+                    {% if telegram_user.is_flagged %}
+                    <span class="badge bg-warning text-dark">
+                        <i class="bi bi-exclamation-triangle me-1 icon-2xs"></i>
+                        Flagged
+                    </span>
+                    {% endif %}
+                    {% if has_global_exclusion %}
+                    <span class="badge bg-danger">
+                        <i class="bi bi-person-x me-1 icon-2xs"></i>
+                        Globally Excluded
+                    </span>
+                    {% elif source_exclusion_count > 0 %}
+                    <span class="badge bg-primary">
+                        <i class="bi bi-person-x me-1 icon-2xs"></i>
+                        Excluded ({{ source_exclusion_count }} source{{ source_exclusion_count|pluralize }})
+                    </span>
+                    {% endif %}
+                </div>
+                {% if telegram_user.tags.all %}
+                <div class="d-flex gap-2 mt-2 flex-wrap" style="width: 100%;">
+                    {% for tag in telegram_user.tags.all %}
+                    <span class="badge tag-badge-sm tag-{{ tag.colour }}">{{ tag.name }}</span>
+                    {% endfor %}
+                </div>
+                {% endif %}
+                {% if telegram_user.bio %}
+                <div class="mt-2 text-muted">
+                    <i class="bi bi-quote me-1 icon-sm"></i>
+                    {{ telegram_user.bio }}
+                </div>
+                {% endif %}
+            </div>
+            <div class="text-end d-none d-md-block">
+                <div class="small text-muted">First Seen</div>
+                <div>{{ telegram_user.first_seen|date:"M j, Y" }}</div>
+                <div class="small text-muted mt-2">Last Seen</div>
+                <div>{% if telegram_user.last_seen %}{{ telegram_user.last_seen|timesince }} ago{% else %}-{% endif %}</div>
+                <div class="dropdown dropdown-hover mt-3">
+                    <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" id="actionsDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                        <i class="bi bi-gear me-1 icon-sm"></i>
+                        Actions
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="actionsDropdown" style="min-width: 180px;">
+                        <li>
+                            <a class="dropdown-item py-2" href="#" onclick="event.preventDefault(); ajaxAction('{% url 'audit:fetch_user_profile' telegram_user.pk %}', this)">
+                                <i class="bi bi-arrow-clockwise me-2 icon-sm"></i>
+                                Fetch Profile
+                            </a>
+                        </li>
+                        {% if not telegram_user.is_flagged %}
+                        <li>
+                            <a class="dropdown-item py-2" href="#" data-bs-toggle="modal" data-bs-target="#flagModal">
+                                <i class="bi bi-bookmark me-2 icon-sm"></i>
+                                Flag User
+                            </a>
+                        </li>
+                        {% endif %}
+                        <li>
+                            <a class="dropdown-item py-2" href="#" data-bs-toggle="modal" data-bs-target="#excludeModal">
+                                <i class="bi bi-person-x me-2 icon-sm"></i>
+                                Exclude User
+                            </a>
+                        </li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li>
+                            <a class="dropdown-item py-2 text-danger" href="#" data-bs-toggle="modal" data-bs-target="#reportModal">
+                                <i class="bi bi-flag me-2 icon-sm"></i>
+                                Report to Telegram
+                            </a>
+                        </li>
+                        <li>
+                            <a class="dropdown-item py-2 text-danger" href="#" data-bs-toggle="modal" data-bs-target="#deleteMediaModal">
+                                <i class="bi bi-trash me-2 icon-sm"></i>
+                                Delete All Media
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Navigation Bar -->
+<div class="card border-0 mb-4" style="overflow: visible; position: relative; z-index: 100;">
+    <div class="card-body py-2 px-3">
+        <ul class="nav nav-pills gap-1">
+            <li class="nav-item">
+                <a class="nav-link py-2 px-3 {% if active_tab == 'overview' %}active{% endif %}" href="{% url 'audit:user_detail' telegram_user.pk %}">
+                    <i class="bi bi-info-circle me-1" style="font-size: 16px;"></i>
+                    Overview
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link py-2 px-3 {% if active_tab == 'activity' %}active{% endif %}" href="{% url 'audit:user_activity' telegram_user.pk %}">
+                    <i class="bi bi-calendar3-week me-1" style="font-size: 16px;"></i>
+                    Activity
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link py-2 px-3 {% if active_tab == 'network' %}active{% endif %}" href="{% url 'audit:user_network' telegram_user.pk %}">
+                    <i class="bi bi-diagram-3 me-1" style="font-size: 16px;"></i>
+                    Network
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link py-2 px-3 {% if active_tab == 'notes' %}active{% endif %}" href="{% url 'audit:user_notes' telegram_user.pk %}">
+                    <i class="bi bi-sticky me-1" style="font-size: 16px;"></i>
+                    Notes
+                    {% if notes_count %}<span class="badge bg-secondary bg-opacity-50 ms-1">{{ notes_count }}</span>{% endif %}
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link py-2 px-3 {% if active_tab == 'tags' %}active{% endif %}" href="{% url 'audit:user_tags' telegram_user.pk %}">
+                    <i class="bi bi-tags me-1" style="font-size: 16px;"></i>
+                    Tags
+                    {% if tag_count %}<span class="badge bg-secondary bg-opacity-50 ms-1">{{ tag_count }}</span>{% endif %}
+                </a>
+            </li>
+        </ul>
+    </div>
+</div>
+
+<!-- Page Content -->
+{% block user_content %}{% endblock %}
+
+<!-- Delete All Media Modal -->
+<div class="modal fade" id="deleteMediaModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title text-danger">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    Delete All Media
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>This will permanently delete <strong>all downloaded files and thumbnails</strong> for posts by <strong>{{ telegram_user.display_name }}</strong>.</p>
+                <p class="text-danger"><strong>This action cannot be undone.</strong> Database records will be preserved but all physical files will be removed from disk.</p>
+                <div class="mb-0">
+                    <label class="form-label" for="deleteMediaNote">Reason <span class="text-danger">*</span></label>
+                    <textarea class="form-control" id="deleteMediaNote" rows="2" placeholder="Why is this user's media being deleted?" required></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" id="confirmDeleteMediaBtn" disabled onclick="deleteAllUserMedia()">
+                    <i class="bi bi-trash me-1"></i>
+                    <span id="deleteMediaBtnText">Wait 5s...</span>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+async function ajaxAction(url, btn) {
+    const originalHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+
+    try {
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            showToast(data.message || 'Action completed', 'success');
+            if (data.reload) {
+                setTimeout(() => location.reload(), 500);
+            }
+        } else {
+            showToast(data.error || 'Action failed', 'error');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        showToast('Action failed', 'error');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalHtml;
+    }
+}
+
+// Delete All Media - 5 second countdown
+let deleteMediaTimer = null;
+const deleteMediaModal = document.getElementById('deleteMediaModal');
+if (deleteMediaModal) {
+    deleteMediaModal.addEventListener('shown.bs.modal', function () {
+        const btn = document.getElementById('confirmDeleteMediaBtn');
+        const btnText = document.getElementById('deleteMediaBtnText');
+        btn.disabled = true;
+        let remaining = 5;
+        btnText.textContent = `Wait ${remaining}s...`;
+
+        deleteMediaTimer = setInterval(() => {
+            remaining--;
+            if (remaining > 0) {
+                btnText.textContent = `Wait ${remaining}s...`;
+            } else {
+                clearInterval(deleteMediaTimer);
+                btn.disabled = false;
+                btnText.textContent = 'Delete All Media';
+            }
+        }, 1000);
+    });
+
+    deleteMediaModal.addEventListener('hidden.bs.modal', function () {
+        if (deleteMediaTimer) clearInterval(deleteMediaTimer);
+        const btn = document.getElementById('confirmDeleteMediaBtn');
+        const btnText = document.getElementById('deleteMediaBtnText');
+        btn.disabled = true;
+        btnText.textContent = 'Wait 5s...';
+        const noteEl = document.getElementById('deleteMediaNote');
+        noteEl.value = '';
+        noteEl.classList.remove('is-invalid');
+    });
+}
+
+async function deleteAllUserMedia() {
+    const noteEl = document.getElementById('deleteMediaNote');
+    const note = noteEl.value.trim();
+    if (!note) {
+        noteEl.classList.add('is-invalid');
+        noteEl.focus();
+        return;
+    }
+    noteEl.classList.remove('is-invalid');
+
+    const btn = document.getElementById('confirmDeleteMediaBtn');
+    const btnText = document.getElementById('deleteMediaBtnText');
+    btn.disabled = true;
+    btnText.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Queuing...';
+
+    const formData = new FormData();
+    formData.append('note', note);
+
+    try {
+        const response = await fetch('{% url "audit:delete_user_media" telegram_user.pk %}', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+            body: formData,
+        });
+
+        const data = await response.json();
+        bootstrap.Modal.getInstance(deleteMediaModal).hide();
+
+        if (response.ok) {
+            showToast(data.message || 'Media deletion queued', 'success');
+        } else {
+            showToast(data.error || 'Failed to queue media deletion', 'error');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        bootstrap.Modal.getInstance(deleteMediaModal).hide();
+        showToast('Failed to queue media deletion', 'error');
+    }
+}
+</script>
+{% block user_extra_js %}{% endblock %}
+{% endblock %}

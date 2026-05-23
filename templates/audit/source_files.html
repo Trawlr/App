@@ -1,0 +1,474 @@
+{% extends "audit/source_base.html" %}
+{% load audit_extras %}
+
+{% block title %}Files - {{ source.title }} - Trawlr{% endblock %}
+
+{% block source_content %}
+<div class="card border-0">
+    <!-- Filters -->
+    <div class="card-header border-bottom py-2" style="border-color: var(--tg-border) !important;">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+            <!-- Media type filter -->
+            <div class="btn-group btn-group-sm" role="group">
+                <a href="?q={{ search }}&sort={{ sort }}" class="btn {% if not media_filter %}btn-primary{% else %}btn-outline-secondary{% endif %} px-2">All</a>
+                <a href="?q={{ search }}&media=photo&sort={{ sort }}" class="btn {% if media_filter == 'photo' %}btn-primary{% else %}btn-outline-secondary{% endif %} px-2">
+                    <i class="bi bi-image" style="font-size: 16px;"></i>
+                </a>
+                <a href="?q={{ search }}&media=video&sort={{ sort }}" class="btn {% if media_filter == 'video' %}btn-primary{% else %}btn-outline-secondary{% endif %} px-2">
+                    <i class="bi bi-camera-video" style="font-size: 16px;"></i>
+                </a>
+                <a href="?q={{ search }}&media=file&sort={{ sort }}" class="btn {% if media_filter == 'file' %}btn-primary{% else %}btn-outline-secondary{% endif %} px-2">
+                    <i class="bi bi-file-earmark" style="font-size: 16px;"></i>
+                </a>
+            </div>
+
+            <!-- Search -->
+            <form method="get" class="d-flex gap-2 align-items-center flex-grow-1" style="max-width: 350px;">
+                <input type="hidden" name="media" value="{{ media_filter }}">
+                <input type="hidden" name="sort" value="{{ sort }}">
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text">
+                        <i class="bi bi-search" style="font-size: 14px;"></i>
+                    </span>
+                    <input type="text" class="form-control" placeholder="Search filename or SHA256..." name="q" value="{{ search }}">
+                    <button type="submit" class="btn btn-primary btn-sm" style="padding: 0 12px;">
+                        <i class="bi bi-funnel" style="font-size: 14px;"></i>
+                    </button>
+                    {% if search %}
+                    <a href="?media={{ media_filter }}&sort={{ sort }}" class="btn btn-outline-secondary btn-sm" title="Clear search">
+                        <i class="bi bi-x" style="font-size: 14px;"></i>
+                    </a>
+                    {% endif %}
+                </div>
+            </form>
+
+            <div class="d-flex gap-2 align-items-center">
+                <!-- Total count -->
+                <span class="text-muted">{{ posts.paginator.count|default:0 }} files</span>
+
+                <!-- Sort order -->
+                <div class="btn-group btn-group-sm" role="group">
+                    <a href="?q={{ search }}&media={{ media_filter }}&sort=newest" class="btn {% if sort == 'newest' %}btn-primary{% else %}btn-outline-secondary{% endif %} px-2" title="Newest first">
+                        <i class="bi bi-arrow-down" style="font-size: 16px;"></i>
+                    </a>
+                    <a href="?q={{ search }}&media={{ media_filter }}&sort=oldest" class="btn {% if sort == 'oldest' %}btn-primary{% else %}btn-outline-secondary{% endif %} px-2" title="Oldest first">
+                        <i class="bi bi-arrow-up" style="font-size: 16px;"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card-body p-0">
+        {% if posts %}
+            <div class="list-group list-group-flush">
+                {% for post in posts %}
+                <div class="list-group-item d-flex align-items-start gap-3 p-3 file-item" data-file-index="{{ forloop.counter0 }}">
+                    <!-- Thumbnail -->
+                    <div class="flex-shrink-0 position-relative file-clickable"
+                         style="width: 150px; height: 100px; cursor: pointer;"
+                         hx-get="{% url 'downloads:file_view' post.pk %}"
+                         hx-target="#file-viewer-modal .modal-body"
+                         data-bs-toggle="modal"
+                         data-bs-target="#file-viewer-modal">
+                        {% if post.deleted_from_disk %}
+                            <div class="d-flex align-items-center justify-content-center bg-dark rounded w-100 h-100">
+                                {% if post.file_type == 'photo' %}
+                                    <i class="bi bi-image text-info" style="font-size: 32px; opacity: 0.5;"></i>
+                                {% elif post.file_type == 'video' %}
+                                    <i class="bi bi-camera-video text-success" style="font-size: 32px; opacity: 0.5;"></i>
+                                {% else %}
+                                    <i class="bi bi-file-earmark text-warning" style="font-size: 32px; opacity: 0.5;"></i>
+                                {% endif %}
+                            </div>
+                        {% else %}
+                        {% with display_thumb=post.get_display_thumbnail_url %}
+                        {% if post.file_type == 'photo' %}
+                            {% if display_thumb %}
+                                <img src="{{ display_thumb }}"
+                                     class="img-fluid rounded object-fit-cover w-100 h-100"
+                                     alt="{{ post.original_filename }}"
+                                     style="object-fit: cover;"
+                                     onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+                                <div class="align-items-center justify-content-center bg-dark rounded w-100 h-100" style="display: none;">
+                                    <i class="bi bi-image text-info" style="font-size: 32px; opacity: 0.5;"></i>
+                                </div>
+                            {% else %}
+                                <img src="{{ post.file_url }}"
+                                     class="img-fluid rounded object-fit-cover w-100 h-100"
+                                     alt="{{ post.original_filename }}"
+                                     style="object-fit: cover;"
+                                     onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+                                <div class="align-items-center justify-content-center bg-dark rounded w-100 h-100" style="display: none;">
+                                    <i class="bi bi-image text-info" style="font-size: 32px; opacity: 0.5;"></i>
+                                </div>
+                            {% endif %}
+                        {% elif post.file_type == 'video' %}
+                            {% if display_thumb %}
+                                <img src="{{ display_thumb }}"
+                                     class="img-fluid rounded object-fit-cover w-100 h-100"
+                                     alt="{{ post.original_filename }}"
+                                     style="object-fit: cover;"
+                                     onerror="this.style.display='none';this.nextElementSibling.style.display='none';this.parentNode.querySelector('.video-placeholder').style.display='flex'">
+                                <div class="position-absolute top-50 start-50 translate-middle">
+                                    <i class="bi bi-play-circle" style="font-size: 32px; opacity: 0.9; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));"></i>
+                                </div>
+                                <div class="video-placeholder align-items-center justify-content-center bg-dark rounded w-100 h-100" style="display: none;">
+                                    <i class="bi bi-camera-video text-success" style="font-size: 32px; opacity: 0.5;"></i>
+                                </div>
+                            {% else %}
+                                <div class="d-flex align-items-center justify-content-center bg-dark rounded w-100 h-100" style="background: var(--tg-gradient) !important;">
+                                    <i class="bi bi-camera-video text-white" style="font-size: 32px; opacity: 0.7;"></i>
+                                </div>
+                            {% endif %}
+                        {% else %}
+                            <div class="d-flex align-items-center justify-content-center bg-dark rounded w-100 h-100">
+                                <i class="bi bi-file-earmark text-muted" style="font-size: 32px;"></i>
+                            </div>
+                        {% endif %}
+                        {% endwith %}
+                        {% endif %}
+                        {% if post.pk in album_info %}
+                        <span class="position-absolute top-0 start-0 m-1 badge bg-dark bg-opacity-75" style="font-size: 0.65rem;">
+                            <i class="bi bi-images" style="font-size: 10px;"></i>
+                            {{ album_info|get_item:post.pk|get_item:'position' }}/{{ album_info|get_item:post.pk|get_item:'total' }}
+                        </span>
+                        {% endif %}
+                    </div>
+
+                    <!-- Content -->
+                    <div class="flex-grow-1 min-width-0 file-clickable"
+                         style="cursor: pointer;"
+                         hx-get="{% url 'downloads:file_view' post.pk %}"
+                         hx-target="#file-viewer-modal .modal-body"
+                         data-bs-toggle="modal"
+                         data-bs-target="#file-viewer-modal">
+                        <div class="d-flex justify-content-between align-items-start mb-1">
+                            <h6 class="mb-0 text-truncate" title="{{ post.original_filename }}">
+                                {{ post.original_filename }}
+                            </h6>
+                            <span class="badge bg-secondary ms-2">{{ post.file_type }}</span>
+                        </div>
+                        <div class="small text-muted mb-2">
+                            {{ post.file_size|filesizeformat }} &middot; {{ post.telegram_date|date:"M j, Y g:i A" }}
+                        </div>
+                        {% with caption=archived_messages|get_message_text:post.message_id %}
+                        {% if caption %}
+                            <p class="mb-0 small text-muted" style="max-width: 600px;">
+                                {{ caption|truncatechars:200 }}
+                            </p>
+                        {% endif %}
+                        {% endwith %}
+                    </div>
+
+                    <!-- Actions -->
+                    <div class="flex-shrink-0 d-flex gap-1 align-items-center">
+                        <a href="{{ post.file_url }}"
+                           class="btn btn-sm btn-primary"
+                           download="{{ post.original_filename }}"
+                           title="Download">
+                            <i class="bi bi-download" style="font-size: 14px;"></i>
+                        </a>
+                        <div class="dropdown dropdown-hover">
+                            <button class="btn btn-sm btn-menu-primary" type="button" data-bs-toggle="dropdown">
+                                <i class="bi bi-three-dots-vertical" style="font-size: 14px;"></i>
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end">
+                                <li>
+                                    <a class="dropdown-item" href="{{ post.file_url }}" target="_blank">
+                                        <i class="bi bi-box-arrow-up-right me-2" style="font-size: 14px;"></i>Open in New Tab
+                                    </a>
+                                </li>
+                                {% if post.pk in album_info %}
+                                <li>
+                                    <a class="dropdown-item" href="{% url 'audit:source_files_gallery' source.pk %}?album={{ album_info|get_item:post.pk|get_item:'grouped_id' }}&msg={{ post.message_id }}">
+                                        <i class="bi bi-images me-2" style="font-size: 14px;"></i>
+                                        Open in Gallery
+                                        <span class="badge bg-secondary ms-1">{{ album_info|get_item:post.pk|get_item:'total' }} items</span>
+                                    </a>
+                                </li>
+                                {% endif %}
+                                <li><hr class="dropdown-divider"></li>
+                                <li>
+                                    <a class="dropdown-item text-danger" href="#" onclick="openReportModal({{ post.message_id }})">
+                                        <i class="bi bi-flag me-2" style="font-size: 14px;"></i>Report
+                                    </a>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+
+            <!-- Pagination -->
+            {% if posts.has_other_pages %}
+            <div class="card-footer border-top d-flex justify-content-between align-items-center" style="border-color: var(--tg-border) !important;">
+                <div class="text-muted small">
+                    Page {{ posts.number }} of {{ posts.paginator.num_pages }}
+                    ({{ posts.paginator.count }} total)
+                </div>
+                <nav aria-label="Posts pagination">
+                    <ul class="pagination pagination-sm mb-0">
+                        {% if posts.has_previous %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page=1&q={{ search }}&media={{ media_filter }}&sort={{ sort }}">
+                                    <i class="bi bi-chevron-double-left" style="font-size: 14px;"></i>
+                                </a>
+                            </li>
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ posts.previous_page_number }}&q={{ search }}&media={{ media_filter }}&sort={{ sort }}">
+                                    <i class="bi bi-chevron-left" style="font-size: 14px;"></i>
+                                </a>
+                            </li>
+                        {% endif %}
+
+                        <li class="page-item active">
+                            <span class="page-link">{{ posts.number }}</span>
+                        </li>
+
+                        {% if posts.has_next %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ posts.next_page_number }}&q={{ search }}&media={{ media_filter }}&sort={{ sort }}">
+                                    <i class="bi bi-chevron-right" style="font-size: 14px;"></i>
+                                </a>
+                            </li>
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ posts.paginator.num_pages }}&q={{ search }}&media={{ media_filter }}&sort={{ sort }}">
+                                    <i class="bi bi-chevron-double-right" style="font-size: 14px;"></i>
+                                </a>
+                            </li>
+                        {% endif %}
+                    </ul>
+                </nav>
+            </div>
+            {% endif %}
+        {% else %}
+            <div class="text-center py-5 text-muted">
+                <i class="bi bi-image mb-2" style="font-size: 48px; opacity: 0.5;"></i>
+                <p class="mb-0">No files found.</p>
+                {% if search or media_filter %}
+                <p class="small">Try adjusting your filters.</p>
+                <a href="{% url 'audit:source_files' source.pk %}" class="btn btn-outline-secondary btn-sm mt-2">Clear Filters</a>
+                {% else %}
+                <p class="small">Enable auto-download or scan history to start downloading media.</p>
+                <a href="{% url 'audit:source_config' source.pk %}" class="btn btn-primary mt-3">
+                    <i class="bi bi-gear me-1" style="font-size: 18px;"></i>
+                    Configure Source
+                </a>
+                {% endif %}
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- File Viewer Modal -->
+<div class="modal fade" id="file-viewer-modal" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+        <div class="modal-content" style="background: var(--tg-card-bg); color: var(--tg-text); overflow: visible;">
+            <button class="btn file-nav-arrow file-nav-prev" id="file-nav-prev" title="Previous file">
+                <i class="bi bi-chevron-left"></i>
+            </button>
+            <div class="modal-header border-0">
+                <h5 class="modal-title" style="color: var(--tg-text);">File Viewer</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body text-center p-4" style="color: var(--tg-text);">
+                <!-- Content loaded via HTMX -->
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+            </div>
+            <button class="btn file-nav-arrow file-nav-next" id="file-nav-next" title="Next file">
+                <i class="bi bi-chevron-right"></i>
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Report Post Modal -->
+<div class="modal fade" id="reportPostModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" id="reportPostForm" action="">
+                {% csrf_token %}
+                <div class="modal-header">
+                    <h5 class="modal-title">Report File to Telegram</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted mb-3">
+                        Report this file (Message <span id="reportMessageId"></span>) to Telegram's moderation team.
+                    </p>
+                    <div class="mb-3">
+                        <label class="form-label">Reason <span class="text-danger">*</span></label>
+                        <select name="reason" class="form-select" required>
+                            <option value="">Select a reason...</option>
+                            <option value="spam">Spam</option>
+                            <option value="violence">Violence</option>
+                            <option value="pornography">Adult Content</option>
+                            <option value="child_abuse">Child Abuse</option>
+                            <option value="fake">Fake Account / Scam</option>
+                            <option value="illegal_drugs">Illegal Drugs</option>
+                            <option value="personal_details">Personal Data Exposure</option>
+                            <option value="copyright">Copyright Violation</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Additional Details</label>
+                        <textarea name="message" class="form-control" rows="3"
+                                  placeholder="Provide additional context..."></textarea>
+                        <div class="form-text">Required when selecting "Other"</div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-danger">
+                        <i class="bi bi-flag me-1" style="font-size: 18px;"></i>
+                        Submit Report
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .file-item {
+        transition: background-color 0.15s ease;
+    }
+    .file-item:hover {
+        background-color: var(--tg-hover-bg) !important;
+    }
+    .btn-menu-primary {
+        color: var(--bs-primary) !important;
+        border-color: var(--bs-primary) !important;
+        background: transparent;
+        padding: 0.25rem 0.5rem;
+    }
+    .btn-menu-primary:hover,
+    .btn-menu-primary:focus,
+    .btn-menu-primary:active {
+        color: var(--bs-primary) !important;
+        border-color: var(--bs-primary) !important;
+        background: rgba(var(--bs-primary-rgb), 0.1);
+    }
+    .dropdown-hover .dropdown-menu {
+        background: var(--tg-card-bg) !important;
+        border: 1px solid var(--tg-border) !important;
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.5);
+    }
+    .dropdown-hover .dropdown-menu .dropdown-item:not(.text-danger) {
+        color: var(--tg-text) !important;
+    }
+    .dropdown-hover .dropdown-menu .dropdown-item:hover {
+        background-color: var(--tg-hover-bg) !important;
+    }
+    .dropdown-hover .dropdown-menu .dropdown-divider {
+        border-color: var(--tg-border) !important;
+    }
+    .file-nav-arrow {
+        position: absolute;
+        top: 50%;
+        transform: translateY(-50%);
+        z-index: 10;
+        color: rgba(255,255,255,0.35);
+        font-size: 28px;
+        padding: 12px 8px;
+        border: none;
+        background: none;
+        transition: color 0.2s ease;
+        line-height: 1;
+        cursor: pointer;
+    }
+    .file-nav-arrow:hover:not(:disabled) {
+        color: rgba(255,255,255,0.8);
+    }
+    .file-nav-arrow:disabled {
+        color: rgba(255,255,255,0.1);
+        cursor: default;
+        pointer-events: none;
+    }
+    .file-nav-prev { left: -52px; }
+    .file-nav-next { right: -52px; }
+    @media (max-width: 1400px) {
+        .file-nav-prev { left: 4px; }
+        .file-nav-next { right: 4px; }
+    }
+</style>
+{% endblock %}
+
+{% block source_extra_js %}
+<script>
+(function() {
+    const modal = document.getElementById('file-viewer-modal');
+    const btnPrev = document.getElementById('file-nav-prev');
+    const btnNext = document.getElementById('file-nav-next');
+    let currentIndex = -1;
+
+    function getFileItems() {
+        return Array.from(document.querySelectorAll('.file-item[data-file-index]'));
+    }
+
+    function stopMedia() {
+        const video = modal.querySelector('video');
+        if (video) { video.pause(); video.currentTime = 0; }
+    }
+
+    function navigateTo(index) {
+        const items = getFileItems();
+        if (index < 0 || index >= items.length) return;
+        stopMedia();
+        currentIndex = index;
+        const clickable = items[index].querySelector('.file-clickable[hx-get]');
+        if (clickable) {
+            htmx.ajax('GET', clickable.getAttribute('hx-get'), {
+                target: '#file-viewer-modal .modal-body'
+            });
+        }
+        updateArrows();
+    }
+
+    function updateArrows() {
+        const items = getFileItems();
+        btnPrev.disabled = currentIndex <= 0;
+        btnNext.disabled = currentIndex >= items.length - 1;
+    }
+
+    document.addEventListener('click', function(e) {
+        const item = e.target.closest('.file-item[data-file-index]');
+        if (item) {
+            currentIndex = parseInt(item.dataset.fileIndex, 10);
+            setTimeout(updateArrows, 50);
+        }
+    });
+
+    btnPrev.addEventListener('click', function() { navigateTo(currentIndex - 1); });
+    btnNext.addEventListener('click', function() { navigateTo(currentIndex + 1); });
+
+    document.addEventListener('keydown', function(e) {
+        if (!modal.classList.contains('show')) return;
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+        if (e.key === 'ArrowLeft') { e.preventDefault(); navigateTo(currentIndex - 1); }
+        else if (e.key === 'ArrowRight') { e.preventDefault(); navigateTo(currentIndex + 1); }
+    });
+
+    modal.addEventListener('hidden.bs.modal', function() {
+        stopMedia();
+        currentIndex = -1;
+    });
+})();
+
+// Open report modal for a specific message
+function openReportModal(messageId) {
+    const form = document.getElementById('reportPostForm');
+    form.action = "{% url 'audit:report_post' source_pk=source.pk message_id=0 %}".replace('/0/', '/' + messageId + '/');
+    document.getElementById('reportMessageId').textContent = '#' + messageId;
+    const modal = new bootstrap.Modal(document.getElementById('reportPostModal'));
+    modal.show();
+}
+</script>
+{% endblock %}

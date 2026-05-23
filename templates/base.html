@@ -1,0 +1,87 @@
+{% load static %}
+{% load django_bootstrap5 %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Trawlr{% endblock %}</title>
+
+    <!-- Inter Font -->
+    <link href="{% static 'vendor/css/inter-font.css' %}" rel="stylesheet">
+
+    <!-- Bootstrap 5 CSS -->
+    <link href="{% static 'vendor/css/bootstrap.min.css' %}" rel="stylesheet">
+
+    <!-- Custom Theme CSS -->
+    <link href="{% static 'css/theme.css' %}" rel="stylesheet">
+
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="{% static 'vendor/css/bootstrap-icons.min.css' %}">
+
+    <!-- HTMX -->
+    <script src="{% static 'vendor/js/htmx.min.js' %}"></script>
+
+    <!-- Alpine.js (minimal use) -->
+    <script defer src="{% static 'vendor/js/alpine.min.js' %}"></script>
+
+
+    {% block extra_css %}{% endblock %}
+</head>
+<body hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+    <!-- Toast Container -->
+    <div id="toast-container" class="toast-container"></div>
+
+    {% if user.is_authenticated %}
+    <!-- Sidebar -->
+    {% include "includes/sidebar.html" %}
+
+    <!-- Main Content -->
+    <div class="main-content">
+        {% block messages %}{% include "includes/messages.html" %}{% endblock %}
+        {% block content %}{% endblock %}
+    </div>
+
+    <!-- Global Modals -->
+    {% include "includes/source_lookup_modal.html" %}
+    {% else %}
+    <!-- Login/Auth pages without sidebar -->
+    <div class="container-fluid">
+        {% include "includes/messages.html" %}
+        {% block auth_content %}{% endblock %}
+    </div>
+    {% endif %}
+
+    <!-- Bootstrap JS -->
+    <script src="{% static 'vendor/js/bootstrap.bundle.min.js' %}"></script>
+
+    <!-- Toast notification system -->
+    <script>
+        function showToast(message, type = 'info', duration = 4000) {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `toast-notification toast-${type}`;
+
+            const iconMap = {
+                'success': 'bi-check-circle',
+                'error': 'bi-exclamation-circle',
+                'info': 'bi-info-circle'
+            };
+
+            toast.innerHTML = `
+                <i class="bi ${iconMap[type] || 'bi-info-circle'}" style="font-size: 20px; flex-shrink: 0;"></i>
+                <span>${message}</span>
+            `;
+
+            container.appendChild(toast);
+
+            setTimeout(() => {
+                toast.classList.add('toast-hide');
+                setTimeout(() => toast.remove(), 300);
+            }, duration);
+        }
+    </script>
+
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

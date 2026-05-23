@@ -1,0 +1,355 @@
+{% extends "reports/base_report.html" %}
+{% load humanize %}
+
+{% block report_title %}Investigation{% endblock %}
+{% block report_heading %}Investigation{% endblock %}
+{% block report_description %}Telegram reports, exclusion rules, and user notes{% endblock %}
+{% block export_url %}{% url 'reports:export_investigation' %}{% endblock %}
+{% block export_url_json %}{% url 'reports:export_investigation' %}{% endblock %}
+
+{% block report_content %}
+<!-- Summary Stats -->
+<div class="row g-3 mb-4">
+    <div class="col-6 col-md-3">
+        <div class="stat-card">
+            <div class="stat-value text-primary">{{ report_stats.total|default:0|intcomma }}</div>
+            <div class="stat-label">Reports Submitted</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="stat-card">
+            <div class="stat-value text-success">{{ report_stats.successful|default:0|intcomma }}</div>
+            <div class="stat-label">Successful</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="stat-card">
+            <div class="stat-value text-danger">{{ report_stats.failed|default:0|intcomma }}</div>
+            <div class="stat-label">Failed</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="stat-card">
+            <div class="stat-value text-info">{{ report_stats.success_rate|default:0 }}%</div>
+            <div class="stat-label">Success Rate</div>
+        </div>
+    </div>
+</div>
+
+<!-- Exclusion Stats -->
+<div class="row g-3 mb-4">
+    <div class="col-6 col-md-3">
+        <div class="stat-card">
+            <div class="stat-value text-warning">{{ exclusion_stats.total_rules|default:0|intcomma }}</div>
+            <div class="stat-label">Active Exclusion Rules</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="stat-card">
+            <div class="stat-value text-info">{{ exclusion_stats.global_rules|default:0|intcomma }}</div>
+            <div class="stat-label">Global Rules</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="stat-card">
+            <div class="stat-value text-secondary">{{ exclusion_stats.source_specific|default:0|intcomma }}</div>
+            <div class="stat-label">Source-Specific</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="stat-card">
+            <div class="stat-value text-danger">{{ exclusion_stats.total_triggers|default:0|intcomma }}</div>
+            <div class="stat-label">Total Triggers</div>
+        </div>
+    </div>
+</div>
+
+<!-- Notes Count -->
+<div class="row g-3 mb-4">
+    <div class="col-md-4">
+        <div class="stat-card">
+            <div class="stat-value text-primary">{{ notes_count|default:0|intcomma }}</div>
+            <div class="stat-label">User Notes Created (Period)</div>
+        </div>
+    </div>
+</div>
+
+<!-- Charts Row -->
+<div class="row g-4 mb-4">
+    <!-- Report Success Rate Chart -->
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0">
+                    <i class="bi bi-check-circle me-2" style="font-size: 18px;"></i>
+                    Report Success Rate
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="chart-container">
+                    <canvas id="successRateChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Reports by Type Chart -->
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0">
+                    <i class="bi bi-layers me-2" style="font-size: 18px;"></i>
+                    Reports by Type
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="chart-container">
+                    <canvas id="reportTypeChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Reports by Reason Chart -->
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0">
+                    <i class="bi bi-exclamation-triangle me-2" style="font-size: 18px;"></i>
+                    Reports by Reason
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="chart-container">
+                    <canvas id="reportReasonChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Tables Row -->
+<div class="row g-4">
+    <!-- Reports by Type Table -->
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0">
+                    <i class="bi bi-file-text me-2" style="font-size: 18px;"></i>
+                    Reports by Type
+                </h6>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th>Type</th>
+                                <th style="width: 100px;">Count</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in report_stats.by_type %}
+                            <tr>
+                                <td>{{ item.report_type|title }}</td>
+                                <td><span class="badge bg-primary">{{ item.count|intcomma }}</span></td>
+                            </tr>
+                            {% empty %}
+                            <tr><td colspan="2" class="text-center text-muted py-3">No reports submitted</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Reports by Reason Table -->
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0">
+                    <i class="bi bi-list me-2" style="font-size: 18px;"></i>
+                    Reports by Reason
+                </h6>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th>Reason</th>
+                                <th style="width: 100px;">Count</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in report_stats.by_reason %}
+                            <tr>
+                                <td>{{ item.reason|title }}</td>
+                                <td><span class="badge bg-warning text-dark">{{ item.count|intcomma }}</span></td>
+                            </tr>
+                            {% empty %}
+                            <tr><td colspan="2" class="text-center text-muted py-3">No reports submitted</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Top Excluded Users -->
+<div class="row g-4 mt-2">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0">
+                    <i class="bi bi-person-x me-2" style="font-size: 18px;"></i>
+                    Top Excluded Users
+                </h6>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th>User</th>
+                                <th>Username</th>
+                                <th style="width: 100px;">Rules</th>
+                                <th style="width: 100px;">Triggers</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in exclusion_stats.top_excluded %}
+                            <tr>
+                                <td>
+                                    {% if item.telegram_user_id %}
+                                    <a href="{% url 'audit:user_detail' item.telegram_user_id %}" class="text-decoration-none">
+                                        {{ item.telegram_user__first_name }} {{ item.telegram_user__last_name }}
+                                    </a>
+                                    {% else %}
+                                    {{ item.telegram_user__first_name }} {{ item.telegram_user__last_name }}
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if item.telegram_user__username %}
+                                    @{{ item.telegram_user__username }}
+                                    {% else %}
+                                    <span class="text-muted">—</span>
+                                    {% endif %}
+                                </td>
+                                <td><span class="badge bg-info">{{ item.rule_count|intcomma }}</span></td>
+                                <td><span class="badge bg-danger">{{ item.total_triggers|default:0|intcomma }}</span></td>
+                            </tr>
+                            {% empty %}
+                            <tr><td colspan="4" class="text-center text-muted py-3">No exclusion rules</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block report_js %}
+<script>
+let successRateChart, reportTypeChart, reportReasonChart;
+
+async function initCharts() {
+    const response = await fetch(`{% url 'reports:api_investigation_reports' %}?${getDateParams()}`);
+    const data = await response.json();
+
+    initSuccessRateChart(data.success_rate);
+    initReportTypeChart(data.by_type);
+    initReportReasonChart(data.by_reason);
+}
+
+function initSuccessRateChart(data) {
+    const ctx = document.getElementById('successRateChart');
+
+    if (data.values[0] === 0 && data.values[1] === 0) {
+        ctx.parentElement.innerHTML = '<div class="d-flex align-items-center justify-content-center h-100 text-muted">No reports</div>';
+        return;
+    }
+
+    successRateChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: data.labels,
+            datasets: [{
+                data: data.values,
+                backgroundColor: data.colors,
+                borderWidth: 0,
+            }]
+        },
+        options: doughnutChartOptions
+    });
+}
+
+function initReportTypeChart(data) {
+    const ctx = document.getElementById('reportTypeChart');
+
+    if (data.labels.length === 0) {
+        ctx.parentElement.innerHTML = '<div class="d-flex align-items-center justify-content-center h-100 text-muted">No data</div>';
+        return;
+    }
+
+    reportTypeChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: data.labels,
+            datasets: [{
+                label: 'Count',
+                data: data.values,
+                backgroundColor: '#0dcaf0',
+                borderRadius: 4,
+            }]
+        },
+        options: {
+            ...barChartOptions,
+            indexAxis: 'x',
+            plugins: { ...barChartOptions.plugins, legend: { display: false } },
+            scales: {
+                x: { grid: { display: false } },
+                y: {
+                    beginAtZero: true,
+                    grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                    ticks: { precision: 0 }
+                }
+            }
+        }
+    });
+}
+
+function initReportReasonChart(data) {
+    const ctx = document.getElementById('reportReasonChart');
+
+    if (data.labels.length === 0) {
+        ctx.parentElement.innerHTML = '<div class="d-flex align-items-center justify-content-center h-100 text-muted">No data</div>';
+        return;
+    }
+
+    reportReasonChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: data.labels,
+            datasets: [{
+                label: 'Count',
+                data: data.values,
+                backgroundColor: '#ffc107',
+                borderRadius: 4,
+            }]
+        },
+        options: {
+            ...barChartOptions,
+            plugins: { ...barChartOptions.plugins, legend: { display: false } }
+        }
+    });
+}
+
+document.addEventListener('DOMContentLoaded', initCharts);
+</script>
+{% endblock %}

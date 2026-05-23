@@ -1,0 +1,48 @@
+{% load humanize %}
+<div class="col-6 col-md-3">
+    <div class="card h-100">
+        <div class="card-body text-center py-3">
+            <i class="bi bi-hdd text-muted mb-2" style="font-size: 24px;"></i>
+            <h5 class="fw-bold m-0">
+                {% if total_storage_gb >= 1 %}{{ total_storage_gb }} GB{% else %}{{ total_storage_bytes|filesizeformat }}{% endif %}
+            </h5>
+            <small class="text-muted">Storage</small>
+            {% if dedup_savings > 0 %}
+            <div class="text-success small">{{ dedup_savings|filesizeformat }} saved</div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+<div class="col-6 col-md-3">
+    <div class="card h-100">
+        <div class="card-body text-center py-3">
+            <i class="bi bi-broadcast text-muted mb-2" style="font-size: 24px;"></i>
+            <h5 class="fw-bold m-0">{{ total_sources|default:0|intcomma }}</h5>
+            <small class="text-muted">Sources</small>
+            {% if new_sources_week > 0 %}
+            <div class="text-primary small">+{{ new_sources_week|intcomma }} this week</div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+<div class="col-6 col-md-3">
+    <div class="card h-100">
+        <div class="card-body text-center py-3">
+            <i class="bi bi-people text-muted mb-2" style="font-size: 24px;"></i>
+            <h5 class="fw-bold m-0">{{ total_telegram_users|default:0|intcomma }}</h5>
+            <small class="text-muted">Users Tracked</small>
+            {% if total_telegram_users_week > 0 %}
+            <div class="text-primary small">+{{ total_telegram_users_week|intcomma }} this week</div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+<div class="col-6 col-md-3">
+    <a href="{% url 'audit:monitored_feed' %}" class="card h-100 text-decoration-none" style="color: inherit;">
+        <div class="card-body text-center py-3">
+            <i class="bi bi-activity text-primary mb-2" style="font-size: 24px;"></i>
+            <h5 class="fw-bold m-0 text-primary">{{ messages_last_minute|default:0|intcomma }}</h5>
+            <small class="text-muted">Messages per Minute</small>
+        </div>
+    </a>
+</div>

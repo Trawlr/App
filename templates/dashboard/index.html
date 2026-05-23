@@ -1,0 +1,602 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Trawlr{% endblock %}
+
+{% block content %}
+<div class="page-header mb-4">
+    <div class="d-flex justify-content-between align-items-end mb-3">
+        <div>
+            <h2>G'day {{ user.username }}.</h2>
+            <p class="text-muted mb-0">Here is an overview of your Trawlr instance.</p>
+        </div>
+        <div class="text-end">
+            <span class="d-block small text-muted">Listener Status</span>
+            {% if connected_accounts > 0 %}
+            <span class="text-success small fw-bold">
+                <span class="d-inline-block rounded-circle bg-success me-1 status-dot"></span>
+                {{ connected_accounts }}/{{ accounts|length }} Connected
+            </span>
+            {% else %}
+            <span class="text-warning small fw-bold">
+                <span class="d-inline-block rounded-circle bg-warning me-1 status-dot"></span>
+                No Listeners Active
+            </span>
+            {% endif %}
+        </div>
+    </div>
+    <!-- Global Search Bar -->
+    <div class="global-search-wrapper" x-data="globalSearch()" @keydown.escape.window="open = false" @click.outside="open = false">
+        <div class="position-relative">
+            <div class="global-search-input-wrap">
+                <i class="bi bi-search global-search-icon"></i>
+                <input type="text" class="form-control global-search-input global-search-input-lg"
+                       placeholder="Search sources, users, files..."
+                       x-model="query"
+                       @input.debounce.250ms="search()"
+                       @focus="if (results.length) open = true"
+                       @keydown.arrow-down.prevent="moveDown()"
+                       @keydown.arrow-up.prevent="moveUp()"
+                       @keydown.enter.prevent="go()">
+                <kbd class="global-search-kbd" x-show="!query" x-cloak>/</kbd>
+            </div>
+            <!-- Results dropdown -->
+            <div class="global-search-dropdown" x-show="open" x-cloak x-transition.opacity>
+                <template x-if="loading">
+                    <div class="global-search-empty"><span class="spinner-border spinner-border-sm me-2"></span>Searching...</div>
+                </template>
+                <template x-if="!loading && !results.length && query.length >= 2">
+                    <div class="global-search-empty">No results found</div>
+                </template>
+                <template x-for="(item, i) in results" :key="i">
+                    <a :href="item.url" class="global-search-item" :class="{ 'active': i === selected }"
+                       @mouseenter="selected = i" @click="open = false">
+                        <i class="bi" :class="'bi-' + item.icon"></i>
+                        <div class="global-search-item-text">
+                            <span class="global-search-item-label" x-text="item.label"></span>
+                            <span class="global-search-item-sub" x-text="item.subtitle"></span>
+                        </div>
+                        <span class="global-search-type-badge" x-text="item.type"></span>
+                    </a>
+                </template>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if flood_wait_accounts %}
+<div class="alert alert-warning alert-dismissible fade show mb-4" role="alert">
+    <div class="d-flex align-items-start">
+        <i class="bi bi-exclamation-triangle-fill me-2 mt-1" style="font-size: 1.1rem;"></i>
+        <div>
+            <strong>Rate Limited</strong>
+            <p class="mb-1 small">The following account{{ flood_wait_accounts|length|pluralize }} {{ flood_wait_accounts|length|pluralize:"is,are" }} currently rate-limited by Telegram:</p>
+            <ul class="mb-0 small">
+                {% for account in flood_wait_accounts %}
+                <li>
+                    <strong>{{ account.display_name|default:account.phone_number }}</strong>
+                    — limited until {{ account.flood_wait_until|date:"H:i:s" }}
+                    ({{ account.flood_wait_until|timeuntil }} remaining)
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+</div>
+{% endif %}
+
+<div class="row g-4">
+    <!-- Left Column: Stats + Chart -->
+    <div class="col-lg-8">
+        <!-- Activity Stats Row -->
+        <div class="row g-3 mb-4">
+            <!-- Messages Stats -->
+            <div class="col-md-6">
+                <div class="card h-100">
+                    <div class="card-body"
+                         hx-get="{% url 'dashboard:stats_messages' %}"
+                         hx-trigger="load"
+                         hx-swap="innerHTML">
+                        <div class="d-flex align-items-center mb-3">
+                            <div class="metric-avatar me-3">
+                                <i class="bi bi-chat-square"></i>
+                            </div>
+                            <div>
+                                <small class="text-muted d-block">MESSAGES ARCHIVED</small>
+                                <h3 class="m-0 fw-bold placeholder-glow"><span class="placeholder col-4"></span></h3>
+                            </div>
+                        </div>
+                        <div class="d-flex gap-4">
+                            <div>
+                                <span class="fw-bold text-primary placeholder-glow"><span class="placeholder col-3"></span></span>
+                                <small class="text-muted d-block">Today</small>
+                            </div>
+                            <div>
+                                <span class="fw-bold placeholder-glow"><span class="placeholder col-3"></span></span>
+                                <small class="text-muted d-block">This Week</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Downloads Stats -->
+            <div class="col-md-6">
+                <div class="card h-100">
+                    <div class="card-body"
+                         hx-get="{% url 'dashboard:stats_downloads' %}"
+                         hx-trigger="load"
+                         hx-swap="innerHTML">
+                        <div class="d-flex align-items-center mb-3">
+                            <div class="metric-avatar me-3">
+                                <i class="bi bi-download"></i>
+                            </div>
+                            <div>
+                                <small class="text-muted d-block">FILES DOWNLOADED</small>
+                                <h3 class="m-0 fw-bold placeholder-glow"><span class="placeholder col-4"></span></h3>
+                            </div>
+                        </div>
+                        <div class="d-flex gap-4">
+                            <div>
+                                <span class="fw-bold text-success placeholder-glow"><span class="placeholder col-3"></span></span>
+                                <small class="text-muted d-block">Today</small>
+                            </div>
+                            <div>
+                                <span class="fw-bold placeholder-glow"><span class="placeholder col-3"></span></span>
+                                <small class="text-muted d-block">This Week</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Secondary Stats Row -->
+        <div class="row g-3 mb-4"
+             hx-get="{% url 'dashboard:stats_secondary' %}"
+             hx-trigger="load"
+             hx-swap="innerHTML">
+            <div class="col-6 col-md-3">
+                <div class="card h-100">
+                    <div class="card-body text-center py-3">
+                        <i class="bi bi-hdd text-muted mb-2" style="font-size: 24px;"></i>
+                        <h5 class="fw-bold m-0 placeholder-glow"><span class="placeholder col-6"></span></h5>
+                        <small class="text-muted">Storage</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="card h-100">
+                    <div class="card-body text-center py-3">
+                        <i class="bi bi-broadcast text-muted mb-2" style="font-size: 24px;"></i>
+                        <h5 class="fw-bold m-0 placeholder-glow"><span class="placeholder col-4"></span></h5>
+                        <small class="text-muted">Sources</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="card h-100">
+                    <div class="card-body text-center py-3">
+                        <i class="bi bi-people text-muted mb-2" style="font-size: 24px;"></i>
+                        <h5 class="fw-bold m-0 placeholder-glow"><span class="placeholder col-4"></span></h5>
+                        <small class="text-muted">Users Tracked</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <a href="{% url 'audit:monitored_feed' %}" class="card h-100 text-decoration-none" style="color: inherit;">
+                    <div class="card-body text-center py-3">
+                        <i class="bi bi-people text-muted mb-2" style="font-size: 24px;"></i>
+                        <h5 class="fw-bold m-0 placeholder-glow"><span class="placeholder col-4"></span></h5>
+                        <small class="text-muted">Messages per Minute</small>
+                    </div>
+                </a>
+            </div>
+        </div>
+
+                <!-- Real-time Charts Row -->
+        <div class="row g-3">
+            <!-- Messages Archived (Real-time) -->
+            <div class="col-md-6">
+                <div class="card h-100">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span>Messages Processed</span>
+                        <div class="btn-group btn-group-sm" role="group" id="messages-realtime-selector">
+                            <button type="button" class="btn btn-outline-secondary" data-minutes="10">10m</button>
+                            <button type="button" class="btn btn-primary" data-minutes="15">15m</button>
+                            <button type="button" class="btn btn-outline-secondary" data-minutes="30">30m</button>
+                            <button type="button" class="btn btn-outline-secondary" data-minutes="60">60m</button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="messagesRealtimeChart" height="180"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Activity Logs (Real-time) -->
+            <div class="col-md-6">
+                <div class="card h-100">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span>System Events</span>
+                        <div class="btn-group btn-group-sm" role="group" id="total-activity-selector">
+                            <button type="button" class="btn btn-outline-secondary" data-minutes="10">10m</button>
+                            <button type="button" class="btn btn-primary" data-minutes="15">15m</button>
+                            <button type="button" class="btn btn-outline-secondary" data-minutes="30">30m</button>
+                            <button type="button" class="btn btn-outline-secondary" data-minutes="60">60m</button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="totalActivityChart" height="180"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Activity Chart -->
+        <div class="card mt-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span>Activity Over Time</span>
+                <div class="btn-group btn-group-sm" role="group" id="time-range-selector">
+                    <button type="button" class="btn btn-outline-secondary" data-days="1">1D</button>
+                    <button type="button" class="btn btn-outline-secondary" data-days="3">3D</button>
+                    <button type="button" class="btn btn-primary" data-days="7">7D</button>
+                    <button type="button" class="btn btn-outline-secondary" data-days="30">30D</button>
+                    <button type="button" class="btn btn-outline-secondary" data-days="90">90D</button>
+                </div>
+            </div>
+            <div class="card-body">
+                <canvas id="activityChart" height="250"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Column: Sidebar -->
+    <div class="col-lg-4">
+        <!-- Core Scheduler Tasks -->
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span>Scheduler Tasks</span>
+                <a href="{% url 'accounts:settings' %}#scheduler" class="small">Configure</a>
+            </div>
+            <div class="card-body p-0"
+                 hx-get="{% url 'dashboard:stats_core_tasks' %}"
+                 hx-trigger="load"
+                 hx-swap="innerHTML">
+                <div class="text-center py-4">
+                    <div class="spinner-border spinner-border-sm text-muted" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Media Breakdown -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <span>Media Breakdown</span>
+            </div>
+            <div class="card-body"
+                 hx-get="{% url 'dashboard:stats_media_breakdown' %}"
+                 hx-trigger="load"
+                 hx-swap="innerHTML">
+                <div class="text-center py-4">
+                    <div class="spinner-border spinner-border-sm text-muted" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Account Status -->
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span>Accounts</span>
+                <a href="{% url 'accounts:telegram_accounts' %}" class="small">Manage</a>
+            </div>
+            <div class="card-body p-0"
+                 hx-get="{% url 'dashboard:stats_accounts' %}"
+                 hx-trigger="load"
+                 hx-swap="innerHTML">
+                <div class="text-center py-4">
+                    <div class="spinner-border spinner-border-sm text-muted" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Chart.js default styling for dark theme
+    Chart.defaults.color = 'rgba(255, 255, 255, 0.7)';
+    Chart.defaults.borderColor = 'rgba(255, 255, 255, 0.1)';
+
+    let activityChart = null;
+
+    // Initialize activity chart with data from API
+    async function initActivityChart(days = 7) {
+        const activityCtx = document.getElementById('activityChart');
+        if (!activityCtx) return;
+
+        try {
+            const response = await fetch(`{% url 'dashboard:activity_data' %}?days=${days}`);
+            const data = await response.json();
+
+            if (activityChart) {
+                activityChart.data.labels = data.labels;
+                activityChart.data.datasets[0].data = data.messages;
+                activityChart.data.datasets[1].data = data.downloads;
+                activityChart.data.datasets[2].data = data.users;
+                activityChart.update();
+            } else {
+                activityChart = new Chart(activityCtx, {
+                    type: 'line',
+                    data: {
+                        labels: data.labels,
+                        datasets: [
+                            {
+                                label: 'Messages',
+                                data: data.messages,
+                                borderColor: '#0dcaf0',
+                                backgroundColor: 'rgba(13, 202, 240, 0.1)',
+                                borderWidth: 2,
+                                fill: true,
+                                tension: 0.3,
+                                pointRadius: 3,
+                                pointBackgroundColor: '#0dcaf0',
+                            },
+                            {
+                                label: 'Downloads',
+                                data: data.downloads,
+                                borderColor: '#198754',
+                                backgroundColor: 'rgba(25, 135, 84, 0.1)',
+                                borderWidth: 2,
+                                fill: true,
+                                tension: 0.3,
+                                pointRadius: 3,
+                                pointBackgroundColor: '#198754',
+                            },
+                            {
+                                label: 'New Users',
+                                data: data.users,
+                                borderColor: '#f59e0b',
+                                backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                                borderWidth: 2,
+                                fill: true,
+                                tension: 0.3,
+                                pointRadius: 3,
+                                pointBackgroundColor: '#f59e0b',
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        interaction: {
+                            intersect: false,
+                            mode: 'index',
+                        },
+                        plugins: {
+                            legend: {
+                                position: 'top',
+                                align: 'end',
+                                labels: {
+                                    boxWidth: 12,
+                                    padding: 15,
+                                }
+                            },
+                            tooltip: {
+                                backgroundColor: 'rgba(30, 30, 30, 0.95)',
+                                padding: 12,
+                                cornerRadius: 8,
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                grid: {
+                                    color: 'rgba(255, 255, 255, 0.05)',
+                                },
+                                ticks: {
+                                    precision: 0,
+                                }
+                            },
+                            x: {
+                                grid: {
+                                    display: false,
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+        } catch (error) {
+            console.error('Failed to load activity chart:', error);
+        }
+    }
+
+    // Initialize chart
+    initActivityChart(7);
+
+    // Time range selector
+    document.querySelectorAll('#time-range-selector button').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const days = this.dataset.days;
+
+            // Update button states
+            document.querySelectorAll('#time-range-selector button').forEach(b => {
+                b.classList.remove('btn-primary');
+                b.classList.add('btn-outline-secondary');
+            });
+            this.classList.remove('btn-outline-secondary');
+            this.classList.add('btn-primary');
+
+            // Fetch new data
+            initActivityChart(days);
+        });
+    });
+
+    // Real-time Messages Chart
+    let messagesRealtimeChart = null;
+
+    async function initMessagesRealtimeChart(minutes = 15) {
+        const ctx = document.getElementById('messagesRealtimeChart');
+        if (!ctx) return;
+
+        try {
+            const response = await fetch(`{% url 'dashboard:messages_realtime_data' %}?minutes=${minutes}`);
+            const data = await response.json();
+
+            if (messagesRealtimeChart) {
+                messagesRealtimeChart.data.labels = data.labels;
+                messagesRealtimeChart.data.datasets[0].data = data.data;
+                messagesRealtimeChart.update();
+            } else {
+                messagesRealtimeChart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: data.labels,
+                        datasets: [{
+                            label: 'Messages',
+                            data: data.data,
+                            borderColor: '#0dcaf0',
+                            backgroundColor: 'rgba(13, 202, 240, 0.1)',
+                            borderWidth: 2,
+                            fill: true,
+                            tension: 0.3,
+                            pointRadius: 0,
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        interaction: { intersect: false, mode: 'index' },
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                backgroundColor: 'rgba(30, 30, 30, 0.95)',
+                                padding: 12,
+                                cornerRadius: 8,
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                                ticks: { precision: 0 }
+                            },
+                            x: {
+                                grid: { display: false },
+                                ticks: { maxTicksLimit: 6 }
+                            }
+                        }
+                    }
+                });
+            }
+        } catch (error) {
+            console.error('Failed to load messages realtime chart:', error);
+        }
+    }
+
+    initMessagesRealtimeChart(16);
+
+    document.querySelectorAll('#messages-realtime-selector button').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const minutes = this.dataset.minutes;
+            document.querySelectorAll('#messages-realtime-selector button').forEach(b => {
+                b.classList.remove('btn-primary');
+                b.classList.add('btn-outline-secondary');
+            });
+            this.classList.remove('btn-outline-secondary');
+            this.classList.add('btn-primary');
+            initMessagesRealtimeChart(minutes);
+        });
+    });
+
+    // Activity Logs Chart
+    let totalActivityChart = null;
+
+    async function initTotalActivityChart(minutes = 15) {
+        const ctx = document.getElementById('totalActivityChart');
+        if (!ctx) return;
+
+        try {
+            const response = await fetch(`{% url 'dashboard:total_activity_data' %}?minutes=${minutes}`);
+            const data = await response.json();
+
+            if (totalActivityChart) {
+                totalActivityChart.data.labels = data.labels;
+                totalActivityChart.data.datasets[0].data = data.data;
+                totalActivityChart.update();
+            } else {
+                totalActivityChart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: data.labels,
+                        datasets: [{
+                            label: 'Activity',
+                            data: data.data,
+                            borderColor: '#6f42c1',
+                            backgroundColor: 'rgba(111, 66, 193, 0.1)',
+                            borderWidth: 2,
+                            fill: true,
+                            tension: 0.3,
+                            pointRadius: 0,
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        interaction: { intersect: false, mode: 'index' },
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                backgroundColor: 'rgba(30, 30, 30, 0.95)',
+                                padding: 12,
+                                cornerRadius: 8,
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                                ticks: { precision: 0 }
+                            },
+                            x: {
+                                grid: { display: false },
+                                ticks: { maxTicksLimit: 6 }
+                            }
+                        }
+                    }
+                });
+            }
+        } catch (error) {
+            console.error('Failed to load activity logs chart:', error);
+        }
+    }
+
+    initTotalActivityChart(15);
+
+    document.querySelectorAll('#total-activity-selector button').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const minutes = this.dataset.minutes;
+            document.querySelectorAll('#total-activity-selector button').forEach(b => {
+                b.classList.remove('btn-primary');
+                b.classList.add('btn-outline-secondary');
+            });
+            this.classList.remove('btn-outline-secondary');
+            this.classList.add('btn-primary');
+            initTotalActivityChart(minutes);
+        });
+    });
+});
+</script>
+
+{% include "includes/source_lookup_modal.html" %}
+{% endblock %}

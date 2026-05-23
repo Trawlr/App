@@ -1,0 +1,168 @@
+{% comment %}
+Tag management partial. Include with:
+  {% include "audit/partials/tags.html" with tags=source.tags.all add_url=add_url all_tags=all_tags csrf_token=csrf_token %}
+
+Required context:
+  - tags: queryset of current tags
+  - add_url: URL for adding a tag (POST)
+  - remove_url_name: URL name for removing a tag (expects pk and tag_pk)
+  - obj_pk: primary key of the object (source or user)
+  - all_tags: queryset of all available tags
+{% endcomment %}
+
+<div class="card border-0 mb-4">
+    <div class="card-header py-3 d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">
+            <i class="bi bi-tags me-2" style="font-size: 18px;"></i>
+            Tags
+        </h5>
+    </div>
+    <div class="card-body p-3">
+        <div class="d-flex gap-2 flex-wrap mb-3" id="tag-list">
+            {% for tag in tags %}
+            <span class="badge tag-badge tag-{{ tag.colour }}" data-tag-id="{{ tag.id }}">
+                {{ tag.name }}
+                <form method="post" action="{% url remove_url_name obj_pk tag.pk %}" class="d-inline ms-1">
+                    {% csrf_token %}
+                    <button type="submit" class="btn-close btn-close-white tag-remove" aria-label="Remove"
+                            style="font-size: 0.5em; vertical-align: middle;"
+                            onclick="event.preventDefault(); removeTag(this.closest('form'))"></button>
+                </form>
+            </span>
+            {% empty %}
+            <span class="text-muted small" id="no-tags-msg">No tags assigned</span>
+            {% endfor %}
+        </div>
+
+        <form method="post" action="{{ add_url }}" class="d-flex gap-2 align-items-center" id="add-tag-form"
+              onsubmit="event.preventDefault(); addTag(this)">
+            {% csrf_token %}
+            <div class="flex-grow-1 position-relative">
+                <input type="text" class="form-control form-control-sm" name="tag_name"
+                       placeholder="Add tag..." autocomplete="off" id="tag-input-{{ obj_pk }}"
+                       list="tag-suggestions-{{ obj_pk }}">
+                <datalist id="tag-suggestions-{{ obj_pk }}">
+                    {% for tag in all_tags %}
+                    <option value="{{ tag.name }}" data-id="{{ tag.id }}">
+                    {% endfor %}
+                </datalist>
+                <input type="hidden" name="tag_id" id="tag-id-{{ obj_pk }}">
+            </div>
+            <div class="dropdown" id="colour-picker-{{ obj_pk }}">
+                <button type="button" class="btn btn-sm colour-swatch tag-blue" data-bs-toggle="dropdown"
+                        aria-expanded="false" title="Pick colour"
+                        style="width: 28px; height: 28px; border-radius: 4px; border: 2px solid rgba(255,255,255,0.3);">
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end p-2" style="min-width: auto;">
+                    <li class="d-flex gap-1 flex-wrap" style="width: 100px;">
+                        {% for value, label in colour_choices %}
+                        <button type="button" class="colour-option tag-{{ value }}" data-colour="{{ value }}"
+                                title="{{ label }}"
+                                style="width: 24px; height: 24px; border-radius: 4px; border: 2px solid transparent; cursor: pointer;"
+                                onclick="selectColour(this, '{{ obj_pk }}')"></button>
+                        {% endfor %}
+                    </li>
+                </ul>
+            </div>
+            <input type="hidden" name="colour" id="tag-colour-{{ obj_pk }}" value="blue">
+            <button type="submit" class="btn btn-sm btn-outline-primary">
+                <i class="bi bi-plus" style="font-size: 14px;"></i>
+            </button>
+        </form>
+    </div>
+</div>
+
+<style>
+    .tag-badge {
+        font-size: 0.8em;
+        padding: 0.4em 0.6em;
+        font-weight: 500;
+        color: #fff !important;
+    }
+    .tag-badge-sm {
+        color: #fff !important;
+    }
+    .tag-remove {
+        filter: brightness(2);
+        opacity: 0.7;
+        cursor: pointer;
+    }
+    .tag-remove:hover {
+        opacity: 1;
+    }
+    .colour-option:hover, .colour-option.active {
+        border-color: #fff !important;
+        box-shadow: 0 0 0 1px rgba(0,0,0,0.3);
+    }
+    .tag-blue { background-color: #3b82f6 !important; }
+    .tag-green { background-color: #22c55e !important; }
+    .tag-red { background-color: #ef4444 !important; }
+    .tag-yellow { background-color: #eab308 !important; }
+    .tag-purple { background-color: #a855f7 !important; }
+    .tag-orange { background-color: #f97316 !important; }
+    .tag-pink { background-color: #ec4899 !important; }
+    .tag-teal { background-color: #14b8a6 !important; }
+    .tag-grey { background-color: #6b7280 !important; }
+</style>
+
+<script>
+function addTag(form) {
+    const formData = new FormData(form);
+    const input = form.querySelector('input[name="tag_name"]');
+    const tagName = input.value.trim();
+    if (!tagName) return;
+
+    // Check datalist for existing tag ID
+    const datalist = input.list;
+    if (datalist) {
+        for (const option of datalist.options) {
+            if (option.value === tagName) {
+                formData.set('tag_id', option.dataset.id);
+                break;
+            }
+        }
+    }
+
+    fetch(form.action, {
+        method: 'POST',
+        body: formData,
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.status === 'ok') {
+            location.reload();
+        }
+    });
+}
+
+function selectColour(btn, objPk) {
+    const colour = btn.dataset.colour;
+    document.getElementById('tag-colour-' + objPk).value = colour;
+    const swatch = btn.closest('.dropdown').querySelector('.colour-swatch');
+    // Remove all tag-* classes and add the selected one
+    swatch.className = swatch.className.replace(/tag-\w+/g, '') + ' tag-' + colour;
+    // Update active state
+    btn.closest('li').querySelectorAll('.colour-option').forEach(el => el.classList.remove('active'));
+    btn.classList.add('active');
+}
+
+function removeTag(form) {
+    const formData = new FormData(form);
+    fetch(form.action, {
+        method: 'POST',
+        body: formData,
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.status === 'ok') {
+            form.closest('.tag-badge').remove();
+            const tagList = document.getElementById('tag-list');
+            if (!tagList.querySelector('.tag-badge')) {
+                tagList.innerHTML = '<span class="text-muted small" id="no-tags-msg">No tags assigned</span>';
+            }
+        }
+    });
+}
+</script>

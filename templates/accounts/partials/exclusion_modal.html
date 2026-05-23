@@ -1,0 +1,73 @@
+<!-- Add Exclusion Modal -->
+<div class="modal fade" id="addExclusionModal" tabindex="-1" aria-labelledby="addExclusionModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addExclusionModalLabel">
+                    <i class="bi bi-person-x me-2" style="font-size: 20px;"></i>
+                    Add Exclusion
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Hidden field for selected user ID -->
+                <input type="hidden" id="selectedUserId" value="">
+
+                <!-- User Search -->
+                <div class="mb-4">
+                    <label class="form-label fw-bold">User to Exclude</label>
+                    <div id="selectedUserDisplay" class="mb-2"></div>
+                    <input type="text" class="form-control" id="userSearchInput"
+                           placeholder="Search by username, name, or Telegram ID..."
+                           oninput="searchUsers(this.value)">
+                    <div id="userSearchResults" class="border rounded mt-1" style="max-height: 200px; overflow-y: auto;"></div>
+                </div>
+
+                <!-- Exclusion Type -->
+                <div class="mb-4">
+                    <label class="form-label fw-bold">Exclusion Type</label>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="exclusionType" id="exclusionTypeGlobal"
+                               value="global" checked onchange="onExclusionTypeChange()">
+                        <label class="form-check-label" for="exclusionTypeGlobal">
+                            <strong>Global</strong>
+                            <small class="text-muted d-block">Block messages from this user across all sources</small>
+                        </label>
+                    </div>
+                    <div class="form-check mt-2">
+                        <input class="form-check-input" type="radio" name="exclusionType" id="exclusionTypeSource"
+                               value="source" onchange="onExclusionTypeChange()">
+                        <label class="form-check-label" for="exclusionTypeSource">
+                            <strong>Source-specific</strong>
+                            <small class="text-muted d-block">Only block messages in selected sources</small>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Source Selection (hidden by default) -->
+                <div class="mb-4" id="sourceSelectionSection" style="display: none;">
+                    <label class="form-label fw-bold">Select Sources</label>
+                    <input type="text" class="form-control" id="sourceSearchInput"
+                           placeholder="Search sources by name, username, or Telegram ID..."
+                           oninput="searchSources(this.value)">
+                    <div id="sourceSearchResults" class="border rounded mt-1" style="max-height: 150px; overflow-y: auto;"></div>
+                    <div id="selectedSourcesDisplay"></div>
+                </div>
+
+                <!-- Reason -->
+                <div class="mb-0">
+                    <label for="exclusionReason" class="form-label fw-bold">Reason (optional)</label>
+                    <textarea class="form-control" id="exclusionReason" rows="2"
+                              placeholder="Why is this user being excluded?"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="submitExclusion()">
+                    <i class="bi bi-plus me-1" style="font-size: 16px;"></i>
+                    Add Exclusion
+                </button>
+            </div>
+        </div>
+    </div>
+</div>

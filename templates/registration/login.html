@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% load django_bootstrap5 %}
+
+{% block title %}Login - Trawlr{% endblock %}
+
+{% block auth_content %}
+<div class="min-vh-100 d-flex align-items-center justify-content-center">
+    <div class="card" style="width: 100%; max-width: 420px;">
+        <div class="card-body p-5">
+            <div class="text-center mb-4">
+                <div class="logo-circle mx-auto mb-3" style="width: 60px; height: 60px;">
+                    <span style="font-size: 32px; font-weight: 900; line-height: 1;">T</span>
+                </div>
+                <h3 class="fw-bold"><span style="color: var(--tg-primary)">Trawlr.</span></h3>
+                <p class="text-muted">Sign in to your account</p>
+            </div>
+
+            <form method="post">
+                {% csrf_token %}
+
+                <div class="mb-3">
+                    <label for="id_username" class="form-label">Username</label>
+                    <input type="text" name="username" id="id_username" class="form-control form-control-lg" placeholder="Enter username" required autofocus>
+                </div>
+
+                <div class="mb-4">
+                    <label for="id_password" class="form-label">Password</label>
+                    <input type="password" name="password" id="id_password" class="form-control form-control-lg" placeholder="Enter password" required>
+                </div>
+
+                {% if form.errors %}
+                <div class="alert alert-danger">
+                    <i class="bi bi-exclamation-circle me-2" style="font-size: 18px;"></i>
+                    Invalid username or password.
+                </div>
+                {% endif %}
+
+                <button type="submit" class="btn btn-primary btn-lg w-100">
+                    <i class="bi bi-box-arrow-in-right me-2" style="font-size: 18px;"></i>
+                    Sign In
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

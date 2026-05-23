@@ -1,0 +1,81 @@
+{
+  "type": "new_message",
+  "chat_id": -1003615664951,
+  "event_id": "fe290199-3e3f-45e0-a581-80c5f7928661",
+  "timestamp": "2026-02-02T03:08:49.847166",
+  "account_id": 4,
+  "media_info": {
+    "file_id": "",
+    "filename": "",
+    "file_size": 0,
+    "has_media": false,
+    "mime_type": "",
+    "media_type": ""
+  },
+  "message_id": 212655,
+  "sender_data": {
+    "phone": "",
+    "is_bot": false,
+    "is_fake": false,
+    "is_scam": false,
+    "photo_id": null,
+    "username": "",
+    "lang_code": "",
+    "last_name": "",
+    "first_name": "Abhi bliss",
+    "is_contact": false,
+    "is_deleted": false,
+    "is_premium": false,
+    "is_support": false,
+    "access_hash": -2693752208501413710,
+    "is_verified": false,
+    "telegram_id": 8477063036,
+    "is_restricted": false,
+    "stories_hidden": false,
+    "is_close_friend": false,
+    "is_mutual_contact": false,
+    "stories_unavailable": true
+  },
+  "forward_data": null,
+  "message_data": {
+    "date": "2026-02-02T03:08:48+00:00",
+    "text": "Free promotion group 😍😍. Join my link and I will join your ...Promote yourself 24 x 7 https://t.me/promoteanything24x7 ..\nhttps://t.me/addlist/edmZ2EA0xwdmYjNl\n\n🫦",
+    "views": 0,
+    "is_post": false,
+    "forwards": 0,
+    "edit_date": null,
+    "is_pinned": false,
+    "is_silent": false,
+    "peer_type": "channel",
+    "sender_id": 8477063036,
+    "grouped_id": null,
+    "noforwards": false,
+    "ttl_period": 86400,
+    "post_author": "",
+    "reply_to_top_id": null,
+    "is_topic_message": false,
+    "reply_to_message_id": null
+  },
+  "entities_data": [
+    {
+      "url": "https://t.me/promoteanything24x7",
+      "text": "https://t.me/promoteanything24x7",
+      "length": 32,
+      "offset": 88,
+      "user_id": null,
+      "language": "",
+      "entity_type": "url",
+      "custom_emoji_id": null
+    },
+    {
+      "url": "https://t.me/addlist/edmZ2EA0xwdmYjNl",
+      "text": "https://t.me/addlist/edmZ2EA0xwdmYjNl",
+      "length": 37,
+      "offset": 124,
+      "user_id": null,
+      "language": "",
+      "entity_type": "url",
+      "custom_emoji_id": null
+    }
+  ]
+}
