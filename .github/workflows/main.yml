@@ -3,6 +3,10 @@ on:
   push:
     branches:
       - main
+    paths:
+      - 'app/**'
+      - '.github/workflows/**'
+  workflow_dispatch:
 env:
   IMAGE_NAME: trawlr/trawlr
 
@@ -41,7 +45,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Write VERSION file
-        run: echo "${{ needs.tag.outputs.new_tag }}-${GITHUB_SHA:0:7}" > VERSION
+        run: echo "${{ needs.tag.outputs.new_tag }}-${GITHUB_SHA:0:7}" > app/VERSION
 
       - name: Log in to GHCR
         uses: docker/login-action@v3
@@ -64,7 +68,7 @@ jobs:
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
-          context: .
+          context: ./app
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
