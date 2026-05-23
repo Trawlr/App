@@ -27,7 +27,7 @@ Each service is its own container.
 | **listener** | Maintains persistent Telegram connections, publishes events to RabbitMQ |
 | **scheduler** | APScheduler - triggers periodic tasks (sync, stats, recovery) |
 | **nginx** | Reverse proxy for serving media through the file manager. Optional otherwise |
-| **db** | PostgreSQL 15 |
+| **db** | PostgreSQL 18 |
 | **rabbitmq** | Message broker for task queues and event pub/sub |
 
 ## Tech Stack
