@@ -42,5 +42,6 @@ urlpatterns = [
     path('content/export/', views.export_content, name='export_content'),
     path('users/export/', views.export_users, name='export_users'),
     path('sources/export/', views.export_sources, name='export_sources'),
+    path('media-inventory/export/', views.export_media_inventory, name='export_media_inventory'),
     path('investigation/export/', views.export_investigation, name='export_investigation'),
 ]

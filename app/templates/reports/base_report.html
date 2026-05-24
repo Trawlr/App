@@ -44,18 +44,22 @@
                     Export
                 </button>
                 <ul class="dropdown-menu dropdown-menu-end">
+                    {% block export_csv_item %}
                     <li>
-                        <a class="dropdown-item" href="{% block export_url %}{% endblock %}?format=csv{% if days_label != 'custom' %}&days={{ days_label }}{% else %}&start={{ start_date|date:'Y-m-d' }}&end={{ end_date|date:'Y-m-d' }}{% endif %}">
+                        <a class="dropdown-item" href="{% block export_url %}{% endblock %}?format=csv{% if days_label != 'custom' %}&days={{ days_label }}{% else %}&start={{ start_date|date:'Y-m-d' }}&end={{ end_date|date:'Y-m-d' }}{% endif %}{% block export_extra_params %}{% endblock %}">
                             <i class="bi bi-file-earmark-spreadsheet me-2" style="font-size: 16px;"></i>
                             Export CSV
                         </a>
                     </li>
+                    {% endblock %}
+                    {% block export_json_item %}
                     <li>
-                        <a class="dropdown-item" href="{% block export_url_json %}{% endblock %}?format=json{% if days_label != 'custom' %}&days={{ days_label }}{% else %}&start={{ start_date|date:'Y-m-d' }}&end={{ end_date|date:'Y-m-d' }}{% endif %}">
+                        <a class="dropdown-item" href="{% block export_url_json %}{% endblock %}?format=json{% if days_label != 'custom' %}&days={{ days_label }}{% else %}&start={{ start_date|date:'Y-m-d' }}&end={{ end_date|date:'Y-m-d' }}{% endif %}{% block export_extra_params_json %}{% endblock %}">
                             <i class="bi bi-filetype-json me-2" style="font-size: 16px;"></i>
                             Export JSON
                         </a>
                     </li>
+                    {% endblock %}
                 </ul>
             </div>
         </div>

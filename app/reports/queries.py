@@ -80,6 +80,20 @@ def get_message_volume(start_date, end_date):
     ).order_by('date')
 
 
+def get_message_volume_by_source_per_day(start_date, end_date):
+    """Per-source, per-day message volume (long format)."""
+    return ArchivedMessage.objects.from_active_accounts().filter(
+        archived_at__gte=start_date,
+        archived_at__lte=end_date,
+    ).annotate(
+        date=TruncDate('archived_at'),
+    ).values(
+        'channel_id', 'channel__title', 'date',
+    ).annotate(
+        count=Count('id'),
+    ).order_by('channel__title', 'channel_id', 'date')
+
+
 def get_media_distribution(start_date, end_date):
     """Get media type breakdown."""
     return ArchivedMessage.objects.from_active_accounts().filter(
