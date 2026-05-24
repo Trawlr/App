@@ -8,6 +8,7 @@ Trawlr is an open-source self-hosted data collection platform for Telegram data 
 - **Real-Time Monitoring** - Long-lived Telegram connections capture messages, edits, and deletions as they happen
 - **Message Archiving** - Full message history scanning with edit tracking, deletion detection and album grouping
 - **Entity Extraction** - Automatically extract URLs, mentions, hashtags, emails, phone numbers, and code blocks from messages
+- **Entity Notifications** - Watch for and notify on detected entities (URL, domain, hashtag, @mention, phone, etc) in message. Configure either a webhook (HMAC-signed) or RabbitMQ queue as the notification sink.
 - **User OSINT** - Track users across channels with profile data, group memberships, activity metrics, and username history
 - **Download Queue** - Priority-based download system with concurrent slots, progress tracking, automatic retries, and SHA256 deduplication via hardlinks
 - **Full-Text Search** - PostgreSQL-powered search with boolean operators, field filters, date ranges, phrase matching, and CSV export
@@ -24,6 +25,7 @@ Each service is its own container.
 | **downloader** | Downloads items that are sent to the queue for processing |
 | **concierge** | History scans and member scans (single threaded) |
 | **processor** | Processes incoming Telegram events from listener |
+| **notifier** | Delivers entity-notification matches to user-configured webhooks or RabbitMQ queues |
 | **listener** | Maintains persistent Telegram connections, publishes events to RabbitMQ |
 | **scheduler** | APScheduler - triggers periodic tasks (sync, stats, recovery) |
 | **nginx** | Reverse proxy for serving media through the file manager. Optional otherwise |
@@ -94,7 +96,6 @@ Swagger UI is available at `/api/v1/docs`, ReDoc at `/api/v1/redoc`, and the raw
 
 ## Roadmap
 
-- **Entity notifications** - Filter and alert on the detection of specified entities via webhook or API
 - **Search improvements** - Apache Solr integration for faster full-text content search
 - **Web UI fixes** - Ongoing usability and polish improvements (new UI)
 - **Streamline setup process** - Improve Trawlr setup and account onboarding
