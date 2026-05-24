@@ -40,12 +40,28 @@
                 </button>
             </li>
             <li class="nav-item" role="presentation">
+                <button class="nav-link py-2 px-3" id="notifications-tab" data-bs-toggle="tab" data-bs-target="#notifications"
+                        type="button" role="tab" aria-controls="notifications" aria-selected="false">
+                    <i class="bi bi-bell me-1" style="font-size: 16px;"></i>
+                    Notifications
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
                 <button class="nav-link py-2 px-3" id="api-tab" data-bs-toggle="tab" data-bs-target="#api"
                         type="button" role="tab" aria-controls="api" aria-selected="false">
                     <i class="bi bi-key me-1" style="font-size: 16px;"></i>
                     API
                 </button>
             </li>
+            {% if user.is_superuser %}
+            <li class="nav-item" role="presentation">
+                <button class="nav-link py-2 px-3" id="queues-tab" data-bs-toggle="tab" data-bs-target="#queues"
+                        type="button" role="tab" aria-controls="queues" aria-selected="false">
+                    <i class="bi bi-diagram-3 me-1" style="font-size: 16px;"></i>
+                    Queues
+                </button>
+            </li>
+            {% endif %}
         </ul>
     </div>
 </div>
@@ -505,38 +521,6 @@
                     </div>
                 </div>
 
-                <!-- Dead Letter Queue Management -->
-                <div class="card border-0 mb-4">
-                    <div class="card-header">
-                        <h5 class="mb-0">
-                            <i class="bi bi-exclamation-triangle me-2" style="font-size: 20px;"></i>
-                            Failed Tasks (Dead Letters)
-                        </h5>
-                    </div>
-                    <div class="card-body p-3">
-                        <div class="mb-3">
-                            <div class="d-flex align-items-center mb-2">
-                                <span class="text-muted small">Messages in dead letter queues:</span>
-                                <span id="dead-letter-count" class="badge bg-warning ms-2">...</span>
-                                <button type="button" class="btn btn-link btn-sm p-0 ms-2" onclick="refreshDeadLetterStats()">
-                                    <i class="bi bi-arrow-clockwise" style="font-size: 14px;"></i>
-                                </button>
-                            </div>
-                            <div class="small text-muted">
-                                Tasks that failed after max retries end up here. Requeue to retry them, or purge to discard.
-                            </div>
-                        </div>
-                        <div class="d-flex gap-2">
-                            <button type="button" class="btn btn-outline-warning btn-sm" onclick="invokeTask('{% url 'accounts:invoke_requeue_dead_letters' %}', this)">
-                                <i class="bi bi-arrow-repeat me-1"></i> Requeue All
-                            </button>
-                            <button type="button" class="btn btn-outline-danger btn-sm" onclick="invokeTask('{% url 'accounts:invoke_purge_dead_letters' %}', this)">
-                                <i class="bi bi-trash me-1"></i> Purge All
-                            </button>
-                        </div>
-                    </div>
-                </div>
-
                 <!-- Important Notice -->
                 <div class="card border-0 bg-dark bg-opacity-25">
                     <div class="card-body p-4">
@@ -784,6 +768,135 @@
         </div>
     </div>
 
+    <!-- Notifications Tab -->
+    <div class="tab-pane fade" id="notifications" role="tabpanel" aria-labelledby="notifications-tab">
+        <div class="row">
+            <div class="col-lg-9">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <div>
+                        <h5 class="mb-1">Notifications</h5>
+                        <p class="text-muted mb-0 small">Each rule fires whenever its match condition is met.</p>
+                    </div>
+                    <a href="{% url 'notifications:add' %}" class="btn btn-primary">
+                        <i class="bi bi-plus me-1" style="font-size: 18px;"></i>
+                        New Notification
+                    </a>
+                </div>
+
+                <div class="card border-0">
+                    <div class="card-body p-0">
+                        {% if watchlist_entries %}
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>Name</th>
+                                        <th>Mode</th>
+                                        <th>Target</th>
+                                        <th>Cooldown</th>
+                                        <th>Triggers</th>
+                                        <th>Last triggered</th>
+                                        <th>Status</th>
+                                        <th class="text-end">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for entry in watchlist_entries %}
+                                    <tr>
+                                        <td>
+                                            <strong>{{ entry.name }}</strong>
+                                            {% if entry.description %}<div class="small text-muted">{{ entry.description|truncatechars:80 }}</div>{% endif %}
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-secondary">{{ entry.get_mode_display }}</span>
+                                            <div class="small text-muted">{{ entry.get_entity_type_display }}: <code>{{ entry.entity_value|truncatechars:50 }}</code></div>
+                                        </td>
+                                        <td>{{ entry.get_target_type_display }}</td>
+                                        <td>{{ entry.cooldown_seconds }}s</td>
+                                        <td>{{ entry.trigger_count }}</td>
+                                        <td>{% if entry.last_triggered_at %}{{ entry.last_triggered_at|timesince }} ago{% else %}<span class="text-muted">never</span>{% endif %}</td>
+                                        <td>
+                                            {% if entry.is_active %}
+                                                <span class="badge bg-success">Active</span>
+                                            {% else %}
+                                                <span class="badge bg-secondary">Paused</span>
+                                            {% endif %}
+                                        </td>
+                                        <td class="text-end">
+                                            <a href="{% url 'notifications:deliveries' entry.pk %}" class="btn btn-sm btn-outline-secondary" title="Deliveries">
+                                                <i class="bi bi-list-task"></i>
+                                            </a>
+                                            <form method="post" action="{% url 'notifications:test' entry.pk %}" class="d-inline">
+                                                {% csrf_token %}
+                                                <button type="submit" class="btn btn-sm btn-outline-info" title="Send a test delivery">
+                                                    <i class="bi bi-send"></i>
+                                                </button>
+                                            </form>
+                                            <a href="{% url 'notifications:edit' entry.pk %}" class="btn btn-sm btn-outline-primary" title="Edit">
+                                                <i class="bi bi-pencil"></i>
+                                            </a>
+                                            <form method="post" action="{% url 'notifications:delete' entry.pk %}" class="d-inline"
+                                                  onsubmit="return confirm('Delete this notification?');">
+                                                {% csrf_token %}
+                                                <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete">
+                                                    <i class="bi bi-trash"></i>
+                                                </button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        {% else %}
+                        <div class="p-5 text-center text-muted">
+                            <i class="bi bi-bell-slash" style="font-size: 32px;"></i>
+                            <p class="mt-2 mb-0">No entity notifications configured yet.</p>
+                            <a href="{% url 'notifications:add' %}" class="btn btn-primary mt-3">
+                                <i class="bi bi-plus me-1" style="font-size: 18px;"></i>
+                                Create your first notification
+                            </a>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-3">
+                <div class="card border-0 bg-dark bg-opacity-25">
+                    <div class="card-body p-4">
+                        <h5 class="mb-3">
+                            <i class="bi bi-info-circle me-2" style="font-size: 20px;"></i>
+                            About Notifications
+                        </h5>
+                        <div class="small text-muted">
+                            <p>Notitications send a webhook or RabbitMQ message whenever a watched entity (URL, hashtag, @mention, domain, etc.) is observed in a Telegram message.</p>
+                            <p><strong>Every occurrence</strong>: fires every time the watched <em>(entity type, value)</em> pair appears in a new message.</p>
+                            <p><strong>New occurrence</strong>: fires once total, the first time the pair is matched. After that the rule goes silent until you reset it.</p>
+                            <p class="mb-0">Targets can be a webhook (HTTP POST with optional HMAC) or a RabbitMQ queue you control.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card border-0 bg-dark bg-opacity-25 mt-4">
+                    <div class="card-body p-4">
+                        <h5 class="mb-3">
+                            <i class="bi bi-shield me-2" style="font-size: 20px;"></i>
+                            Security
+                        </h5>
+                        <div class="small text-muted">
+                            <ul class="ps-3 mb-0">
+                                <li>Private (10.x / 172.16-31.x / 192.168.x) and loopback targets are allowed for self-hosted webhooks. Link-local and cloud-metadata addresses are blocked.</li>
+                                <li>If a secret is set, payloads carry an HMAC-SHA256 signature in <code>X-Trawlr-Signature</code>.</li>
+                                <li>Failed deliveries are retried on a 15s / 30s / 60s / 5m / 1h schedule.</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- API Tab -->
     <div class="tab-pane fade" id="api" role="tabpanel" aria-labelledby="api-tab">
         <!-- Section Info -->
@@ -941,6 +1054,185 @@ print(response.json())</code></pre>
             </div>
         </div>
     </div>
+
+    {% if user.is_superuser %}
+    <!-- Queues Tab -->
+    <div class="tab-pane fade" id="queues" role="tabpanel" aria-labelledby="queues-tab">
+        <!-- Section Info -->
+        <div class="mb-4 pb-3 border-bottom border-secondary">
+            <p class="text-muted mb-0">
+                <i class="bi bi-info-circle me-1" style="font-size: 14px;"></i>
+                Live view of RabbitMQ queue state, consumers, and recent Dramatiq task executions. Superuser only.
+            </p>
+        </div>
+
+        {% if queues_error %}
+        <div class="alert alert-danger">{{ queues_error }}</div>
+        {% endif %}
+
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h5 class="mb-1">Trawlr queues</h5>
+                <p class="text-muted mb-0 small">RabbitMQ queue depth, consumers, and per-queue actions.</p>
+            </div>
+            <a href="?#queues" class="btn btn-sm btn-outline-secondary">
+                <i class="bi bi-arrow-clockwise me-1"></i> Refresh
+            </a>
+        </div>
+
+        <div class="card border-0 mb-4">
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table mb-0 align-middle">
+                        <thead>
+                            <tr>
+                                <th>Queue</th>
+                                <th class="text-end">Main<br><small class="text-muted fw-normal">ready / unacked</small></th>
+                                <th class="text-end">.DQ (delayed)<br><small class="text-muted fw-normal">ready / unacked</small></th>
+                                <th class="text-end">.XQ (dead)<br><small class="text-muted fw-normal">ready / unacked</small></th>
+                                <th>Consumers</th>
+                                <th class="text-end">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for row in queue_rows %}
+                            <tr>
+                                <td class="fw-bold">{{ row.name }}</td>
+                                <td class="text-end">
+                                    {% if row.main %}{{ row.main.messages_ready }} / {{ row.main.messages_unacknowledged }}{% else %}<span class="text-muted">—</span>{% endif %}
+                                </td>
+                                <td class="text-end">
+                                    {% if row.dq %}{{ row.dq.messages_ready }} / {{ row.dq.messages_unacknowledged }}{% else %}<span class="text-muted">—</span>{% endif %}
+                                </td>
+                                <td class="text-end">
+                                    {% if row.xq %}{{ row.xq.messages_ready }} / {{ row.xq.messages_unacknowledged }}{% else %}<span class="text-muted">—</span>{% endif %}
+                                </td>
+                                <td>
+                                    {% if row.consumers %}
+                                        {% for c in row.consumers %}
+                                            <div class="small font-monospace d-flex align-items-center gap-2 mb-1">
+                                                <span>{{ c.connection|truncatechars:40 }}</span>
+                                                <button type="button" class="btn btn-sm btn-outline-danger py-0 px-1"
+                                                        hx-post="{% url 'ops:connection_close' %}"
+                                                        hx-vals='{"name": "{{ c.connection|escapejs }}"}'
+                                                        hx-confirm="Force-close this connection? The worker will auto-reconnect."
+                                                        hx-target="this" hx-swap="outerHTML">close</button>
+                                            </div>
+                                        {% endfor %}
+                                    {% else %}
+                                        <span class="text-muted small">none</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-end">
+                                    <button type="button" class="btn btn-sm btn-outline-primary"
+                                            hx-post="{% url 'ops:queue_peek' name=row.name %}"
+                                            hx-target="#peek-result-{{ forloop.counter }}"
+                                            hx-swap="innerHTML"
+                                            hx-vals='{"count": 20}'>
+                                        <i class="bi bi-eye"></i> Peek
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-outline-warning"
+                                            hx-post="{% url 'ops:queue_purge' name=row.name %}"
+                                            hx-confirm="Purge ready messages on {{ row.name }}? (unacked messages are not affected)"
+                                            hx-target="#action-result-{{ forloop.counter }}" hx-swap="innerHTML">
+                                        <i class="bi bi-trash"></i> Purge
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-outline-danger"
+                                            hx-post="{% url 'ops:queue_evict_purge' name=row.name %}"
+                                            hx-confirm="Force-close consumers and purge {{ row.name }} + .DQ + .XQ? Workers will auto-reconnect."
+                                            hx-target="#action-result-{{ forloop.counter }}" hx-swap="innerHTML">
+                                        <i class="bi bi-lightning"></i> Evict+Purge
+                                    </button>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td colspan="6">
+                                    <div id="action-result-{{ forloop.counter }}" class="small text-muted"></div>
+                                    <div id="peek-result-{{ forloop.counter }}"></div>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr><td colspan="6" class="text-center text-muted py-4">No trawlr.* queues found.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="row g-4">
+            <div class="col-lg-6">
+                <div class="card border-0 h-100">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="bi bi-activity me-2" style="font-size: 20px;"></i>
+                            Dramatiq executions (last hour)
+                        </h5>
+                    </div>
+                    <div class="card-body p-0">
+                        <table class="table mb-0 table-sm">
+                            <thead>
+                                <tr><th>Actor</th><th>Status</th><th class="text-end">Count</th></tr>
+                            </thead>
+                            <tbody>
+                                {% for t in task_summary %}
+                                <tr>
+                                    <td class="small font-monospace">{{ t.actor_name }}</td>
+                                    <td>
+                                        {% if t.status == 'failed' %}<span class="badge bg-danger">{{ t.status }}</span>
+                                        {% elif t.status == 'done' %}<span class="badge bg-success">{{ t.status }}</span>
+                                        {% elif t.status == 'running' %}<span class="badge bg-warning text-dark">{{ t.status }}</span>
+                                        {% else %}<span class="badge bg-secondary">{{ t.status }}</span>{% endif %}
+                                    </td>
+                                    <td class="text-end">{{ t.n }}</td>
+                                </tr>
+                                {% empty %}
+                                <tr><td colspan="3" class="text-center text-muted py-3">No recent dramatiq tasks.</td></tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="card-footer small text-muted">
+                        <a href="/admin/django_dramatiq/task/">Open Django admin → Tasks</a>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-6">
+                <div class="card border-0 h-100">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="bi bi-exclamation-triangle me-2" style="font-size: 20px;"></i>
+                            Possibly-orphaned TaskRuns
+                        </h5>
+                    </div>
+                    <div class="card-body p-0">
+                        <table class="table mb-0 table-sm">
+                            <thead>
+                                <tr><th>Type</th><th>Channel</th><th>Progress</th><th>Started</th></tr>
+                            </thead>
+                            <tbody>
+                                {% for o in orphans %}
+                                <tr>
+                                    <td class="small">{{ o.task_type }}</td>
+                                    <td class="small">{{ o.channel_id|default:"—" }}</td>
+                                    <td class="small text-muted">{{ o.progress_message|truncatechars:40 }}</td>
+                                    <td class="small">{{ o.started_at|date:"H:i:s" }}</td>
+                                </tr>
+                                {% empty %}
+                                <tr><td colspan="4" class="text-center text-muted py-3">None — all running TaskRuns are fresh.</td></tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="card-footer small text-muted">
+                        TaskRuns in <em>running</em> state for &gt; 10 minutes. Likely orphans if no dramatiq execution is visible in the left panel.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
 </div>
 
 <!-- Add Exclusion Modal -->
@@ -963,7 +1255,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Handle tab switching via URL hash
     const hash = window.location.hash;
-    const validTabs = ['general', 'scheduler', 'events', 'exclusions', 'api'];
+    const validTabs = ['general', 'scheduler', 'events', 'exclusions', 'notifications', 'api', 'queues'];
     const tabName = hash.replace('#', '');
 
     if (validTabs.includes(tabName) && tabName !== 'general') {
@@ -1265,10 +1557,6 @@ async function invokeTask(url, btn) {
 
         if (response.ok && data.success) {
             showToast(data.message || 'Task triggered', 'success');
-            // Refresh dead letter stats after requeue/purge
-            if (url.includes('dead-letters')) {
-                refreshDeadLetterStats();
-            }
         } else {
             showToast(data.error || 'Failed to trigger task', 'error');
         }
@@ -1280,38 +1568,6 @@ async function invokeTask(url, btn) {
         btn.innerHTML = originalHtml;
     }
 }
-
-// Dead Letter Queue Stats
-async function refreshDeadLetterStats() {
-    const badge = document.getElementById('dead-letter-count');
-    if (!badge) return;
-
-    badge.textContent = '...';
-    badge.className = 'badge bg-secondary ms-2';
-
-    try {
-        const response = await fetch('{% url "accounts:get_dead_letters_stats" %}', {
-            headers: { 'X-Requested-With': 'XMLHttpRequest' },
-        });
-        const data = await response.json();
-
-        if (data.success && data.data) {
-            const total = data.data.total || 0;
-            badge.textContent = total;
-            badge.className = total > 0 ? 'badge bg-warning ms-2' : 'badge bg-success ms-2';
-        } else {
-            badge.textContent = 'Error';
-            badge.className = 'badge bg-danger ms-2';
-        }
-    } catch (error) {
-        console.error('Error fetching dead letter stats:', error);
-        badge.textContent = 'Error';
-        badge.className = 'badge bg-danger ms-2';
-    }
-}
-
-// Load dead letter stats on page load
-document.addEventListener('DOMContentLoaded', refreshDeadLetterStats);
 
 // API Token Management Functions
 async function createApiToken() {

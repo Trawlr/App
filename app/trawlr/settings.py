@@ -98,6 +98,7 @@ INSTALLED_APPS = [
     'graph',
     'storage',
     'ops',
+    'notifications',
 ]
 
 MIDDLEWARE = [
@@ -297,6 +298,11 @@ MESSAGE_TAGS = {
 # Trawlr-specific settings
 TRAWLR_STORAGE_ROOT = os.environ.get('TRAWLR_STORAGE_ROOT', '/data/trawlr')
 TRAWLR_SESSION_DIR = BASE_DIR / 'sessions'
+
+# Notifications: allow private/loopback IPs as webhook destinations (testing only).
+NOTIFICATIONS_SSRF_ALLOW_PRIVATE = (
+    os.environ.get('NOTIFICATIONS_SSRF_ALLOW_PRIVATE', 'False').lower() == 'true'
+)
 
 
 # Django Silk (performance profiling)

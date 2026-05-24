@@ -194,13 +194,10 @@
                 <a href="{% url 'audit:activity' %}" class="nav-sublink {% if request.resolver_match.url_name == 'activity' %}active{% endif %}">
                     Activity Log
                 </a>
-                <a href="{% url 'accounts:settings' %}" class="nav-sublink {% if request.resolver_match.url_name == 'settings' %}active{% endif %}">
+                <a href="{% url 'accounts:settings' %}" class="nav-sublink {% if request.resolver_match.url_name == 'settings' or request.resolver_match.app_name == 'notifications' or request.resolver_match.app_name == 'ops' %}active{% endif %}">
                     Settings
                 </a>
                 {% if user.is_superuser %}
-                <a href="{% url 'ops:queues' %}" class="nav-sublink {% if request.resolver_match.url_name == 'queues' %}active{% endif %}">
-                    Queue Management
-                </a>
                 <a href="{% url 'admin:index' %}" class="nav-sublink">
                     Django Admin
                 </a>
