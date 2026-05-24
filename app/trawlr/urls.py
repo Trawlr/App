@@ -29,6 +29,7 @@ urlpatterns = [
     path('reports/', include('reports.urls')),
     path('map/', include('graph.urls')),
     path('ops/', include('ops.urls')),
+    path('notifications/', include('notifications.urls')),
 
     # REST API
     path('api/v1/', include('api.urls')),

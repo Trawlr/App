@@ -56,7 +56,6 @@ services:
     <<: *trawlr
     volumes:
       - media_data:/data/trawlr
-      - sessions:/app/sessions
     healthcheck:
       test: ["CMD-SHELL", "python -c 'import socket; s=socket.create_connection((\"localhost\", 8001), timeout=2); s.close()'"]
       interval: 5s
@@ -72,28 +71,28 @@ services:
     <<: *trawlr-worker
     volumes:
       - media_data:/data/trawlr
-      - sessions:/app/sessions
     command: dramatiq-gevent tasks --queues trawlr.default trawlr.downloads -p 1 -t 20
+
+  notifier:
+    <<: *trawlr-worker
+    command: dramatiq-gevent notifications.tasks --queues trawlr.notifications -p 1 -t 50
 
   concierge:
     <<: *trawlr-worker
     volumes:
       - media_data:/data/trawlr
-      - sessions:/app/sessions
     command: dramatiq tasks --queues trawlr.scans.history trawlr.scans.members --processes 1 --threads 1
 
   processor:
     <<: *trawlr-worker
     volumes:
       - media_data:/data/trawlr
-      - sessions:/app/sessions
     command: dramatiq events.processor --queues trawlr.events.telegram --processes 2 --threads 4
 
   listener:
     <<: *trawlr-worker
     volumes:
       - media_data:/data/trawlr
-      - sessions:/app/sessions
     command: python -m listener_service.main
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
@@ -144,7 +143,6 @@ volumes:
   postgres_data:
   media_data:
   rabbitmq_data:
-  sessions:
 
 configs:
   rabbitmq-plugins:

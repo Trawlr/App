@@ -1161,7 +1161,8 @@ def _create_message_entities(archived_msg, entities_data: list):
     """Store message entities (URLs, mentions, hashtags, etc.).
 
     Dual-write: each MessageEntity is linked to a deduped GlobalEntity via
-    the `entity` FK. Batched lookup via GlobalEntity.bulk_get_or_create.
+    the `entity` FK. Batched lookup via GlobalEntity.bulk_resolve (returns
+    the freshly-inserted content_hashes for new_entity-mode notifications).
     """
     # Delete existing entities for this message (in case of update)
     MessageEntity.objects.filter(message=archived_msg).delete()
@@ -1177,7 +1178,9 @@ def _create_message_entities(archived_msg, entities_data: list):
         d['url'] = (d.get('url', '') or '')[:2000]
         normalized.append(d)
 
-    hash_to_id = GlobalEntity.bulk_get_or_create(normalized)
+    result = GlobalEntity.bulk_resolve(normalized)
+    hash_to_id = result.hash_to_id
+    newly_created_hashes = result.newly_created_hashes
 
     entities_to_create = []
     for data in normalized:
@@ -1191,6 +1194,18 @@ def _create_message_entities(archived_msg, entities_data: list):
         ))
 
     MessageEntity.objects.bulk_create(entities_to_create)
+
+    # Fire watchlist matches (no-op if no active rules). Import locally so the
+    # notifications app stays optional during early bootstrap and tests.
+    try:
+        from notifications.matcher import evaluate as _evaluate_watchlist
+        _evaluate_watchlist(
+            message_entities=entities_to_create,
+            archived_msg=archived_msg,
+            newly_created_hashes=newly_created_hashes,
+        )
+    except Exception as e:  # pragma: no cover - notifications must never break ingestion
+        logger.warning("Watchlist matcher failed for message %s: %s", archived_msg.message_id, e)
 
 
 def _create_forward_source(archived_msg, forward_data: dict):

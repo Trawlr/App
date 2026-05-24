@@ -100,32 +100,40 @@ def _orphan_task_runs():
     return stale
 
 
-@superuser_required
-def queues_index(request):
+def get_queues_panel_context():
+    """
+    Build the context dict for the Queues panel. Used by both the legacy
+    standalone view and the Settings → Queues tab so they stay in sync.
+
+    Returns {queue_rows, task_summary, orphans, queues_error}.
+    """
     try:
         queue_rows = _trawlr_queues_grouped()
         consumers_by_queue = _consumers_by_queue()
-        # Attach consumers to each row so the template doesn't need a custom filter.
         for row in queue_rows:
             row['consumers'] = (
                 consumers_by_queue.get(row['name'], [])
                 + consumers_by_queue.get(row['name'] + '.DQ', [])
             )
-        task_summary = list(_recent_task_summary())
-        orphans = _orphan_task_runs()
-        error = None
+        return {
+            'queue_rows': queue_rows,
+            'task_summary': list(_recent_task_summary()),
+            'orphans': _orphan_task_runs(),
+            'queues_error': None,
+        }
     except Exception as e:
-        queue_rows = []
-        task_summary = []
-        orphans = []
-        error = f'RabbitMQ management API unreachable: {e}'
+        return {
+            'queue_rows': [],
+            'task_summary': [],
+            'orphans': [],
+            'queues_error': f'RabbitMQ management API unreachable: {e}',
+        }
 
-    return render(request, 'ops/queues.html', {
-        'queue_rows': queue_rows,
-        'task_summary': task_summary,
-        'orphans': orphans,
-        'error': error,
-    })
+
+@superuser_required
+def queues_index(request):
+    """Queues UI now lives as a tab on /settings/. Keep the URL for back-compat."""
+    return redirect(reverse('accounts:settings') + '#queues')
 
 
 @superuser_required

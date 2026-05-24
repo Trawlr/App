@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+
+{% block title %}Entity Notifications - Trawlr{% endblock %}
+
+{% block content %}
+<div class="page-header mb-4">
+    <h2>Entity Notifications</h2>
+</div>
+
+<!-- Section Info -->
+<div class="mb-4 pb-3 border-bottom border-secondary">
+    <p class="text-muted mb-0">
+        <i class="bi bi-info-circle me-1" style="font-size: 14px;"></i>
+        Send a webhook or RabbitMQ message whenever a watched entity (URL, mention, hashtag, domain, etc.) is observed in a Telegram message.
+    </p>
+</div>
+
+<div class="row">
+    <div class="col-lg-9">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h5 class="mb-1">Active Notifications</h5>
+                <p class="text-muted mb-0 small">Each rule fires whenever its match condition is met.</p>
+            </div>
+            <a href="{% url 'notifications:add' %}" class="btn btn-primary">
+                <i class="bi bi-plus me-1" style="font-size: 18px;"></i>
+                New Notification
+            </a>
+        </div>
+
+        <div class="card border-0">
+            <div class="card-body p-0">
+                {% if entries %}
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Mode</th>
+                                <th>Target</th>
+                                <th>Cooldown</th>
+                                <th>Triggers</th>
+                                <th>Last triggered</th>
+                                <th>Status</th>
+                                <th class="text-end">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for entry in entries %}
+                            <tr>
+                                <td>
+                                    <strong>{{ entry.name }}</strong>
+                                    {% if entry.description %}<div class="small text-muted">{{ entry.description|truncatechars:80 }}</div>{% endif %}
+                                </td>
+                                <td>
+                                    <span class="badge bg-secondary">{{ entry.get_mode_display }}</span>
+                                    <div class="small text-muted">{{ entry.get_entity_type_display }}: <code>{{ entry.entity_value|truncatechars:50 }}</code></div>
+                                </td>
+                                <td>{{ entry.get_target_type_display }}</td>
+                                <td>{{ entry.cooldown_seconds }}s</td>
+                                <td>{{ entry.trigger_count }}</td>
+                                <td>{% if entry.last_triggered_at %}{{ entry.last_triggered_at|timesince }} ago{% else %}<span class="text-muted">never</span>{% endif %}</td>
+                                <td>
+                                    {% if entry.is_active %}
+                                        <span class="badge bg-success">Active</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">Paused</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-end">
+                                    <a href="{% url 'notifications:deliveries' entry.pk %}" class="btn btn-sm btn-outline-secondary" title="Deliveries">
+                                        <i class="bi bi-list-task"></i>
+                                    </a>
+                                    <form method="post" action="{% url 'notifications:test' entry.pk %}" class="d-inline">
+                                        {% csrf_token %}
+                                        <button type="submit" class="btn btn-sm btn-outline-info" title="Send a test delivery">
+                                            <i class="bi bi-send"></i>
+                                        </button>
+                                    </form>
+                                    <a href="{% url 'notifications:edit' entry.pk %}" class="btn btn-sm btn-outline-primary" title="Edit">
+                                        <i class="bi bi-pencil"></i>
+                                    </a>
+                                    <form method="post" action="{% url 'notifications:delete' entry.pk %}" class="d-inline"
+                                          onsubmit="return confirm('Delete this notification?');">
+                                        {% csrf_token %}
+                                        <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </form>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="p-5 text-center text-muted">
+                    <i class="bi bi-bell-slash" style="font-size: 32px;"></i>
+                    <p class="mt-2 mb-0">No entity notifications configured yet.</p>
+                    <a href="{% url 'notifications:add' %}" class="btn btn-primary mt-3">
+                        <i class="bi bi-plus me-1" style="font-size: 18px;"></i>
+                        Create your first notification
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-3">
+        <div class="card border-0 bg-dark bg-opacity-25">
+            <div class="card-body p-4">
+                <h5 class="mb-3">
+                    <i class="bi bi-info-circle me-2" style="font-size: 20px;"></i>
+                    About Notifications
+                </h5>
+                <div class="small text-muted">
+                    <p><strong>Every occurrence</strong>: fires every time the watched <em>(entity type, value)</em> pair appears in a new message.</p>
+                    <p><strong>New occurrence</strong>: fires once total, the first time the pair is matched. After that the rule goes silent until you reset it.</p>
+                    <p class="mb-0">Targets can be a webhook (HTTP POST with optional HMAC) or a RabbitMQ queue you control.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="card border-0 bg-dark bg-opacity-25 mt-4">
+            <div class="card-body p-4">
+                <h5 class="mb-3">
+                    <i class="bi bi-shield me-2" style="font-size: 20px;"></i>
+                    Security
+                </h5>
+                <div class="small text-muted">
+                    <ul class="ps-3 mb-0">
+                        <li>Private (10.x / 172.16-31.x / 192.168.x) and loopback targets are allowed for self-hosted webhooks. Link-local and cloud-metadata addresses are blocked.</li>
+                        <li>If a secret is set, payloads carry an HMAC-SHA256 signature in <code>X-Trawlr-Signature</code>.</li>
+                        <li>Failed deliveries are retried with exponential backoff.</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
