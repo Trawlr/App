@@ -4,6 +4,7 @@ Audit app models for Telegram channels/groups/chats.
 
 import hashlib
 from datetime import timedelta
+from typing import NamedTuple
 
 from django.conf import settings
 from django.contrib.contenttypes.fields import GenericForeignKey
@@ -575,7 +576,7 @@ class TelegramUser(models.Model):
     # Track all changes with django-simple-history
     # Exclude volatile fields that change on every message to prevent history bloat
     history = HistoricalRecords(
-        excluded_fields=['last_seen', 'message_count']
+        excluded_fields=['last_seen', 'message_count', 'profile_photo_base64']
     )
 
     class Meta:
@@ -1002,6 +1003,12 @@ _GLOBAL_ENTITY_ID_CACHE: dict[str, int] = {}
 _GLOBAL_ENTITY_CACHE_MAX = 10_000
 
 
+class BulkResolveResult(NamedTuple):
+    """Result of :meth:`GlobalEntity.bulk_resolve`."""
+    hash_to_id: dict
+    newly_created_hashes: set
+
+
 class GlobalEntity(models.Model):
     """
     Deduplicated entity-identity record. One row per unique tuple of
@@ -1073,25 +1080,43 @@ class GlobalEntity(models.Model):
         """
         Resolve a batch of entity dicts to ``{content_hash: GlobalEntity.id}``.
 
+        Thin wrapper around :meth:`bulk_resolve` that drops the
+        newly-created-hashes set. Existing callers that don't care which rows
+        were brand new keep working unchanged.
+        """
+        return cls.bulk_resolve(entity_dicts).hash_to_id
+
+    @classmethod
+    def bulk_resolve(cls, entity_dicts: list):
+        """
+        Like :meth:`bulk_get_or_create` but also returns the set of content
+        hashes that were inserted by this call (i.e. brand-new entities,
+        first sighting in the system). Used by the notification matcher to
+        fire `new_entity`-mode rules.
+
+        Returns a :class:`BulkResolveResult` (``hash_to_id`` dict +
+        ``newly_created_hashes`` set).
+
         Query budget regardless of input size:
         - 0 queries if every entity is already in the process-local cache
         - 1 query if all cache-missed entities already exist in the DB
         - 3 queries if some cache-missed entities are brand new
         """
         if not entity_dicts:
-            return {}
+            return BulkResolveResult(hash_to_id={}, newly_created_hashes=set())
 
         wanted = {cls.compute_hash(**d): d for d in entity_dicts}
 
         resolved = {h: _GLOBAL_ENTITY_ID_CACHE[h] for h in wanted if h in _GLOBAL_ENTITY_ID_CACHE}
         unresolved = wanted.keys() - resolved.keys()
         if not unresolved:
-            return resolved
+            return BulkResolveResult(hash_to_id=resolved, newly_created_hashes=set())
 
         for h, pk in cls.objects.filter(content_hash__in=unresolved).values_list('content_hash', 'id'):
             resolved[h] = pk
             _GLOBAL_ENTITY_ID_CACHE[h] = pk
 
+        newly_created: set = set()
         still_missing = unresolved - resolved.keys()
         if still_missing:
             to_create = [
@@ -1107,8 +1132,16 @@ class GlobalEntity(models.Model):
                 for h in still_missing
             ]
             cls.objects.bulk_create(to_create, ignore_conflicts=True)
-            # Refetch — bulk_create(ignore_conflicts=True) doesn't reliably populate pks
-            # on rows that were skipped due to concurrent-worker races.
+            # `still_missing` captures rows that weren't in the cache *and*
+            # weren't in the DB at SELECT time — i.e. as far as this worker
+            # can tell, brand-new entities. A concurrent worker inserting the
+            # same row at the same instant could cause both workers to count
+            # the row as "new"; that's a rare race and acceptable for
+            # notification semantics (cooldown_seconds covers the duplicate).
+            newly_created = set(still_missing)
+
+            # Refetch — bulk_create(ignore_conflicts=True) doesn't populate pks
+            # on Postgres.
             for h, pk in cls.objects.filter(content_hash__in=still_missing).values_list('content_hash', 'id'):
                 resolved[h] = pk
                 _GLOBAL_ENTITY_ID_CACHE[h] = pk
@@ -1117,7 +1150,7 @@ class GlobalEntity(models.Model):
             for k in list(_GLOBAL_ENTITY_ID_CACHE.keys())[: _GLOBAL_ENTITY_CACHE_MAX // 2]:
                 del _GLOBAL_ENTITY_ID_CACHE[k]
 
-        return resolved
+        return BulkResolveResult(hash_to_id=resolved, newly_created_hashes=newly_created)
 
 
 class ForwardSource(models.Model):
@@ -1240,6 +1273,9 @@ class ActivityLog(models.Model):
         # System activities
         ('flood_wait', 'Flood Wait'),
         ('error', 'Error'),
+
+        # Notification activities
+        ('entity_match', 'Entity Match (Watchlist)'),
     ]
 
     SOURCE_CHOICES = [
@@ -1247,6 +1283,7 @@ class ActivityLog(models.Model):
         ('worker', 'Download Worker'),
         ('worker_telegram', 'Telegram Worker'),
         ('web', 'Web'),
+        ('notifications', 'Notifications'),
     ]
 
     timestamp = models.DateTimeField(default=timezone.now, db_index=True)

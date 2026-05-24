@@ -41,7 +41,6 @@ services:
     <<: *trawlr
     volumes:
       - media_data:${TRAWLR_STORAGE_ROOT:-/data/trawlr}
-      - sessions:/app/sessions
     healthcheck:
       test: ["CMD-SHELL", "python -c 'import socket; s=socket.create_connection((\"localhost\", 8001), timeout=2); s.close()'"]
       interval: 5s
@@ -59,7 +58,13 @@ services:
     command: dramatiq-gevent tasks --queues trawlr.default trawlr.downloads -p 1 -t 20
     volumes:
       - media_data:${TRAWLR_STORAGE_ROOT:-/data/trawlr}
-      - sessions:/app/sessions
+    environment:
+      - DJANGO_ALLOW_ASYNC_UNSAFE=true
+
+  # Notifier service - delivers watchlist match notifications via webhook or RabbitMQ
+  notifier:
+    <<: *trawlr-worker
+    command: dramatiq-gevent notifications.tasks --queues trawlr.notifications -p 1 -t 50
     environment:
       - DJANGO_ALLOW_ASYNC_UNSAFE=true
 
@@ -70,7 +75,6 @@ services:
     command: dramatiq tasks --queues trawlr.scans.history trawlr.scans.members --processes 1 --threads 1
     volumes:
       - media_data:${TRAWLR_STORAGE_ROOT:-/data/trawlr}
-      - sessions:/app/sessions
     environment:
       - DJANGO_ALLOW_ASYNC_UNSAFE=true
 
@@ -80,7 +84,6 @@ services:
     command: dramatiq events.processor --queues trawlr.events.telegram --processes 2 --threads 4
     volumes:
       - media_data:${TRAWLR_STORAGE_ROOT:-/data/trawlr}
-      - sessions:/app/sessions
     environment:
       - DJANGO_ALLOW_ASYNC_UNSAFE=true
 
@@ -90,7 +93,6 @@ services:
     command: python -m listener_service.main
     volumes:
       - media_data:${TRAWLR_STORAGE_ROOT:-/data/trawlr}
-      - sessions:/app/sessions
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
       interval: 30s
@@ -139,7 +141,6 @@ volumes:
   postgres_data11:
   media_data:
   rabbitmq_data:
-  sessions:
 
 configs:
   rabbitmq-plugins:

@@ -1,0 +1,244 @@
+{% extends "base.html" %}
+
+{% block title %}{% if mode == 'edit' %}Edit{% else %}New{% endif %} Entity Notification - Trawlr{% endblock %}
+
+{% block content %}
+<div class="page-header mb-4">
+    <h2>Settings</h2>
+</div>
+
+<!-- Section Info -->
+<div class="mb-4 pb-3 border-bottom border-secondary">
+    <p class="text-muted mb-0">
+        <i class="bi bi-info-circle me-1" style="font-size: 14px;"></i>
+        Fire a webhook or RabbitMQ message when a matching Telegram entity is observed by the listener.
+    </p>
+</div>
+
+<div class="row">
+    <div class="col-lg-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h5 class="mb-1">{% if mode == 'edit' %}Edit Notification{% else %}New Notification{% endif %}</h5>
+                <p class="text-muted mb-0 small">
+                    {% if mode == 'edit' %}Modify the match criteria or delivery target.{% else %}Define a new watchlist rule and where to send matches.{% endif %}
+                </p>
+            </div>
+            <a href="{% url 'accounts:settings' %}#notifications" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left me-1"></i>
+                Back to notifications
+            </a>
+        </div>
+    </div>
+</div>
+
+{% if form.errors %}
+<div class="alert alert-danger">
+    <strong>Please correct the following:</strong>
+    <ul class="mb-0">
+        {% for field, errs in form.errors.items %}
+            {% for err in errs %}<li><strong>{{ field }}:</strong> {{ err }}</li>{% endfor %}
+        {% endfor %}
+    </ul>
+</div>
+{% endif %}
+
+<form method="post">
+    {% csrf_token %}
+    <div class="row">
+        <div class="col-lg-8">
+            <!-- Basics -->
+            <div class="card border-0 mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="bi bi-bell me-2" style="font-size: 20px;"></i>
+                        Notification
+                    </h5>
+                </div>
+                <div class="card-body p-4">
+                    <div class="mb-3">
+                        <label for="{{ form.name.id_for_label }}" class="form-label">Name</label>
+                        {{ form.name }}
+                        <div class="form-text text-muted">A short label so you can recognise this rule in the list.</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="{{ form.description.id_for_label }}" class="form-label">Description</label>
+                        {{ form.description }}
+                        <div class="form-text text-muted">Optional. Notes for future-you about why this rule exists.</div>
+                    </div>
+
+                    <hr class="my-3">
+
+                    <div class="mb-0">
+                        <div class="form-check form-switch">
+                            {{ form.is_active }}
+                            <label class="form-check-label" for="{{ form.is_active.id_for_label }}">Active</label>
+                        </div>
+                        <div class="form-text text-muted">Pause the notification without deleting it. Inactive rules are ignored by the matcher.</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Match rule -->
+            <div class="card border-0 mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="bi bi-funnel me-2" style="font-size: 20px;"></i>
+                        Match Rule
+                    </h5>
+                </div>
+                <div class="card-body p-4">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="{{ form.entity_type.id_for_label }}" class="form-label">Entity type</label>
+                            {{ form.entity_type }}
+                            <div class="form-text text-muted">Which kind of entity to watch for.</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="{{ form.entity_value.id_for_label }}" class="form-label">Entity value</label>
+                            {{ form.entity_value }}
+                            <div class="form-text text-muted">Free-form value, lowercased on save. Include the leading <code>#</code> or <code>@</code> where relevant.</div>
+                        </div>
+                    </div>
+
+                    <div class="row mb-0">
+                        <div class="col-md-6">
+                            <label for="{{ form.mode.id_for_label }}" class="form-label">Mode</label>
+                            {{ form.mode }}
+                            <div class="form-text text-muted">
+                                <strong>Every occurrence</strong> fires every time the entity is seen. <strong>New occurrence</strong> fires only the first time it ever matches this rule.
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="{{ form.cooldown_seconds.id_for_label }}" class="form-label">Cooldown (seconds)</label>
+                            {{ form.cooldown_seconds }}
+                            <div class="form-text text-muted">0 = no debounce. Higher values suppress duplicate alerts within the window.</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Delivery target -->
+            <div class="card border-0 mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="bi bi-send me-2" style="font-size: 20px;"></i>
+                        Delivery Target
+                    </h5>
+                </div>
+                <div class="card-body p-4">
+                    <div class="mb-3">
+                        <label for="{{ form.target_type.id_for_label }}" class="form-label">Target type</label>
+                        {{ form.target_type }}
+                        <div class="form-text text-muted">Where to deliver the alert payload.</div>
+                    </div>
+
+                    <div data-target-show="webhook">
+                        <hr class="my-3">
+                        <div class="mb-3">
+                            <label for="{{ form.webhook_url.id_for_label }}" class="form-label">Webhook URL</label>
+                            {{ form.webhook_url }}
+                            <div class="form-text text-muted">URL to POST the alert payload to. Private/loopback targets (e.g. Home Assistant on your LAN, a sidecar on the same Docker network) are supported; link-local and cloud-metadata addresses are still blocked.</div>
+                        </div>
+                        <div class="mb-0">
+                            <label for="{{ form.webhook_secret.id_for_label }}" class="form-label">Shared secret <span class="text-muted small">(optional)</span></label>
+                            {{ form.webhook_secret }}
+                            <div class="form-text text-muted">If set, requests carry <code>X-Trawlr-Signature: sha256=&lt;hex&gt;</code> so the receiver can verify the payload.</div>
+                        </div>
+                    </div>
+
+                    <div data-target-show="rabbitmq">
+                        <hr class="my-3">
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="{{ form.rabbitmq_queue.id_for_label }}" class="form-label">Queue name</label>
+                                {{ form.rabbitmq_queue }}
+                                <div class="form-text text-muted">Queue the payload will be published to.</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="{{ form.rabbitmq_exchange.id_for_label }}" class="form-label">Exchange <span class="text-muted small">(optional)</span></label>
+                                {{ form.rabbitmq_exchange }}
+                                <div class="form-text text-muted">Leave blank to use the default exchange with queue name as routing key.</div>
+                            </div>
+                        </div>
+                        <div class="mb-0">
+                            <div class="form-check form-switch">
+                                {{ form.rabbitmq_declare }}
+                                <label class="form-check-label" for="{{ form.rabbitmq_declare.id_for_label }}">Auto-declare queue if missing</label>
+                            </div>
+                            <div class="form-text text-muted">If off, the queue must already exist (passive declare).</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="d-flex justify-content-between">
+                <a href="{% url 'accounts:settings' %}#notifications" class="btn btn-outline-secondary">
+                    <i class="bi bi-x-lg me-1"></i>
+                    Cancel
+                </a>
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-save me-1" style="font-size: 18px;"></i>
+                    {% if mode == 'edit' %}Save changes{% else %}Create notification{% endif %}
+                </button>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <div class="card border-0 bg-dark bg-opacity-25">
+                <div class="card-body p-4">
+                    <h5 class="mb-3">
+                        <i class="bi bi-info-circle me-2" style="font-size: 20px;"></i>
+                        Help
+                    </h5>
+                    <div class="mb-3">
+                        <h6 class="text-muted">Match modes</h6>
+                        <ul class="small text-muted ps-3 mb-0">
+                            <li><strong>Every occurrence</strong>: each time the chosen <em>(type, value)</em> pair shows up in a new message, fire one delivery (with the message + channel + sender as context).</li>
+                            <li><strong>New occurrence</strong>: fire once the very first time the pair is matched, then go silent.</li>
+                        </ul>
+                    </div>
+                    <div class="mb-3">
+                        <h6 class="text-muted">Value examples</h6>
+                        <ul class="small text-muted ps-3 mb-0">
+                            <li>URL → <code>https://example.com/path</code> or <code>example.com</code> for a domain entry</li>
+                            <li>Hashtag → <code>#crypto</code></li>
+                            <li>@Mention → <code>@alice</code></li>
+                            <li>Phone → <code>+61400000000</code></li>
+                        </ul>
+                    </div>
+                    <div class="mb-3">
+                        <h6 class="text-muted">Targets</h6>
+                        <ul class="small text-muted ps-3 mb-0">
+                            <li><strong>Webhook</strong>: HTTP POST with JSON body. Failures retry with exponential backoff.</li>
+                            <li><strong>RabbitMQ</strong>: published to the queue/exchange you specify on the broker the rest of Trawlr is already wired to.</li>
+                        </ul>
+                    </div>
+                    <div class="mb-0">
+                        <h6 class="text-muted">Testing</h6>
+                        <p class="small text-muted mb-0">
+                            After saving, hit the <i class="bi bi-send" style="font-size: 12px;"></i> button on the list page to fire a synthetic test payload at your target.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</form>
+
+<script>
+(function () {
+    const targetSelect = document.getElementById('{{ form.target_type.id_for_label }}');
+
+    function syncTarget() {
+        const v = targetSelect.value;
+        document.querySelectorAll('[data-target-show]').forEach(el => {
+            el.style.display = el.dataset.targetShow === v ? '' : 'none';
+        });
+    }
+    targetSelect.addEventListener('change', syncTarget);
+    syncTarget();
+})();
+</script>
+{% endblock %}

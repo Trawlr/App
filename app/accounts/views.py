@@ -21,6 +21,8 @@ from telethon.tl.types import Channel, Chat
 
 from audit.models import ChannelConfig, ExclusionRule, TelegramChannel, TelegramUser
 from downloads.models import DownloadTask, TaskRun
+from notifications.models import WatchlistEntry
+from ops.views import get_queues_panel_context
 from listener_service.signals import start_listener, stop_listener
 from tasks import (
     check_all_source_availability,
@@ -609,11 +611,21 @@ def settings(request):
     # Get API tokens for the current user
     tokens = Token.objects.filter(user=request.user)
 
-    return render(request, 'accounts/settings.html', {
+    # Watchlist entries for the Notifications tab
+    watchlist_entries = WatchlistEntry.objects.order_by('-created_at')
+
+    context = {
         'settings': settings_obj,
         'exclusions': exclusions,
         'tokens': tokens,
-    })
+        'watchlist_entries': watchlist_entries,
+    }
+
+    # Queues panel (superuser only — hits the RabbitMQ management API).
+    if request.user.is_superuser:
+        context.update(get_queues_panel_context())
+
+    return render(request, 'accounts/settings.html', context)
 
 
 @login_required
