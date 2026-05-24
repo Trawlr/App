@@ -6,6 +6,11 @@
 {% block report_heading %}Media Inventory{% endblock %}
 {% block report_description %}Per-source media storage broken down by file type{% endblock %}
 
+{% block export_url %}{% url 'reports:export_media_inventory' %}{% endblock %}
+{% block export_url_json %}{% url 'reports:export_media_inventory' %}{% endblock %}
+{% block export_extra_params %}{% if media_type %}&media_type={{ media_type }}{% endif %}{% if size_band %}&size_band={{ size_band }}{% endif %}{% if account_id %}&account={{ account_id }}{% endif %}{% endblock %}
+{% block export_extra_params_json %}{% if media_type %}&media_type={{ media_type }}{% endif %}{% if size_band %}&size_band={{ size_band }}{% endif %}{% if account_id %}&account={{ account_id }}{% endif %}{% endblock %}
+
 {% block report_content %}
 <!-- Summary stats (filter-aware) -->
 <div class="row g-3 mb-4">
@@ -53,17 +58,17 @@
             <div>
                 <label class="form-label small text-muted mb-1 d-block">Media type</label>
                 <div class="btn-group btn-group-sm" role="group">
-                    <a href="?{% if size_band %}size_band={{ size_band }}&{% endif %}{% if account_id %}account={{ account_id }}{% endif %}"
+                    <a href="?{{ date_query }}{% if size_band %}&size_band={{ size_band }}{% endif %}{% if account_id %}&account={{ account_id }}{% endif %}"
                        class="btn {% if not media_type %}btn-primary{% else %}btn-outline-secondary{% endif %}">All</a>
-                    <a href="?media_type=photo{% if size_band %}&size_band={{ size_band }}{% endif %}{% if account_id %}&account={{ account_id }}{% endif %}"
+                    <a href="?{{ date_query }}&media_type=photo{% if size_band %}&size_band={{ size_band }}{% endif %}{% if account_id %}&account={{ account_id }}{% endif %}"
                        class="btn {% if media_type == 'photo' %}btn-primary{% else %}btn-outline-secondary{% endif %}">
                         <i class="bi bi-image me-1"></i>Photos
                     </a>
-                    <a href="?media_type=video{% if size_band %}&size_band={{ size_band }}{% endif %}{% if account_id %}&account={{ account_id }}{% endif %}"
+                    <a href="?{{ date_query }}&media_type=video{% if size_band %}&size_band={{ size_band }}{% endif %}{% if account_id %}&account={{ account_id }}{% endif %}"
                        class="btn {% if media_type == 'video' %}btn-primary{% else %}btn-outline-secondary{% endif %}">
                         <i class="bi bi-camera-video me-1"></i>Videos
                     </a>
-                    <a href="?media_type=file{% if size_band %}&size_band={{ size_band }}{% endif %}{% if account_id %}&account={{ account_id }}{% endif %}"
+                    <a href="?{{ date_query }}&media_type=file{% if size_band %}&size_band={{ size_band }}{% endif %}{% if account_id %}&account={{ account_id }}{% endif %}"
                        class="btn {% if media_type == 'file' %}btn-primary{% else %}btn-outline-secondary{% endif %}">
                         <i class="bi bi-file-earmark me-1"></i>Files
                     </a>
@@ -99,7 +104,7 @@
 
             {% if media_type or size_band or account_id %}
             <div>
-                <a href="{% url 'reports:media_inventory' %}" class="btn btn-sm btn-outline-secondary">
+                <a href="{% url 'reports:media_inventory' %}?{{ date_query }}" class="btn btn-sm btn-outline-secondary">
                     <i class="bi bi-x-lg me-1"></i>Clear
                 </a>
             </div>

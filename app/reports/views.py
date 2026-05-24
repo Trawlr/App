@@ -19,11 +19,16 @@ from . import queries, exports
 def _get_date_context(request):
     """Get common date range context for templates."""
     start_date, end_date, days_label = queries.parse_date_range(request)
+    if days_label == 'custom':
+        date_query = f"start={start_date.strftime('%Y-%m-%d')}&end={end_date.strftime('%Y-%m-%d')}"
+    else:
+        date_query = f"days={days_label}"
     return {
         'start_date': start_date,
         'end_date': end_date,
         'days_label': days_label,
         'date_presets': queries.DATE_PRESETS,
+        'date_query': date_query,
     }
 
 
@@ -411,6 +416,34 @@ def export_sources(request):
     if format_type == 'json':
         return exports.export_sources_json(start_date, end_date, days_label)
     return exports.export_sources_csv(start_date, end_date, days_label)
+
+
+@login_required
+def export_media_inventory(request):
+    """Export media inventory (honors current media_type / size_band / account filters)."""
+    start_date, end_date, days_label = queries.parse_date_range(request)
+    format_type = request.GET.get('format', 'csv')
+
+    media_type = request.GET.get('media_type') or None
+    if media_type not in queries.MEDIA_TYPES:
+        media_type = None
+
+    size_band = request.GET.get('size_band') or None
+    if size_band not in queries.SIZE_BANDS:
+        size_band = None
+
+    account_id = request.GET.get('account') or ''
+    account_id_int = int(account_id) if account_id.isdigit() else None
+
+    if format_type == 'json':
+        return exports.export_media_inventory_json(
+            start_date, end_date, days_label,
+            media_type=media_type, size_band=size_band, account_id=account_id_int,
+        )
+    return exports.export_media_inventory_csv(
+        start_date, end_date, days_label,
+        media_type=media_type, size_band=size_band, account_id=account_id_int,
+    )
 
 
 @login_required
