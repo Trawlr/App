@@ -150,7 +150,7 @@ class Command(BaseCommand):
                     all_entity_dicts.append({
                         'entity_type': 'domain',
                         'text': domain,
-                        'url': info['url'],
+                        'url': '',
                         'user_id': None,
                         'custom_emoji_id': None,
                         'language': '',
@@ -165,7 +165,7 @@ class Command(BaseCommand):
             for message_id, domains in domain_dicts_per_message.items():
                 for domain, info in domains.items():
                     ed = {
-                        'entity_type': 'domain', 'text': domain, 'url': info['url'],
+                        'entity_type': 'domain', 'text': domain, 'url': '',
                         'user_id': None, 'custom_emoji_id': None, 'language': '',
                     }
                     entity_id = hash_to_id.get(GlobalEntity.compute_hash(**ed)) if hash_to_id else None

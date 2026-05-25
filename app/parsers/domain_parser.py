@@ -52,7 +52,7 @@ class DomainParser(BaseParser):
                 'offset': entity.get('offset', 0),
                 'length': len(domain),
                 'text': domain,
-                'url': url,  # Store the source URL
+                'url': '',
                 'user_id': None,
                 'language': '',
                 'custom_emoji_id': None,
