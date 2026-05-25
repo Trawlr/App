@@ -14,25 +14,25 @@
 <!-- Filter Tabs -->
 <ul class="nav nav-tabs mb-4" style="border-color: var(--tg-border);">
     <li class="nav-item">
-        <a class="nav-link {% if not file_type %}active{% endif %}" href="{% url 'downloads:files' %}{% if search %}?search={{ search }}{% endif %}">
+        <a class="nav-link {% if not file_type %}active{% endif %}" href="{% url 'downloads:files' %}{% querystring type=None page=None %}">
             <i class="bi bi-folder me-1" style="font-size: 16px;"></i>
             All
         </a>
     </li>
     <li class="nav-item">
-        <a class="nav-link {% if file_type == 'photo' %}active{% endif %}" href="?type=photo{% if search %}&search={{ search }}{% endif %}">
+        <a class="nav-link {% if file_type == 'photo' %}active{% endif %}" href="{% url 'downloads:files' %}{% querystring type='photo' page=None %}">
             <i class="bi bi-image me-1" style="font-size: 16px;"></i>
             Photos
         </a>
     </li>
     <li class="nav-item">
-        <a class="nav-link {% if file_type == 'video' %}active{% endif %}" href="?type=video{% if search %}&search={{ search }}{% endif %}">
+        <a class="nav-link {% if file_type == 'video' %}active{% endif %}" href="{% url 'downloads:files' %}{% querystring type='video' page=None %}">
             <i class="bi bi-camera-video me-1" style="font-size: 16px;"></i>
             Videos
         </a>
     </li>
     <li class="nav-item">
-        <a class="nav-link {% if file_type == 'file' %}active{% endif %}" href="?type=file{% if search %}&search={{ search }}{% endif %}">
+        <a class="nav-link {% if file_type == 'file' %}active{% endif %}" href="{% url 'downloads:files' %}{% querystring type='file' page=None %}">
             <i class="bi bi-file-earmark me-1" style="font-size: 16px;"></i>
             Files
         </a>
@@ -46,7 +46,7 @@
             {% if file_type %}
             <input type="hidden" name="type" value="{{ file_type }}">
             {% endif %}
-            <div class="col-md-3">
+            <div class="col-md-4">
                 <label class="form-label small text-muted mb-1">Search</label>
                 <div class="input-group">
                     <span class="input-group-text">
@@ -56,7 +56,7 @@
                            name="search" value="{{ search }}">
                 </div>
             </div>
-            <div class="col-md-3">
+            <div class="col-md-4">
                 <label class="form-label small text-muted mb-1">Channel</label>
                 <select name="channel" class="form-select">
                     <option value="">All Channels</option>
@@ -65,7 +65,7 @@
                     {% endfor %}
                 </select>
             </div>
-            <div class="col-md-3">
+            <div class="col-md-4">
                 <label class="form-label small text-muted mb-1">Account</label>
                 <select name="account" class="form-select">
                     <option value="">All Accounts</option>
@@ -75,16 +75,63 @@
                 </select>
             </div>
             <div class="col-md-3">
+                <label class="form-label small text-muted mb-1">Sort by</label>
+                <select name="sort" class="form-select">
+                    {% for value, label in sort_choices %}
+                    <option value="{{ value }}" {% if sort == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small text-muted mb-1">Size</label>
+                <select name="size" class="form-select">
+                    <option value="">Any size</option>
+                    {% for value, label, low, high in size_buckets %}
+                    <option value="{{ value }}" {% if size_bucket == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label small text-muted mb-1">Downloaded between</label>
+                <div class="input-group">
+                    <input type="date" class="form-control date-input" name="after" value="{{ after }}" aria-label="From date">
+                    <button type="button" class="btn btn-outline-secondary date-picker-btn" tabindex="-1" aria-label="Open calendar">
+                        <i class="bi bi-calendar3"></i>
+                    </button>
+                    <span class="input-group-text">to</span>
+                    <input type="date" class="form-control date-input" name="before" value="{{ before }}" aria-label="Until date">
+                    <button type="button" class="btn btn-outline-secondary date-picker-btn" tabindex="-1" aria-label="Open calendar">
+                        <i class="bi bi-calendar3"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="col-md-2 d-flex">
                 <button type="submit" class="btn btn-primary me-1">
                     <i class="bi bi-funnel me-1" style="font-size: 16px;"></i>
                     Filter
                 </button>
-                {% if search or channel_id or account_id %}
+                {% if has_filters %}
                 <a href="{% url 'downloads:files' %}{% if file_type %}?type={{ file_type }}{% endif %}" class="btn btn-outline-secondary">Clear</a>
                 {% endif %}
             </div>
         </form>
     </div>
+
+    {% if active_filters %}
+    <div class="px-4 pt-3 d-flex flex-wrap gap-2 align-items-center">
+        <span class="small text-muted">Active filters:</span>
+        {% for chip in active_filters %}
+        <a class="badge filter-chip text-decoration-none"
+           href="{{ chip.remove_url }}"
+           title="Remove this filter">
+            {{ chip.label }}
+            <i class="bi bi-x" style="font-size: 14px;"></i>
+        </a>
+        {% endfor %}
+        <a href="{% url 'downloads:files' %}{% if file_type %}?type={{ file_type }}{% endif %}"
+           class="small text-decoration-none ms-1">Clear all</a>
+    </div>
+    {% endif %}
 
     <div class="card-body p-4">
         {% if files %}
@@ -150,7 +197,7 @@
                 <ul class="pagination justify-content-center mb-0">
                     {% if files.has_previous %}
                     <li class="page-item">
-                        <a class="page-link" href="?page={{ files.previous_page_number }}{% if file_type %}&type={{ file_type }}{% endif %}{% if search %}&search={{ search }}{% endif %}{% if channel_id %}&channel={{ channel_id }}{% endif %}{% if account_id %}&account={{ account_id }}{% endif %}">
+                        <a class="page-link" href="{% url 'downloads:files' %}{% querystring page=files.previous_page_number %}">
                             <i class="bi bi-chevron-left" style="font-size: 16px;"></i>
                         </a>
                     </li>
@@ -165,11 +212,11 @@
                         <li class="page-item active"><span class="page-link">{{ num }}</span></li>
                         {% elif num > files.number|add:'-3' and num < files.number|add:'3' %}
                         <li class="page-item">
-                            <a class="page-link" href="?page={{ num }}{% if file_type %}&type={{ file_type }}{% endif %}{% if search %}&search={{ search }}{% endif %}{% if channel_id %}&channel={{ channel_id }}{% endif %}{% if account_id %}&account={{ account_id }}{% endif %}">{{ num }}</a>
+                            <a class="page-link" href="{% url 'downloads:files' %}{% querystring page=num %}">{{ num }}</a>
                         </li>
                         {% elif num == 1 or num == files.paginator.num_pages %}
                         <li class="page-item">
-                            <a class="page-link" href="?page={{ num }}{% if file_type %}&type={{ file_type }}{% endif %}{% if search %}&search={{ search }}{% endif %}{% if channel_id %}&channel={{ channel_id }}{% endif %}{% if account_id %}&account={{ account_id }}{% endif %}">{{ num }}</a>
+                            <a class="page-link" href="{% url 'downloads:files' %}{% querystring page=num %}">{{ num }}</a>
                         </li>
                         {% elif num == files.number|add:'-3' or num == files.number|add:'3' %}
                         <li class="page-item disabled"><span class="page-link">...</span></li>
@@ -178,7 +225,7 @@
 
                     {% if files.has_next %}
                     <li class="page-item">
-                        <a class="page-link" href="?page={{ files.next_page_number }}{% if file_type %}&type={{ file_type }}{% endif %}{% if search %}&search={{ search }}{% endif %}{% if channel_id %}&channel={{ channel_id }}{% endif %}{% if account_id %}&account={{ account_id }}{% endif %}">
+                        <a class="page-link" href="{% url 'downloads:files' %}{% querystring page=files.next_page_number %}">
                             <i class="bi bi-chevron-right" style="font-size: 16px;"></i>
                         </a>
                     </li>
@@ -195,10 +242,28 @@
             {% endif %}
         {% else %}
             <div class="text-center py-5 text-muted">
-                <i class="bi bi-folder2-open mb-2" style="font-size: 48px; opacity: 0.5;"></i>
-                {% if search or channel_id or account_id %}
-                    <p class="mb-0">No files found matching your filters.</p>
-                    <p class="small">Try different filter options.</p>
+                <i class="bi bi-folder2-open mb-2 d-block" style="font-size: 48px; opacity: 0.5;"></i>
+                {% if has_filters or file_type %}
+                    <p class="mb-1">No files match the current filters.</p>
+                    {% if active_filters %}
+                    <p class="small mb-3">
+                        Filters in effect:
+                        {% for chip in active_filters %}<span class="badge bg-secondary me-1">{{ chip.label }}</span>{% endfor %}
+                    </p>
+                    {% endif %}
+                    <div class="d-flex gap-2 justify-content-center">
+                        {% if file_type %}
+                        <a href="{% url 'downloads:files' %}{% querystring type=None page=None %}" class="btn btn-sm btn-outline-secondary">
+                            Show all file types
+                        </a>
+                        {% endif %}
+                        {% if has_filters %}
+                        <a href="{% url 'downloads:files' %}{% if file_type %}?type={{ file_type }}{% endif %}"
+                           class="btn btn-sm btn-primary">
+                            <i class="bi bi-x-circle me-1"></i>Clear all filters
+                        </a>
+                        {% endif %}
+                    </div>
                 {% else %}
                     <p class="mb-0">No files downloaded yet.</p>
                     <p class="small">Enable auto-download on a source or scan history to start downloading.</p>
@@ -259,6 +324,21 @@
         transform: translateY(-2px);
         box-shadow: 0 4px 12px rgba(0,0,0,0.3);
     }
+    .filter-chip {
+        background: var(--tg-hover-bg, rgba(255,255,255,0.06));
+        color: var(--tg-text);
+        font-weight: 400;
+        padding: 6px 10px;
+        border: 1px solid var(--tg-border);
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        transition: background 0.15s ease;
+    }
+    .filter-chip:hover {
+        background: var(--tg-card-bg);
+        color: var(--tg-primary);
+    }
     .pagination .page-link {
         background: var(--tg-card-bg);
         border-color: var(--tg-border);
@@ -315,6 +395,18 @@
 
 {% block extra_js %}
 <script>
+// Calendar buttons: trigger the adjacent date input's native picker.
+document.querySelectorAll('.date-picker-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+        const input = btn.previousElementSibling;
+        if (input && typeof input.showPicker === 'function') {
+            input.showPicker();
+        } else if (input) {
+            input.focus();
+        }
+    });
+});
+
 (function() {
     const modal = document.getElementById('file-viewer-modal');
     const btnPrev = document.getElementById('file-nav-prev');
