@@ -13,6 +13,7 @@ from django.core.paginator import Paginator
 from django.db.models import Case, Q, Sum, Value, When
 from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils.dateparse import parse_date
 from django.utils.encoding import escape_uri_path
 from django.views.decorators.http import require_http_methods
 
@@ -25,6 +26,28 @@ from storage.utils import get_storage_backend
 from .models import ArchivedMessage, DownloadedFile, DownloadTask
 
 logger = logging.getLogger('trawlr.downloads')
+
+
+# File browser sort options: (value, label)
+FILE_SORT_CHOICES = [
+    ('-downloaded_at', 'Newest first'),
+    ('downloaded_at', 'Oldest first'),
+    ('-file_size', 'Largest first'),
+    ('file_size', 'Smallest first'),
+    ('original_filename', 'Name (A-Z)'),
+    ('-original_filename', 'Name (Z-A)'),
+    ('file_type', 'Type'),
+]
+FILE_SORT_VALUES = {value for value, _ in FILE_SORT_CHOICES}
+
+# File size buckets: (key, label, low_bytes_inclusive, high_bytes_exclusive_or_None)
+FILE_SIZE_BUCKETS = [
+    ('tiny', '< 1 MB', 0, 1024 * 1024),
+    ('small', '1 - 10 MB', 1024 * 1024, 10 * 1024 * 1024),
+    ('medium', '10 - 100 MB', 10 * 1024 * 1024, 100 * 1024 * 1024),
+    ('large', '> 100 MB', 100 * 1024 * 1024, None),
+]
+FILE_SIZE_BUCKET_MAP = {key: (label, low, high) for key, label, low, high in FILE_SIZE_BUCKETS}
 
 
 @login_required
@@ -266,16 +289,21 @@ def retry_all_failed(request):
 def files(request):
     """Global file browser with pagination and filters."""
     file_type = request.GET.get('type', '')
-    search = request.GET.get('search', '')
+    search = request.GET.get('search', '').strip()
     channel_id = request.GET.get('channel', '')
     account_id = request.GET.get('account', '')
+    size_bucket = request.GET.get('size', '')
+    after_raw = request.GET.get('after', '').strip()
+    before_raw = request.GET.get('before', '').strip()
+    sort = request.GET.get('sort', '-downloaded_at')
+    if sort not in FILE_SORT_VALUES:
+        sort = '-downloaded_at'
     page = request.GET.get('page', 1)
 
     files_qs = DownloadedFile.objects.filter(
         channel__account__is_active=True
     ).select_related('channel', 'channel__account', 'channel__config')
 
-    # Apply filters
     if file_type:
         files_qs = files_qs.filter(file_type=file_type)
 
@@ -291,22 +319,72 @@ def files(request):
             Q(channel__title__icontains=search)
         )
 
-    files_qs = files_qs.order_by('-downloaded_at')
+    if size_bucket in FILE_SIZE_BUCKET_MAP:
+        _, low, high = FILE_SIZE_BUCKET_MAP[size_bucket]
+        if low is not None:
+            files_qs = files_qs.filter(file_size__gte=low)
+        if high is not None:
+            files_qs = files_qs.filter(file_size__lt=high)
 
-    # Pagination
-    paginator = Paginator(files_qs, 48)  # 48 files per page (divisible by 2,3,4,6)
+    after_date = parse_date(after_raw) if after_raw else None
+    before_date = parse_date(before_raw) if before_raw else None
+    if after_date:
+        files_qs = files_qs.filter(downloaded_at__date__gte=after_date)
+    if before_date:
+        files_qs = files_qs.filter(downloaded_at__date__lte=before_date)
+
+    # Stable tiebreaker on pk so pagination doesn't shuffle equal-key rows.
+    tiebreaker = '-pk' if sort.startswith('-') else 'pk'
+    files_qs = files_qs.order_by(sort, tiebreaker)
+
+    paginator = Paginator(files_qs, 48)
     files_page = paginator.get_page(page)
 
-    # Calculate total storage
     total_storage = DownloadedFile.objects.filter(
         channel__account__is_active=True,
         is_duplicate=False
     ).aggregate(total=Sum('file_size'))['total'] or 0
 
-    # Get filter options (from active accounts only)
     channels = TelegramChannel.objects.from_active_accounts().order_by('title')
-
     accounts = TelegramAccount.objects.active().order_by('display_name', 'phone_number')
+
+    # Build active filter chips. For each chip, precompute a URL with that
+    # filter removed (querystring tag can't take dynamic kwargs).
+    def chip(key, label):
+        qs = request.GET.copy()
+        qs.pop(key, None)
+        qs.pop('page', None)
+        encoded = qs.urlencode()
+        return {
+            'key': key,
+            'label': label,
+            'remove_url': f'?{encoded}' if encoded else request.path,
+        }
+
+    active_filters = []
+    if search:
+        active_filters.append(chip('search', f'Search: "{search}"'))
+    if channel_id:
+        chan_obj = next((c for c in channels if str(c.pk) == str(channel_id)), None)
+        active_filters.append(chip(
+            'channel',
+            f'Channel: {chan_obj.title if chan_obj else channel_id}',
+        ))
+    if account_id:
+        acc_obj = next((a for a in accounts if str(a.pk) == str(account_id)), None)
+        active_filters.append(chip(
+            'account',
+            f'Account: {acc_obj.name if acc_obj else account_id}',
+        ))
+    if size_bucket in FILE_SIZE_BUCKET_MAP:
+        active_filters.append(chip(
+            'size',
+            f'Size: {FILE_SIZE_BUCKET_MAP[size_bucket][0]}',
+        ))
+    if after_date:
+        active_filters.append(chip('after', f'Downloaded after: {after_date.isoformat()}'))
+    if before_date:
+        active_filters.append(chip('before', f'Downloaded before: {before_date.isoformat()}'))
 
     return render(request, 'downloads/files.html', {
         'files': files_page,
@@ -314,9 +392,17 @@ def files(request):
         'search': search,
         'channel_id': channel_id,
         'account_id': account_id,
+        'size_bucket': size_bucket,
+        'after': after_raw,
+        'before': before_raw,
+        'sort': sort,
+        'sort_choices': FILE_SORT_CHOICES,
+        'size_buckets': FILE_SIZE_BUCKETS,
         'total_storage': total_storage,
         'channels': channels,
         'accounts': accounts,
+        'active_filters': active_filters,
+        'has_filters': bool(active_filters),
     })
 
 
