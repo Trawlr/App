@@ -201,6 +201,12 @@
                 </a>
             </li>
             <li class="nav-item">
+                <a class="nav-link py-2 px-3 {% if active_tab == 'posts' %}active{% endif %}" href="{% url 'audit:user_posts' telegram_user.pk %}">
+                    <i class="bi bi-chat-square-text me-1" style="font-size: 16px;"></i>
+                    Posts
+                </a>
+            </li>
+            <li class="nav-item">
                 <a class="nav-link py-2 px-3 {% if active_tab == 'activity' %}active{% endif %}" href="{% url 'audit:user_activity' telegram_user.pk %}">
                     <i class="bi bi-calendar3-week me-1" style="font-size: 16px;"></i>
                     Activity

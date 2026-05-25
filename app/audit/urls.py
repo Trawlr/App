@@ -13,6 +13,7 @@ urlpatterns = [
     path('users/', views.users, name='users'),
     path('users/scan-all/', views.scan_all_members, name='scan_all_members'),
     path('user/<int:pk>/', views.user_detail, name='user_detail'),
+    path('user/<int:pk>/posts/', views.user_posts, name='user_posts'),
     path('user/<int:pk>/activity/', views.user_activity, name='user_activity'),
     path('user/<int:pk>/network/', views.user_network, name='user_network'),
 

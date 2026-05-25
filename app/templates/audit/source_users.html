@@ -20,7 +20,7 @@
 <div class="card border-0">
     <!-- Search -->
     <div class="card-header border-bottom py-2" style="border-color: var(--tg-border) !important;">
-        <form method="get" class="row g-2">
+        <form method="get" class="row g-2 align-items-center">
             <div class="col">
                 <div class="input-group input-group-sm">
                     <span class="input-group-text">
@@ -30,8 +30,20 @@
                 </div>
             </div>
             <div class="col-auto">
+                <div class="form-check form-switch m-0">
+                    <input class="form-check-input" type="checkbox" role="switch"
+                           id="postersOnlySwitch" name="posters" value="1"
+                           {% if posters_only %}checked{% endif %}
+                           onchange="this.form.submit()">
+                    <label class="form-check-label small" for="postersOnlySwitch"
+                           title="Show only users who have posted at least one message in this source">
+                        Posters only
+                    </label>
+                </div>
+            </div>
+            <div class="col-auto">
                 <button type="submit" class="btn btn-primary btn-sm">Search</button>
-                {% if search %}
+                {% if search or posters_only %}
                 <a href="{% url 'audit:source_users' source.pk %}" class="btn btn-outline-secondary btn-sm">Clear</a>
                 {% endif %}
             </div>
@@ -154,10 +166,10 @@
             <ul class="pagination pagination-sm justify-content-center mb-0">
                 {% if page_obj.has_previous %}
                 <li class="page-item">
-                    <a class="page-link" href="?page=1{% if search %}&q={{ search }}{% endif %}">&laquo; First</a>
+                    <a class="page-link" href="{% url 'audit:source_users' source.pk %}{% querystring page=1 %}">&laquo; First</a>
                 </li>
                 <li class="page-item">
-                    <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if search %}&q={{ search }}{% endif %}">&lsaquo; Prev</a>
+                    <a class="page-link" href="{% url 'audit:source_users' source.pk %}{% querystring page=page_obj.previous_page_number %}">&lsaquo; Prev</a>
                 </li>
                 {% endif %}
 
@@ -165,16 +177,16 @@
                     {% if page_obj.number == num %}
                     <li class="page-item active"><span class="page-link">{{ num }}</span></li>
                     {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
-                    <li class="page-item"><a class="page-link" href="?page={{ num }}{% if search %}&q={{ search }}{% endif %}">{{ num }}</a></li>
+                    <li class="page-item"><a class="page-link" href="{% url 'audit:source_users' source.pk %}{% querystring page=num %}">{{ num }}</a></li>
                     {% endif %}
                 {% endfor %}
 
                 {% if page_obj.has_next %}
                 <li class="page-item">
-                    <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if search %}&q={{ search }}{% endif %}">Next &rsaquo;</a>
+                    <a class="page-link" href="{% url 'audit:source_users' source.pk %}{% querystring page=page_obj.next_page_number %}">Next &rsaquo;</a>
                 </li>
                 <li class="page-item">
-                    <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if search %}&q={{ search }}{% endif %}">Last &raquo;</a>
+                    <a class="page-link" href="{% url 'audit:source_users' source.pk %}{% querystring page=page_obj.paginator.num_pages %}">Last &raquo;</a>
                 </li>
                 {% endif %}
             </ul>

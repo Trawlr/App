@@ -1585,6 +1585,7 @@ def source_users(request, pk):
 
     # Search query
     search = request.GET.get('q', '').strip()
+    posters_only = request.GET.get('posters') == '1'
 
     memberships = UserGroupMembership.objects.filter(
         channel=channel
@@ -1596,6 +1597,12 @@ def source_users(request, pk):
             Q(user__first_name__icontains=search) |
             Q(user__last_name__icontains=search)
         )
+
+    if posters_only:
+        # message_count is incremented on every archived message
+        # (audit/user_tracking.py), so this is a single-field index-friendly
+        # check with no join.
+        memberships = memberships.filter(message_count__gt=0)
 
     # Pagination
     paginator = Paginator(memberships, 50)
@@ -1609,6 +1616,7 @@ def source_users(request, pk):
         'memberships': page_obj,
         'page_obj': page_obj,
         'search': search,
+        'posters_only': posters_only,
         'active_tab': 'users',
         'is_monitored': is_monitored,
     }
@@ -1630,6 +1638,60 @@ def source_activity(request, pk):
         'config': config,
         'active_tab': 'activity',
         'is_monitored': is_monitored,
+    })
+
+
+@login_required
+@silk_profile(name='audit.user_posts')
+def user_posts(request, pk):
+    """Posts tab — archived messages posted by this user across all sources."""
+    telegram_user = get_object_or_404(TelegramUser, pk=pk)
+    user_channels = TelegramChannel.objects.from_active_accounts().all()
+
+    memberships_qs = UserGroupMembership.objects.filter(
+        user=telegram_user, channel__in=user_channels
+    ).select_related('channel')
+
+    if not memberships_qs.exists():
+        raise Http404("User not found")
+
+    user_channel_ids = list(memberships_qs.values_list('channel_id', flat=True))
+
+    # Broadcast channels: the listener stores ArchivedMessage.sender_id in
+    # Bot-API peer form (-100<channel_id>) while the TelegramUser record
+    # synthesised for that channel keeps the raw positive ID. Match both
+    # forms so channel-as-poster messages aren't lost.
+    candidate_sender_ids = [telegram_user.telegram_id]
+    if telegram_user.telegram_id and telegram_user.telegram_id > 0:
+        candidate_sender_ids.append(-int(f"100{telegram_user.telegram_id}"))
+
+    # Uses the (sender_id, telegram_date) composite index on ArchivedMessage
+    # for index-ordered output.
+    posts_qs = ArchivedMessage.objects.filter(
+        sender_id__in=candidate_sender_ids,
+        channel_id__in=user_channel_ids,
+        is_deleted=False,
+    ).select_related('channel').order_by('-telegram_date')
+
+    source_id = request.GET.get('source', '').strip()
+    if source_id.isdigit():
+        posts_qs = posts_qs.filter(channel_id=int(source_id))
+
+    paginator = Paginator(posts_qs, 25)
+    posts_page = paginator.get_page(request.GET.get('page', 1))
+
+    # Source filter dropdown — derived from message_count rather than a fresh
+    # scan of ArchivedMessage.
+    post_source_ids = [m.channel_id for m in memberships_qs if m.message_count > 0]
+    post_sources = TelegramChannel.objects.filter(pk__in=post_source_ids).order_by('title')
+
+    return render(request, 'audit/user_posts.html', {
+        'telegram_user': telegram_user,
+        'posts': posts_page,
+        'posts_total': paginator.count,
+        'post_sources': post_sources,
+        'source_id': source_id,
+        'active_tab': 'posts',
     })
 
 
