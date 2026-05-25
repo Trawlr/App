@@ -17,6 +17,7 @@ x-trawlr-env: &trawlr-env
 
 x-trawlr: &trawlr
   image: ghcr.io/trawlr/trawlr:latest
+  pull_policy: always
   environment: *trawlr-env
   restart: always
   depends_on:
@@ -27,6 +28,7 @@ x-trawlr: &trawlr
 
 x-trawlr-worker: &trawlr-worker
   image: ghcr.io/trawlr/trawlr:latest
+  pull_policy: always
   environment: *trawlr-env
   restart: always
   depends_on:
