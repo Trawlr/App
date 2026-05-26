@@ -1670,7 +1670,6 @@ def user_posts(request, pk):
     posts_qs = ArchivedMessage.objects.filter(
         sender_id__in=candidate_sender_ids,
         channel_id__in=user_channel_ids,
-        is_deleted=False,
     ).select_related('channel').order_by('-telegram_date')
 
     source_id = request.GET.get('source', '').strip()
