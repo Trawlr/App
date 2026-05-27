@@ -4,6 +4,7 @@ from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView, Sp
 
 app_name = 'api'
 from .views.accounts import TelegramAccountViewSet
+from .views.auth import LoginView
 from .views.channels import TelegramChannelViewSet
 from .views.entities import GlobalEntityViewSet
 from .views.files import DownloadedFileViewSet
@@ -24,6 +25,9 @@ router.register(r'users', TelegramUserViewSet, basename='telegram-user')
 router.register(r'tags', TagViewSet, basename='tag')
 
 urlpatterns = [
+    # Authentication (username/password -> token exchange for mobile client)
+    path('auth/login/', LoginView.as_view(), name='auth-login'),
+
     # API routes
     path('', include(router.urls)),
 

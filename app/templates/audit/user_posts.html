@@ -3,141 +3,23 @@
 
 {% block title %}Posts - {{ telegram_user.first_name }} {{ telegram_user.last_name }} - Trawlr{% endblock %}
 
+{% block user_extra_css %}
+{% include "includes/messages_table_css.html" %}
+{% endblock %}
+
 {% block user_content %}
-<div class="card border-0 mb-4">
-    <div class="card-header border-bottom d-flex justify-content-between align-items-center flex-wrap gap-2">
-        <h5 class="mb-0">
-            <i class="bi bi-chat-square-text me-2 icon-base"></i>
-            Posts
-            <span class="badge badge-secondary ms-2">{{ posts_total }}</span>
-        </h5>
-        {% if post_sources %}
-        <div class="d-flex align-items-center gap-2">
-            <label class="small text-muted m-0" for="postsSourceSelect">Source:</label>
-            <select id="postsSourceSelect" class="form-select form-select-sm" style="min-width: 240px;"
-                    onchange="window.location.href=this.value">
-                <option value="{% url 'audit:user_posts' telegram_user.pk %}">All sources</option>
-                {% for src in post_sources %}
-                <option value="{% url 'audit:user_posts' telegram_user.pk %}?source={{ src.pk }}"
-                        {% if source_id|stringformat:"s" == src.pk|stringformat:"s" %}selected{% endif %}>
-                    {{ src|display_title }}
-                </option>
-                {% endfor %}
-            </select>
-        </div>
-        {% endif %}
-    </div>
-    <div class="table-responsive">
-        <table class="table table-hover mb-0">
-            <thead>
-                <tr>
-                    <th style="width: 160px;">Date</th>
-                    <th style="width: 240px;">Source</th>
-                    <th>Content</th>
-                    <th style="width: 70px;">Media</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% if posts %}
-                    {% for post in posts %}
-                    <tr class="table-row {% if post.is_deleted %}deleted{% endif %} {% if post.text %}expandable{% endif %}"
-                        {% if post.text %}onclick="toggleRowExpand(this)" style="cursor: pointer;"{% endif %}>
-                        <td class="text-muted small align-middle" title="{{ post.telegram_date }}">
-                            {{ post.telegram_date|date:"j M Y H:i" }}
-                        </td>
-                        <td class="align-middle">
-                            <a href="{% url 'audit:source_detail' post.channel.pk %}" class="text-decoration-none" onclick="event.stopPropagation();">
-                                {{ post.channel|display_title }}
-                            </a>
-                        </td>
-                        <td class="align-middle">
-                            <div class="d-flex align-items-center gap-2">
-                                <div class="flex-grow-1 min-width-0">
-                                    {% if post.text %}
-                                        <span class="d-inline-block text-truncate" style="max-width: 640px;">{{ post.text|truncatechars:240 }}</span>
-                                    {% elif post.has_media %}
-                                        <span class="text-muted small fst-italic">[{{ post.get_media_type_display|default:"media" }}]</span>
-                                    {% else %}
-                                        <span class="text-muted small">-</span>
-                                    {% endif %}
-                                </div>
-                                {% if post.text %}
-                                <i class="bi bi-chevron-down text-muted expand-icon flex-shrink-0" style="font-size: 14px; transition: transform 0.2s;"></i>
-                                {% endif %}
-                            </div>
-                        </td>
-                        <td class="align-middle">
-                            {% if post.has_media %}
-                                {% if post.media_type == 'photo' %}<i class="bi bi-image text-info" title="Photo"></i>
-                                {% elif post.media_type == 'video' %}<i class="bi bi-camera-video text-success" title="Video"></i>
-                                {% else %}<i class="bi bi-file-earmark text-warning" title="{{ post.media_type|default:'File' }}"></i>{% endif %}
-                            {% endif %}
-                        </td>
-                    </tr>
-                    {% if post.text %}
-                    <tr class="expand-row" style="display: none;">
-                        <td colspan="4" style="border-color: var(--tg-border); padding: 0;">
-                            <div class="d-flex justify-content-center">
-                                <div class="p-3 my-2 rounded" style="background: rgba(0,0,0,0.2); border: 1px solid var(--tg-border); max-width: 900px; width: 100%;">
-                                    <p class="mb-0 mono" style="white-space: pre-wrap;">{{ post.text }}</p>
-                                </div>
-                            </div>
-                        </td>
-                    </tr>
-                    {% endif %}
-                    {% endfor %}
-                {% else %}
-                    <tr>
-                        <td colspan="4" class="text-center py-4 text-muted">
-                            {% if source_id %}
-                                <p class="mb-1">No posts found in the selected source.</p>
-                                <a href="{% url 'audit:user_posts' telegram_user.pk %}" class="btn btn-sm btn-outline-secondary">Show all sources</a>
-                            {% else %}
-                                No archived posts for this user yet.
-                            {% endif %}
-                        </td>
-                    </tr>
-                {% endif %}
-            </tbody>
-        </table>
-    </div>
+<div class="card border-0">
+    {% include "includes/messages_table_filters.html" with search=search media_filter=media_filter sort=sort per_page=per_page channels=channels channel_filter=channel_filter total_count=posts_total show_500_per_page=False %}
 
-    {% if posts.has_other_pages %}
-    <div class="card-footer border-top py-2">
-        <nav aria-label="Posts pagination">
-            <ul class="pagination pagination-sm justify-content-center mb-0">
-                {% if posts.has_previous %}
-                <li class="page-item">
-                    <a class="page-link" href="{% querystring page=1 %}">&laquo; First</a>
-                </li>
-                <li class="page-item">
-                    <a class="page-link" href="{% querystring page=posts.previous_page_number %}">&lsaquo; Prev</a>
-                </li>
-                {% endif %}
+    {% include "includes/messages_table.html" with messages=posts pending_message_ids=pending_message_ids known_users=known_users show_source=True show_topic_info=True show_album_info=True show_extended_date=True show_details_modal=True album_info=album_info col_count=8 empty_icon="inbox" empty_message="No archived posts for this user yet." search=search media_filter=media_filter channel_filter=channel_filter %}
 
-                {% for num in posts.paginator.page_range %}
-                    {% if posts.number == num %}
-                    <li class="page-item active"><span class="page-link">{{ num }}</span></li>
-                    {% elif num > posts.number|add:'-3' and num < posts.number|add:'3' %}
-                    <li class="page-item"><a class="page-link" href="{% querystring page=num %}">{{ num }}</a></li>
-                    {% endif %}
-                {% endfor %}
-
-                {% if posts.has_next %}
-                <li class="page-item">
-                    <a class="page-link" href="{% querystring page=posts.next_page_number %}">Next &rsaquo;</a>
-                </li>
-                <li class="page-item">
-                    <a class="page-link" href="{% querystring page=posts.paginator.num_pages %}">Last &raquo;</a>
-                </li>
-                {% endif %}
-            </ul>
-        </nav>
-    </div>
-    {% endif %}
+    {% include "includes/messages_table_pagination.html" with posts=posts search=search media_filter=media_filter sort=sort per_page=per_page channel_filter=channel_filter %}
 </div>
+
+{% include "audit/includes/posts_modals.html" %}
 {% endblock %}
 
 {% block user_extra_js %}
 {% include "includes/messages_table_js.html" %}
+{% include "audit/includes/posts_js.html" %}
 {% endblock %}
