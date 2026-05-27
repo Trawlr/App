@@ -1665,31 +1665,119 @@ def user_posts(request, pk):
     if telegram_user.telegram_id and telegram_user.telegram_id > 0:
         candidate_sender_ids.append(-int(f"100{telegram_user.telegram_id}"))
 
+    sort = request.GET.get('sort', 'newest')
+    ordering = ('-telegram_date', '-message_id') if sort == 'newest' else ('telegram_date', 'message_id')
+    media_filter = request.GET.get('media', '')
+    search = request.GET.get('q', '').strip()
+    channel_filter = request.GET.get('channel', '').strip()
+    # Back-compat with the old ?source=<pk> param used by the previous view.
+    if not channel_filter:
+        channel_filter = request.GET.get('source', '').strip()
+    per_page = request.GET.get('per_page', request.session.get('user_posts_per_page', 25))
+    try:
+        per_page = int(per_page)
+        per_page = max(10, min(100, per_page))
+    except (ValueError, TypeError):
+        per_page = 25
+    request.session['user_posts_per_page'] = per_page
+
     # Uses the (sender_id, telegram_date) composite index on ArchivedMessage
     # for index-ordered output.
     posts_qs = ArchivedMessage.objects.filter(
         sender_id__in=candidate_sender_ids,
         channel_id__in=user_channel_ids,
-    ).select_related('channel').order_by('-telegram_date')
+    ).select_related('channel', 'channel__account', 'downloaded_file', 'topic')
 
-    source_id = request.GET.get('source', '').strip()
-    if source_id.isdigit():
-        posts_qs = posts_qs.filter(channel_id=int(source_id))
+    if channel_filter.isdigit():
+        posts_qs = posts_qs.filter(channel_id=int(channel_filter))
 
-    paginator = Paginator(posts_qs, 25)
+    if search:
+        q_filter = (
+            Q(text__icontains=search) |
+            Q(sender_username__icontains=search) |
+            Q(sender_name__icontains=search) |
+            Q(original_filename__icontains=search) |
+            Q(channel__title__icontains=search)
+        )
+        if search.isdigit():
+            q_filter |= Q(message_id=int(search))
+        posts_qs = posts_qs.filter(q_filter)
+
+    if media_filter == 'media':
+        posts_qs = posts_qs.filter(has_media=True)
+    elif media_filter == 'text':
+        posts_qs = posts_qs.filter(has_media=False)
+    elif media_filter in ['photo', 'video', 'file']:
+        posts_qs = posts_qs.filter(media_type=media_filter)
+
+    posts_qs = posts_qs.order_by(*ordering)
+
+    paginator = Paginator(posts_qs, per_page)
     posts_page = paginator.get_page(request.GET.get('page', 1))
 
-    # Source filter dropdown — derived from message_count rather than a fresh
-    # scan of ArchivedMessage.
+    visible_channel_ids = {p.channel_id for p in posts_page}
+    visible_message_ids = [p.message_id for p in posts_page]
+    pending_message_ids = set()
+    if visible_channel_ids and visible_message_ids:
+        pending_message_ids = set(
+            DownloadTask.objects.filter(
+                channel_id__in=visible_channel_ids,
+                message_id__in=visible_message_ids,
+                status__in=['pending', 'downloading'],
+            ).values_list('message_id', flat=True)
+        )
+
+    sender_ids = [p.sender_id for p in posts_page if p.sender_id]
+    known_users = {}
+    if sender_ids:
+        known_users = {
+            u.telegram_id: u.pk
+            for u in TelegramUser.objects.filter(telegram_id__in=sender_ids)
+        }
+
+    album_info = {}
+    grouped_pairs = {(p.channel_id, p.grouped_id) for p in posts_page if p.grouped_id}
+    if grouped_pairs:
+        channel_to_grouped = defaultdict(set)
+        for channel_id, grouped_id in grouped_pairs:
+            channel_to_grouped[channel_id].add(grouped_id)
+        album_filter = Q()
+        for channel_id, grouped_ids in channel_to_grouped.items():
+            album_filter |= Q(channel_id=channel_id, grouped_id__in=grouped_ids)
+        album_messages = ArchivedMessage.objects.filter(album_filter).values(
+            'channel_id', 'grouped_id', 'pk', 'message_id'
+        ).order_by('channel_id', 'grouped_id', 'message_id')
+
+        albums = defaultdict(list)
+        for msg in album_messages:
+            albums[(msg['channel_id'], msg['grouped_id'])].append(msg['pk'])
+
+        for (channel_id, grouped_id), pks in albums.items():
+            total = len(pks)
+            for idx, pk_val in enumerate(pks, 1):
+                album_info[pk_val] = {
+                    'position': idx,
+                    'total': total,
+                    'grouped_id': grouped_id,
+                    'channel_pk': channel_id,
+                }
+
     post_source_ids = [m.channel_id for m in memberships_qs if m.message_count > 0]
-    post_sources = TelegramChannel.objects.filter(pk__in=post_source_ids).order_by('title')
+    channels = TelegramChannel.objects.filter(pk__in=post_source_ids).order_by('title')
 
     return render(request, 'audit/user_posts.html', {
         'telegram_user': telegram_user,
         'posts': posts_page,
         'posts_total': paginator.count,
-        'post_sources': post_sources,
-        'source_id': source_id,
+        'channels': channels,
+        'channel_filter': channel_filter,
+        'sort': sort,
+        'media_filter': media_filter,
+        'search': search,
+        'per_page': per_page,
+        'pending_message_ids': pending_message_ids,
+        'known_users': known_users,
+        'album_info': album_info,
         'active_tab': 'posts',
     })
 
