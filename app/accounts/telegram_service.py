@@ -395,14 +395,25 @@ class TelegramService:
                 # Get the chat from the updates
                 if hasattr(updates, 'chats') and updates.chats:
                     entity = updates.chats[0]
-                    return {'success': True, 'entity': entity, 'title': getattr(entity, 'title', 'Unknown')}
-                return {'success': True, 'entity': None, 'title': 'Joined successfully'}
+                    return {
+                        'success': True, 'entity': entity,
+                        'title': getattr(entity, 'title', 'Unknown'),
+                        'invite_hash': invite_hash, 'source_url': url,
+                    }
+                return {
+                    'success': True, 'entity': None, 'title': 'Joined successfully',
+                    'invite_hash': invite_hash, 'source_url': url,
+                }
 
             else:
                 # Join public channel/group by username
                 entity = await self._client.get_entity(username)
                 await self._client(JoinChannelRequest(entity))
-                return {'success': True, 'entity': entity, 'title': getattr(entity, 'title', username)}
+                return {
+                    'success': True, 'entity': entity,
+                    'title': getattr(entity, 'title', username),
+                    'invite_hash': '', 'source_url': url,
+                }
 
         except UserAlreadyParticipantError:
             return {'success': False, 'error': 'Already a member of this channel/group'}

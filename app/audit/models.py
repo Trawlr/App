@@ -154,6 +154,16 @@ class TelegramChannel(models.Model):
     # Onboarding status
     onboarded = models.BooleanField(default=False, help_text='Whether onboarding tasks have been triggered for this channel')
 
+    # Join provenance (populated when joined via Trawlr UI; blank for auto-discovered channels)
+    joined_via_url = models.URLField(
+        max_length=2000, blank=True, default='',
+        help_text='Original URL the user submitted to Trawlr to join this channel'
+    )
+    joined_via_invite_hash = models.CharField(
+        max_length=255, blank=True, default='',
+        help_text='Invite hash extracted from the join URL (empty if joined by username)'
+    )
+
     # Availability status (for detecting deleted/banned channels)
     AVAILABILITY_STATUS_CHOICES = [
         ('active', 'Active'),

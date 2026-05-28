@@ -52,6 +52,7 @@ urlpatterns = [
     path('settings/invoke/recover-stuck-tasks/', views.invoke_recover_stuck_tasks, name='invoke_recover_stuck_tasks'),
     path('settings/invoke/check-availability/', views.invoke_check_availability, name='invoke_check_availability'),
     path('settings/invoke/sync-forum-topics/', views.invoke_sync_forum_topics, name='invoke_sync_forum_topics'),
+    path('settings/invoke/scan-all-history/', views.invoke_scan_all_history, name='invoke_scan_all_history'),
 
     # Dead letter queue management
     path('settings/dead-letters/stats/', views.get_dead_letters_stats, name='get_dead_letters_stats'),

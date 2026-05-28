@@ -3,6 +3,7 @@ Scanning tasks for channel history and members.
 """
 
 import asyncio
+import uuid
 from datetime import timedelta
 from pathlib import Path
 
@@ -27,6 +28,7 @@ from listeners.handlers import _async_create_message_entities, _extract_entities
 
 from .base import (
     logger,
+    QUEUE_DEFAULT,
     QUEUE_SCANS_HISTORY,
     QUEUE_SCANS_MEMBERS,
     _log_activity,
@@ -478,6 +480,99 @@ def scan_channel_history(channel_id: int, task_run_id: str = None, skip_thumbnai
             channel=channel,
             error=str(e),
         )
+
+
+@dramatiq.actor(queue_name=QUEUE_DEFAULT)
+def scan_all_channel_history(task_run_id: str = None):
+    """
+    Dispatcher that queues a history scan for every active source.
+
+    Iterates active, available channels owned by authenticated accounts and
+    dispatches scan_channel_history for each. Channels with an in-flight
+    scan_history task are skipped so duplicate work isn't queued.
+    """
+    logger.info("scan_all_channel_history: Starting bulk history scan dispatch")
+
+    task_run = None
+    if task_run_id:
+        try:
+            task_run = TaskRun.objects.get(task_id=task_run_id)
+            if task_run.should_cancel or task_run.status in ('cancelled', 'completed', 'failed'):
+                logger.info(f"TaskRun {task_run_id} already cancelled/completed, skipping")
+                return {'success': False, 'error': 'Task cancelled'}
+            task_run.mark_running()
+        except TaskRun.DoesNotExist:
+            logger.warning(f"TaskRun {task_run_id} not found")
+
+    if not task_run:
+        task_run = TaskRun.create_task('scan_all_history', str(uuid.uuid4()))
+        task_run.mark_running()
+
+    channels = TelegramChannel.objects.filter(
+        account__is_active=True,
+        account__is_authenticated=True,
+        active=True,
+        availability_status='active',
+        has_left=False,
+    ).select_related('account')
+
+    already_running_channel_ids = set(
+        TaskRun.objects.filter(
+            task_type='scan_history',
+            status__in=['queued', 'running'],
+        ).values_list('channel_id', flat=True)
+    )
+
+    dispatched = 0
+    skipped_running = 0
+    failed = 0
+
+    for channel in channels:
+        if channel.pk in already_running_channel_ids:
+            logger.debug(f"Skipping history scan for {channel.title} (already running)")
+            skipped_running += 1
+            continue
+
+        try:
+            dispatch_task(
+                scan_channel_history,
+                'scan_history',
+                channel=channel,
+                args=(channel.pk,),
+            )
+            dispatched += 1
+            logger.debug(f"Queued history scan for {channel.title}")
+        except Exception as e:
+            failed += 1
+            logger.error(f"Failed to dispatch history scan for {channel.title}: {e}")
+
+    logger.info(
+        f"scan_all_channel_history: Dispatched {dispatched}, "
+        f"skipped {skipped_running} (already running), {failed} failed"
+    )
+
+    _log_activity(
+        'history_scan_all_dispatched',
+        f"Bulk history scan dispatched: {dispatched} queued, {skipped_running} already running, {failed} failed",
+        source='worker_telegram',
+        dispatched=dispatched,
+        skipped_running=skipped_running,
+        failed=failed,
+    )
+
+    task_run.update_progress(data={
+        'dispatched': dispatched,
+        'skipped_running': skipped_running,
+        'failed': failed,
+    })
+    task_run.mark_completed()
+
+    return {
+        'success': True,
+        'dispatched': dispatched,
+        'skipped_running': skipped_running,
+        'failed': failed,
+    }
 
 
 @dramatiq.actor(queue_name=QUEUE_SCANS_MEMBERS)

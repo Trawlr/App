@@ -35,6 +35,7 @@ from tasks import (
     refresh_all_media_counts,
     requeue_dead_letters,
     run_channel_onboarding,
+    scan_all_channel_history,
     sync_account_channels,
     sync_all_account_channels,
     sync_all_forum_topics,
@@ -136,6 +137,17 @@ def _sync_dialogs_to_db(account, dialogs, run_onboarding=False):
         synced_count += 1
 
     return synced_count
+
+
+def _record_join_provenance(join_result):
+    """Persist the original URL/invite hash used to join a channel via Trawlr."""
+    entity = join_result.get('entity')
+    if entity is None or not getattr(entity, 'id', None):
+        return
+    TelegramChannel.objects.filter(telegram_id=entity.id).update(
+        joined_via_url=join_result.get('source_url') or '',
+        joined_via_invite_hash=join_result.get('invite_hash') or '',
+    )
 
 
 def _get_session_with_fallback(request, account):
@@ -772,6 +784,7 @@ def telegram_account_join_channel(request, pk):
         if result['success']:
             if dialogs:
                 _sync_dialogs_to_db(account, dialogs)
+            _record_join_provenance(result)
             messages.success(request, f"Successfully joined: {result.get('title', 'channel')}")
         else:
             messages.error(request, result.get('error', 'Failed to join channel'))
@@ -837,6 +850,7 @@ def join_channel(request):
         if result['success']:
             if dialogs:
                 _sync_dialogs_to_db(account, dialogs, run_onboarding=run_onboarding)
+            _record_join_provenance(result)
             messages.success(request, f"Successfully joined: {result.get('title', 'channel')}")
         else:
             messages.error(request, result.get('error', 'Failed to join channel'))
@@ -1086,6 +1100,14 @@ def invoke_sync_forum_topics(request):
     """Manually trigger forum topics sync for all forum channels."""
     sync_all_forum_topics.send()
     return _json_response(True, message='Forum topics sync triggered for all forum channels')
+
+
+@login_required
+@require_http_methods(['POST'])
+def invoke_scan_all_history(request):
+    """Manually trigger a history scan for every active source."""
+    scan_all_channel_history.send()
+    return _json_response(True, message='Historical scan queued for all active sources')
 
 
 @login_required

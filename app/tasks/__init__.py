@@ -39,6 +39,7 @@ from .downloads import (
 # Scanning tasks
 from .scanning import (
     scan_channel_history,
+    scan_all_channel_history,
     scan_channel_members,
     scan_all_channel_members_for_user,
 )
@@ -120,6 +121,7 @@ __all__ = [
     'sync_missing_media',
     # Scanning
     'scan_channel_history',
+    'scan_all_channel_history',
     'scan_channel_members',
     'scan_all_channel_members_for_user',
     # Availability
