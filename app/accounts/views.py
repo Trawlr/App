@@ -35,6 +35,7 @@ from tasks import (
     refresh_all_media_counts,
     requeue_dead_letters,
     run_channel_onboarding,
+    scan_all_channel_history,
     sync_account_channels,
     sync_all_account_channels,
     sync_all_forum_topics,
@@ -1099,6 +1100,14 @@ def invoke_sync_forum_topics(request):
     """Manually trigger forum topics sync for all forum channels."""
     sync_all_forum_topics.send()
     return _json_response(True, message='Forum topics sync triggered for all forum channels')
+
+
+@login_required
+@require_http_methods(['POST'])
+def invoke_scan_all_history(request):
+    """Manually trigger a history scan for every active source."""
+    scan_all_channel_history.send()
+    return _json_response(True, message='Historical scan queued for all active sources')
 
 
 @login_required

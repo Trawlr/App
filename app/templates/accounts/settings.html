@@ -517,6 +517,14 @@
                                 </div>
                                 <i class="bi bi-chevron-right text-muted" style="font-size: 18px;"></i>
                             </button>
+                            <button type="button" class="list-group-item list-group-item-action action-item-hover d-flex justify-content-between align-items-center py-3"
+                                    onclick="invokeTask('{% url 'accounts:invoke_scan_all_history' %}', this)">
+                                <div>
+                                    <div class="fw-medium">Fetch ALL historical content</div>
+                                    <small class="text-muted">This will fetch all historical posts for all sources onboarded to Trawlr</small>
+                                </div>
+                                <i class="bi bi-chevron-right text-muted" style="font-size: 18px;"></i>
+                            </button>
                         </div>
                     </div>
                 </div>

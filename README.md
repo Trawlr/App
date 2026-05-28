@@ -75,6 +75,96 @@ Scheduler intervals, event processing settings, download concurrency, and other 
 
 Container images are automatically built and pushed to `ghcr.io/trawlr/trawlr` with semantic versioning based on commit prefixes (`fix:`, `feat:`, `major:`).
 
+## Getting Started
+
+Once Trawlr is deployed and reachable in a browser, work through the steps below to onboard your first data source and start collecting.
+
+### 1. Create the admin user
+
+If you didn't bootstrap a superuser during install, exec into the `web` container and run:
+
+```bash
+docker compose exec web python manage.py createsuperuser
+```
+
+Log in at `/` with those credentials. The first user is also used to own Telegram accounts you connect below.
+
+### 2. Connect a Telegram account
+
+Trawlr uses your own Telegram user accounts to read channels — not a bot.
+
+1. Generate an API ID + hash at <https://my.telegram.org> → **API development tools**.
+2. In Trawlr, go to **Accounts → Add Account** and enter the phone number, API ID, and API hash.
+3. You'll be prompted to enter the login code Telegram sends to that number, and a 2FA password if one is set on the account.
+
+Once authenticated the account row will show a green status. You can connect multiple accounts; each runs its own listener and has its own download concurrency limit (set on the account's settings page).
+
+### 3. Onboard a data source
+
+A "source" in Trawlr is any channel, group, or supergroup you want to archive.
+
+- **Already a member?** Open the account, hit **Sync Channels**, and Trawlr will import every dialog the account can see. From the **Sources** list you can then enable collection on the ones you care about.
+- **Not a member yet?** Use **Join Channel** (per-account or from the dashboard) with an invite link, `t.me/...` URL, or `@username`. Trawlr will join, sync dialogs, and run the standard onboarding tasks for the new source. Public channels are joined directly; private invite links are honored.
+
+After a source appears, open **Source → Config** to choose what to collect:
+
+- **Archive messages** — store text, edits, deletions, and extracted entities (URLs, mentions, hashtags, etc.).
+- **Auto-download** — toggle per file type (photos, videos, files) with a priority order and a per-source priority (1–10) used by the queue scheduler.
+- **Thumbnails** — download lightweight previews even when full media isn't being grabbed, so the UI is browsable.
+- **Deduplication** — switch to SHA256 to hardlink duplicate files instead of storing copies.
+- **Monitor / Pause / Bypass listener** — switches to live-track the source, pause its downloads, or skip real-time event processing.
+
+### 4. Backfill history
+
+The listener only captures *new* messages from the moment it starts. To bring in prior content, open a source and click **Scan History**. The `concierge` service walks the channel in order and queues messages (and downloads, if auto-download is on) according to that source's config. You can also use **Scan Members** on groups/supergroups to populate the user OSINT graph.
+
+### 5. Tune auto-downloading globally
+
+Settings → **Global Settings** controls instance-wide behavior. The fields most relevant to a fresh deployment:
+
+| Setting | What it does |
+|---------|--------------|
+| `download_queue_interval` | How often the scheduler drains the download queue (default 10s) |
+| `channel_sync_interval` | How often Trawlr re-syncs each account's dialog list |
+| `channel_stats_interval` / `media_counts_interval` | Refresh member counts and per-source media totals |
+| `availability_check_interval` | Detect deleted/banned channels |
+| `forum_topics_sync_interval` | Re-pull topic lists for forum-style supergroups |
+| `member_sync_interval` | Periodically refresh group member lists |
+| `stuck_task_recovery_interval` | Re-queue tasks that have been stuck for too long |
+| `event_processing_enabled` | Master switch — turn off to pause the listener pipeline without stopping services |
+| `storage_root` / `filename_format` | Where downloaded media lives and how files are named on disk |
+
+Per-account download concurrency is set on the **Account** page, not globally — raise it cautiously to avoid Telegram rate limits.
+
+### 6. Set up entity notifications (optional)
+
+To get alerted when a specific URL, domain, hashtag, mention, phone number, or email appears anywhere in a monitored source:
+
+1. Go to **Notifications → Watchlist → Add Entry**.
+2. Pick the **entity type** and the exact **entity value** to watch (e.g. hashtag `#blackmarket`, domain `example.com`).
+3. Choose **mode** — `every` fires on every match, `new` fires only the first time.
+4. Configure a sink:
+   - **Webhook** — HMAC-signed POST to a URL of your choice. Set `secret` for signature verification.
+   - **RabbitMQ** — publish to a queue/exchange/routing key. Useful when you want another service in your stack to consume matches directly.
+5. Optionally set a **cooldown** in seconds to suppress repeated matches.
+
+Deliveries are retried automatically; failed deliveries land in the **Deliveries** tab where they can be requeued or inspected.
+
+### 7. Exclude noisy users (optional)
+
+If certain users are flooding your sources (bots, spammers), add them under **Settings → Exclusions**. Exclusions can be global (every source) or per-source, and the listener will silently drop their messages before processing — useful for keeping storage and notifications focused.
+
+### 8. Verify the pipeline is healthy
+
+Worth checking after the first source is collecting:
+
+- **Dashboard** — should show recent activity, queued/active downloads, and per-account listener status.
+- **Tasks** page — queued, running, and failed task runs. Look here first if a scan or download seems stuck.
+- **Ops → Queues** — RabbitMQ queue depths for each worker. Sustained backlogs usually mean a worker container needs more concurrency or has crashed.
+- **Settings → Dead Letters** — anything ending up here failed all retries; requeue or purge from this page.
+
+At this point new messages, media, and entities will start flowing in as the listener picks them up, and any history scans you started will catch up in the background.
+
 ## API
 
 Trawlr provides a REST API with token authentication. Generate an API token from the web UI under account settings.
