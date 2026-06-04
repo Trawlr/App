@@ -38,9 +38,9 @@ class TokenAuthMiddleware(BaseMiddleware):
         token_values = params.get('token')
 
         if token_values:
-            scope['user'] = await _get_user_from_token(token_values[0])
-        else:
-            scope['user'] = AnonymousUser()
+            user = await _get_user_from_token(token_values[0])
+            if user.is_authenticated:
+                scope['user'] = user
 
         return await super().__call__(scope, receive, send)
 
