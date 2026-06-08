@@ -194,6 +194,7 @@ DRAMATIQ_BROKER = {
         'trawlr.dramatiq_middleware.TrawlrTimeLimit',
         'dramatiq.middleware.Callbacks',
         'dramatiq.middleware.Pipelines',
+        'dramatiq.middleware.CurrentMessage',
         'trawlr.dramatiq_middleware.TrawlrRetries',
         'trawlr.dramatiq_middleware.StartupRecoveryMiddleware',
         'trawlr.dramatiq_middleware.ClientPoolShutdownMiddleware',

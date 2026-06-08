@@ -229,6 +229,12 @@ class GlobalSettings(models.Model):
         choices=SCHEDULER_INTERVAL_CHOICES,
         help_text='How often to scan for per-user reaction data on messages (0 = disabled). Uses API calls — set conservatively.'
     )
+    profile_photo_queue_interval = models.IntegerField(
+        default=60,
+        choices=SCHEDULER_INTERVAL_CHOICES,
+        help_text='How often to dispatch backfill profile-photo downloads for scanned members (0 = disabled). '
+                  'Runs at strictly lower priority than file downloads.'
+    )
 
     # Entity Cache Settings
     dialog_cache_limit = models.IntegerField(

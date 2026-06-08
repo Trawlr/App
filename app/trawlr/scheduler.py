@@ -61,6 +61,7 @@ def get_scheduler_settings():
         'forum_topics_sync_interval': settings.forum_topics_sync_interval,
         'member_sync_interval': settings.member_sync_interval,
         'reaction_scan_interval': settings.reaction_scan_interval,
+        'profile_photo_queue_interval': settings.profile_photo_queue_interval,
     }
 
 
@@ -116,6 +117,13 @@ def trigger_sync_all_members():
     )
 
 
+def trigger_process_profile_photo_queue():
+    """Trigger the idle profile-photo backfill dispatcher."""
+    from tasks import process_profile_photo_queue
+    logger.debug('Triggering process_profile_photo_queue (profile photo backfill)')
+    process_profile_photo_queue.send()
+
+
 def trigger_scan_all_reactions():
     """Trigger reaction scans for all channels with reactions."""
     from tasks import scan_all_channel_reactions
@@ -166,6 +174,7 @@ def main():
     forum_topics_sync_interval = settings['forum_topics_sync_interval']
     member_sync_interval = settings['member_sync_interval']
     reaction_scan_interval = settings['reaction_scan_interval']
+    profile_photo_queue_interval = settings['profile_photo_queue_interval']
 
     scheduler = BlockingScheduler()
 
@@ -276,6 +285,18 @@ def main():
         )
     else:
         logger.info('Reaction scanning is DISABLED')
+
+    # Backfill profile photos for scanned members at configured interval (0 = disabled)
+    if profile_photo_queue_interval > 0:
+        scheduler.add_job(
+            trigger_process_profile_photo_queue,
+            trigger=IntervalTrigger(seconds=profile_photo_queue_interval),
+            id='process_profile_photo_queue',
+            name='Process profile photo backfill queue',
+            replace_existing=True,
+        )
+    else:
+        logger.info('Profile photo backfill is DISABLED')
 
     # Retain django_dramatiq_task rows for 7 days (hardcoded daily interval).
     # Not user-configurable — this is operational housekeeping, not a feature.

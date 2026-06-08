@@ -524,6 +524,9 @@ class TelegramUser(models.Model):
         help_text='Base64 encoded profile photo (not stored as file for safety)'
     )
     profile_photo_updated_at = models.DateTimeField(null=True, blank=True)
+    # One-time claim set by the profile-photo backfill dispatcher when it enqueues a
+    # download for this user. The dispatcher never re-picks a user once this is set.
+    profile_photo_attempted_at = models.DateTimeField(null=True, blank=True)
 
     # Full profile data (from GetFullUserRequest) - OSINT fields
     bio = models.TextField(blank=True, help_text='User bio/about text')
@@ -586,7 +589,7 @@ class TelegramUser(models.Model):
     # Track all changes with django-simple-history
     # Exclude volatile fields that change on every message to prevent history bloat
     history = HistoricalRecords(
-        excluded_fields=['last_seen', 'message_count', 'profile_photo_base64']
+        excluded_fields=['last_seen', 'message_count', 'profile_photo_base64', 'profile_photo_attempted_at']
     )
 
     class Meta:

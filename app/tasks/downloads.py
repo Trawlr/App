@@ -17,13 +17,14 @@ from asgiref.sync import sync_to_async
 from django.db.models import Q
 from django.utils import timezone
 from dramatiq import Retry
+from dramatiq.middleware import CurrentMessage
 from telethon.errors import FloodWaitError
 from telethon.tl.types import User
 
 from accounts.client_pool import client_pool
 from accounts.models import GlobalSettings, TelegramAccount
 from accounts.telegram_service import TelegramService, run_async
-from audit.models import TelegramChannel, TelegramUser
+from audit.models import TelegramChannel, TelegramUser, UserNote
 from downloads.consumers import sync_broadcast_progress, sync_broadcast_queue_update, sync_broadcast_status_change
 from downloads.models import ArchivedMessage, DownloadedFile, DownloadTask, TaskRun
 from storage.utils import get_storage_backend, is_cloud_backend
@@ -930,9 +931,96 @@ def download_profile_photo(account_id: int, telegram_user_id: int, user_telegram
 
         return {'success': True, 'size': len(base64_data)}
 
+    except FloodWaitError as e:
+        # Flood wait is not a failure — reschedule and don't consume a retry.
+        wait_seconds = getattr(e, 'seconds', 60)
+        logger.warning(f"FloodWaitError downloading profile photo for user {user_telegram_id}: wait {wait_seconds}s")
+        account.flood_wait_until = timezone.now() + timezone.timedelta(seconds=wait_seconds)
+        account.save(update_fields=['flood_wait_until'])
+        download_profile_photo.send_with_options(
+            args=(account_id, telegram_user_id, user_telegram_id, photo_id),
+            delay=(wait_seconds + 5) * 1000,
+        )
+        return {'success': False, 'error': f'Flood wait {wait_seconds}s, rescheduled'}
+
     except Exception as e:
-        logger.exception(f"Error downloading profile photo for user {user_telegram_id}")
-        return {'success': False, 'error': str(e)}
+        # Retry up to max_retries (2); on the final failed attempt, give up and leave a note
+        # on the user so the failure is visible, then let the event fail to the dead-letter queue.
+        message = CurrentMessage.get_current_message()
+        retries = message.options.get('retries', 0) if message else 0
+        if retries >= 2:
+            logger.error(f"Profile photo download for user {user_telegram_id} failed after {retries} retries: {e}")
+            try:
+                UserNote.add_note(
+                    telegram_user,
+                    f"[Profile photo] Download failed after 2 retries: {e}",
+                    None,
+                )
+            except Exception as note_err:
+                logger.warning(f"Failed to record profile-photo failure note for user {user_telegram_id}: {note_err}")
+        else:
+            logger.warning(f"Profile photo download for user {user_telegram_id} failed (attempt {retries + 1}), retrying: {e}")
+        raise
+
+
+@dramatiq.actor(queue_name=QUEUE_DEFAULT)
+def process_profile_photo_queue():
+    """
+    Backfill profile-photo downloads for scan-discovered members, at strictly lower priority
+    than file downloads.
+    """
+    PHOTO_BATCH_CAP = 5
+
+    accounts = TelegramAccount.objects.filter(
+        is_active=True,
+        is_authenticated=True,
+        download_profile_photos=True,
+    )
+
+    for account in accounts:
+        if account.is_flood_wait_active:
+            continue
+
+        # Yield to real downloads: if any file download is waiting for this account, skip photos.
+        has_pending_files = DownloadTask.objects.filter(
+            channel__account=account,
+            status='pending',
+        ).exclude(pending_reason='dispatched').exists()
+        if has_pending_files:
+            continue
+
+        # Photos share the per-account client pool with file downloads — respect the slot budget.
+        active_count = DownloadTask.objects.filter(
+            channel__account=account,
+        ).filter(
+            Q(status='downloading') | Q(status='pending', pending_reason='dispatched')
+        ).count()
+        available = account.max_concurrent_downloads - active_count
+        if available <= 0:
+            continue
+
+        batch = min(available, PHOTO_BATCH_CAP)
+
+        users = list(
+            TelegramUser.objects.filter(
+                photo_id__isnull=False,
+                profile_photo_base64='',
+                profile_photo_attempted_at__isnull=True,
+                memberships__channel__account=account,
+            ).order_by('-last_seen').distinct()[:batch]
+        )
+        if not users:
+            continue
+
+        now = timezone.now()
+        for user in users:
+            # One-time claim so the dispatcher never re-picks this user.
+            TelegramUser.objects.filter(pk=user.pk).update(profile_photo_attempted_at=now)
+            download_profile_photo.send(account.pk, user.pk, user.telegram_id, user.photo_id)
+            logger.debug(
+                f"process_profile_photo_queue: queued backfill for user {user.telegram_id} "
+                f"via account {account.pk}"
+            )
 
 
 @dramatiq.actor(queue_name=QUEUE_DOWNLOADS, max_retries=2, min_backoff=15000, max_backoff=60000)
