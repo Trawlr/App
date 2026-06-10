@@ -74,7 +74,7 @@
     <!-- Results Header -->
     <div class="d-flex justify-content-between align-items-center px-3 py-2 border-bottom" style="border-color: var(--tg-border) !important;">
         <span class="text-muted">
-            {{ page_obj.paginator.count|default:0 }} result{{ page_obj.paginator.count|pluralize }}
+            {% if page_obj.paginator.is_capped %}{{ page_obj.paginator.count }}+ results{% else %}{{ page_obj.paginator.count|default:0 }} result{{ page_obj.paginator.count|pluralize }}{% endif %}
             {% if query %}for <code class="ms-1">{{ query }}</code>{% endif %}
         </span>
         <div class="d-flex gap-2 align-items-center">

@@ -16,6 +16,7 @@ from audit.models import MessageEntity, TelegramChannel, TelegramUser
 from downloads.models import ArchivedMessage, DownloadedFile, DownloadTask
 
 from .filters import extract_archived_mode, search_messages, validate_query
+from .pagination import CappedCountPaginator
 from .parser import parse_query
 
 logger = logging.getLogger('trawlr.search')
@@ -79,7 +80,7 @@ def search_view(request):
     except (ValueError, TypeError):
         per_page = 50
 
-    paginator = Paginator(results, per_page)
+    paginator = CappedCountPaginator(results, per_page)
     page_obj = paginator.get_page(page_number)
 
     # Get known users for linking senders
