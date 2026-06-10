@@ -11,6 +11,7 @@ from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.postgres.indexes import GinIndex, OpClass
 from django.db import models
+from django.db.models.functions import Upper
 from django.utils import timezone
 from simple_history.models import HistoricalRecords
 
@@ -1056,13 +1057,27 @@ class GlobalEntity(models.Model):
         indexes = [
             models.Index(fields=['entity_type']),
             models.Index(fields=['user_id']),
+            # Trigram GIN on UPPER(...) — Django's icontains/istartswith/
+            # iendswith compile to UPPER(col) LIKE UPPER(...), so the index
+            # expression must be UPPER(col) to be usable at all.
             GinIndex(
-                OpClass(models.F('url'), name='gin_trgm_ops'),
-                name='globalentity_url_trgm',
+                OpClass(Upper('url'), name='gin_trgm_ops'),
+                name='globalentity_url_upper_trgm',
             ),
             GinIndex(
-                OpClass(models.F('text'), name='gin_trgm_ops'),
-                name='globalentity_text_trgm',
+                OpClass(Upper('text'), name='gin_trgm_ops'),
+                name='globalentity_text_upper_trgm',
+            ),
+            # Btree on UPPER(text) for iexact (= UPPER(...)). Partial: only
+            # the short, exact-searchable entity types — text on formatting
+            # entities (bold/code/blockquote) can exceed the btree key-size
+            # limit this model deliberately avoids (see docstring).
+            models.Index(
+                Upper('text'),
+                name='globalentity_text_upper',
+                condition=models.Q(entity_type__in=[
+                    'hashtag', 'mention', 'email', 'phone', 'domain',
+                ]),
             ),
         ]
 

@@ -4,10 +4,8 @@ Search views for Trawlr.
 
 import csv
 import logging
-import re
 
 from django.contrib.auth.decorators import login_required
-from django.contrib.postgres.search import SearchQuery as PGSearchQuery, SearchRank
 from silk.profiling.profiler import silk_profile
 from django.core.paginator import Paginator
 from django.db.models import Count, F, Q
@@ -56,27 +54,15 @@ def search_view(request):
 
     if query:
         try:
-            # Parse and execute search
-            results = search_messages(query, base_qs)
+            # Parse and execute search; rank annotation is built from the
+            # same AST as the filters (no re-parsing).
+            results = search_messages(query, base_qs, with_rank=(sort == 'relevance'))
 
             # Apply sorting
             if sort == 'oldest':
                 results = results.order_by('telegram_date')
-            elif sort == 'relevance' and 'text:' in query.lower():
-                # Only apply relevance sort for text searches with search_vector
-                try:
-                    # Extract text terms for ranking
-                    text_matches = re.findall(r'text:(?:"([^"]+)"|(\S+))', query, re.IGNORECASE)
-                    text_terms = ' '.join([m[0] or m[1] for m in text_matches])
-                    if text_terms:
-                        search_query = PGSearchQuery(text_terms, config='english')
-                        results = results.annotate(
-                            rank=SearchRank('search_vector', search_query)
-                        ).order_by('-rank', '-telegram_date')
-                    else:
-                        results = results.order_by('-telegram_date')
-                except Exception:
-                    results = results.order_by('-telegram_date')
+            elif sort == 'relevance' and 'rank' in results.query.annotations:
+                results = results.order_by('-rank', '-telegram_date')
             else:
                 results = results.order_by('-telegram_date')
 
