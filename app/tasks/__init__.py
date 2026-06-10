@@ -30,6 +30,7 @@ from .maintenance import (
 from .downloads import (
     download_file,
     process_download_queue,
+    process_profile_photo_queue,
     download_profile_photo,
     download_thumbnail,
     backfill_thumbnails,
@@ -115,6 +116,7 @@ __all__ = [
     # Downloads
     'download_file',
     'process_download_queue',
+    'process_profile_photo_queue',
     'download_profile_photo',
     'download_thumbnail',
     'backfill_thumbnails',

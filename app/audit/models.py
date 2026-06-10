@@ -11,6 +11,7 @@ from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.postgres.indexes import GinIndex, OpClass
 from django.db import models
+from django.db.models.functions import Upper
 from django.utils import timezone
 from simple_history.models import HistoricalRecords
 
@@ -524,6 +525,9 @@ class TelegramUser(models.Model):
         help_text='Base64 encoded profile photo (not stored as file for safety)'
     )
     profile_photo_updated_at = models.DateTimeField(null=True, blank=True)
+    # One-time claim set by the profile-photo backfill dispatcher when it enqueues a
+    # download for this user. The dispatcher never re-picks a user once this is set.
+    profile_photo_attempted_at = models.DateTimeField(null=True, blank=True)
 
     # Full profile data (from GetFullUserRequest) - OSINT fields
     bio = models.TextField(blank=True, help_text='User bio/about text')
@@ -586,7 +590,7 @@ class TelegramUser(models.Model):
     # Track all changes with django-simple-history
     # Exclude volatile fields that change on every message to prevent history bloat
     history = HistoricalRecords(
-        excluded_fields=['last_seen', 'message_count', 'profile_photo_base64']
+        excluded_fields=['last_seen', 'message_count', 'profile_photo_base64', 'profile_photo_attempted_at']
     )
 
     class Meta:
@@ -1053,13 +1057,27 @@ class GlobalEntity(models.Model):
         indexes = [
             models.Index(fields=['entity_type']),
             models.Index(fields=['user_id']),
+            # Trigram GIN on UPPER(...) — Django's icontains/istartswith/
+            # iendswith compile to UPPER(col) LIKE UPPER(...), so the index
+            # expression must be UPPER(col) to be usable at all.
             GinIndex(
-                OpClass(models.F('url'), name='gin_trgm_ops'),
-                name='globalentity_url_trgm',
+                OpClass(Upper('url'), name='gin_trgm_ops'),
+                name='globalentity_url_upper_trgm',
             ),
             GinIndex(
-                OpClass(models.F('text'), name='gin_trgm_ops'),
-                name='globalentity_text_trgm',
+                OpClass(Upper('text'), name='gin_trgm_ops'),
+                name='globalentity_text_upper_trgm',
+            ),
+            # Btree on UPPER(text) for iexact (= UPPER(...)). Partial: only
+            # the short, exact-searchable entity types — text on formatting
+            # entities (bold/code/blockquote) can exceed the btree key-size
+            # limit this model deliberately avoids (see docstring).
+            models.Index(
+                Upper('text'),
+                name='globalentity_text_upper',
+                condition=models.Q(entity_type__in=[
+                    'hashtag', 'mention', 'email', 'phone', 'domain',
+                ]),
             ),
         ]
 

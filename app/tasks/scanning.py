@@ -2,7 +2,6 @@
 Scanning tasks for channel history and members.
 """
 
-import asyncio
 import uuid
 from datetime import timedelta
 from pathlib import Path
@@ -18,10 +17,10 @@ from telethon.tl.types import (
     ChannelParticipantSelf,
 )
 
-from accounts.models import GlobalSettings, TelegramAccount
+from accounts.models import GlobalSettings
 from accounts.telegram_service import TelegramService, run_async
 from audit.models import TelegramChannel
-from audit.user_tracking import download_user_profile_photo_async, track_user_from_message_async, track_user_from_participant_async
+from audit.user_tracking import track_user_from_message_async, track_user_from_participant_async
 from downloads.consumers import sync_broadcast_queue_update
 from downloads.models import ArchivedMessage, DownloadedFile, DownloadTask, TaskRun
 from listeners.handlers import _async_create_message_entities, _extract_entities_data
@@ -703,13 +702,12 @@ def scan_channel_members(channel_id: int, task_run_id: str = None, skip_profile_
                         if created:
                             users_tracked += 1
 
-                        # Download profile photo for the user (if enabled and not skipped)
-                        if user and account.download_profile_photos and not skip_profile_photos:
-                            photo_downloaded = await download_user_profile_photo_async(
-                                service._client, participant.id, user, sender=participant
-                            )
-                            if photo_downloaded:
-                                photos_downloaded += 1
+                        # Profile photos are NOT downloaded inline anymore — tracking above
+                        # records photo_id, and the idle process_profile_photo_queue dispatcher
+                        # backfills the actual photo via the rate-managed download path. This keeps
+                        # the scan fast/bounded and off the flood-prone profile-photo path.
+                        # (skip_profile_photos is retained for message compatibility but no longer
+                        # gates any inline download here.)
 
                         # Log progress every 25 users and check for cancellation
                         if total_processed % 25 == 0:
@@ -806,25 +804,34 @@ def scan_channel_members(channel_id: int, task_run_id: str = None, skip_profile_
             task_run.mark_failed(str(e)[:500])
 
 
-@dramatiq.actor(queue_name=QUEUE_SCANS_MEMBERS)
+@dramatiq.actor(queue_name=QUEUE_DEFAULT)
 def scan_all_channel_members_for_user(task_run_id: str = None):
     """
-    Scan members for all channels belonging to a user.
-    Uses a single client connection per account to avoid flooding Telegram's servers.
-    """
-    logger.info(f"scan_all_channel_members_for_user: Starting channel scan")
+    Dispatcher that queues a member scan for every active group/supergroup.
 
-    # Get TaskRun if provided
+    Mirrors scan_all_channel_history: it does NO Telegram work itself, it just fans out one
+    scan_channel_members task per channel.
+
+    Profile photos are not downloaded here. Each per-channel scan tracks members (recording
+    photo_id); process_profile_photo_queue then backfills the actual photos via the rate-managed
+    download path.
+    """
+    logger.info("scan_all_channel_members_for_user: Starting bulk member scan dispatch")
+
     task_run = None
     if task_run_id:
         try:
             task_run = TaskRun.objects.get(task_id=task_run_id)
             if task_run.should_cancel or task_run.status in ('cancelled', 'completed', 'failed'):
                 logger.info(f"TaskRun {task_run_id} already cancelled/completed, skipping")
-                return
+                return {'success': False, 'error': 'Task cancelled'}
             task_run.mark_running()
         except TaskRun.DoesNotExist:
             logger.warning(f"TaskRun {task_run_id} not found")
+
+    if not task_run:
+        task_run = TaskRun.create_task('scan_all_members', str(uuid.uuid4()))
+        task_run.mark_running()
 
     _log_activity(
         'member_scan_started',
@@ -832,144 +839,68 @@ def scan_all_channel_members_for_user(task_run_id: str = None):
         source='worker_telegram',
     )
 
-    # Get all accounts for this user
-    accounts = TelegramAccount.objects.filter(is_active=True, is_authenticated=True)
+    channels = TelegramChannel.objects.filter(
+        account__is_active=True,
+        account__is_authenticated=True,
+        active=True,
+        channel_type__in=['group', 'supergroup'],
+    ).select_related('account')
 
-    if not accounts.exists():
-        logger.warning(f"No active accounts found")
-        if task_run:
-            task_run.mark_completed()
-        _log_activity(
-            'member_scan_completed',
-            "Periodic member scan completed: no active accounts",
-            source='worker_telegram',
-        )
-        return {'total_users': 0, 'total_photos': 0, 'channels_scanned': 0}
+    already_running_channel_ids = set(
+        TaskRun.objects.filter(
+            task_type='scan_members',
+            status__in=['queued', 'running'],
+        ).values_list('channel_id', flat=True)
+    )
 
-    total_users = 0
-    total_photos = 0
-    channels_scanned = 0
+    dispatched = 0
+    skipped_running = 0
+    failed = 0
 
-    for account in accounts:
-        if account.is_flood_wait_active:
-            logger.warning(f"Account {account.phone_number} is in flood wait, skipping")
-            continue
-
-        # Get only active groups/supergroups for this account (member scanning doesn't work for other types)
-        channels = list(TelegramChannel.objects.filter(
-            account=account,
-            active=True,
-            channel_type__in=['group', 'supergroup']
-        ))
-
-        if not channels:
-            logger.info(f"No groups found for account {account.phone_number}")
+    for channel in channels:
+        if channel.pk in already_running_channel_ids:
+            logger.debug(f"Skipping member scan for {channel.title} (already running)")
+            skipped_running += 1
             continue
 
         try:
-            service = TelegramService(account)
-
-            async def scan_all_channels():
-                nonlocal total_users, total_photos, channels_scanned
-
-                await service.create_client(
-                    account.api_id,
-                    account.api_hash,
-                    account.phone_number
-                )
-
-                try:
-                    # Get dialogs once to populate entity cache
-                    global_settings = GlobalSettings.get_settings()
-                    logger.info(f"Fetching dialogs for account {account.phone_number}")
-                    await service._client.get_dialogs(limit=global_settings.dialog_cache_limit)
-
-                    for channel in channels:
-                        try:
-                            logger.info(f"Scanning members for {channel.title}")
-
-                            # Get entity
-                            try:
-                                entity = await service._client.get_entity(channel.telegram_id)
-                            except ValueError:
-                                logger.warning(f"Could not get entity for {channel.title}, skipping")
-                                continue
-
-                            users_in_channel = 0
-                            photos_in_channel = 0
-
-                            try:
-                                async for participant in service._client.iter_participants(entity):
-                                    is_admin = False
-                                    is_creator = False
-                                    admin_title = ''
-
-                                    if hasattr(participant, 'participant'):
-                                        p = participant.participant
-                                        if isinstance(p, ChannelParticipantCreator):
-                                            is_creator = True
-                                            is_admin = True
-                                            admin_title = getattr(p, 'rank', '') or 'Creator'
-                                        elif isinstance(p, ChannelParticipantAdmin):
-                                            is_admin = True
-                                            admin_title = getattr(p, 'rank', '') or 'Admin'
-
-                                    user, created = await track_user_from_participant_async(
-                                        participant, channel, is_admin, is_creator, admin_title
-                                    )
-                                    if created:
-                                        users_in_channel += 1
-
-                                    # Download profile photo (if enabled for this account)
-                                    if user and account.download_profile_photos:
-                                        try:
-                                            photo_downloaded = await download_user_profile_photo_async(
-                                                service._client, participant.id, user, sender=participant
-                                            )
-                                            if photo_downloaded:
-                                                photos_in_channel += 1
-                                        except FloodWaitError as photo_err:
-                                            # Wait for the required time before continuing
-                                            wait_seconds = getattr(photo_err, 'seconds', 60)
-                                            logger.warning(f"FloodWaitError downloading photo for user {participant.id}: waiting {wait_seconds}s")
-                                            await asyncio.sleep(wait_seconds + 5)
-                                            # Don't retry this photo, just continue to next participant
-
-                            except FloodWaitError as e:
-                                # FloodWait during participant iteration
-                                wait_seconds = getattr(e, 'seconds', 60)
-                                logger.warning(f"FloodWaitError scanning {channel.title}: waiting {wait_seconds}s")
-                                # Update account and wait
-                                account.flood_wait_until = timezone.now() + timedelta(seconds=wait_seconds + 5)
-                                await sync_to_async(account.save, thread_sensitive=True)(update_fields=['flood_wait_until'])
-                                await asyncio.sleep(wait_seconds + 5)
-                            except Exception as e:
-                                logger.warning(f"Could not get participants for {channel.title}: {e}")
-
-                            total_users += users_in_channel
-                            total_photos += photos_in_channel
-                            channels_scanned += 1
-
-                            logger.info(f"Scanned {channel.title}: {users_in_channel} new users, {photos_in_channel} photos")
-
-                            # Small delay between channels to avoid rate limiting
-                            await asyncio.sleep(1)
-
-                        except Exception as e:
-                            logger.warning(f"Error scanning channel {channel.title}: {e}")
-                            continue
-
-                finally:
-                    await service.disconnect()
-
-            run_async(scan_all_channels())
-
+            dispatch_task(
+                scan_channel_members,
+                'scan_members',
+                channel=channel,
+                account=channel.account,
+                args=(channel.pk,),
+            )
+            dispatched += 1
+            logger.debug(f"Queued member scan for {channel.title}")
         except Exception as e:
-            logger.exception(f"Error scanning channels for account {account.phone_number}: {e}")
+            failed += 1
+            logger.error(f"Failed to dispatch member scan for {channel.title}: {e}")
 
-    logger.info(f"scan_all_channel_members_for_user complete: {channels_scanned} channels, {total_users} new users, {total_photos} photos")
+    logger.info(
+        f"scan_all_channel_members_for_user: Dispatched {dispatched}, "
+        f"skipped {skipped_running} (already running), {failed} failed"
+    )
+
+    _log_activity(
+        'member_scan_all_dispatched',
+        f"Bulk member scan dispatched: {dispatched} queued, {skipped_running} already running, {failed} failed",
+        source='worker_telegram',
+        dispatched=dispatched,
+        skipped_running=skipped_running,
+        failed=failed,
+    )
+
+    task_run.update_progress(data={
+        'dispatched': dispatched,
+        'skipped_running': skipped_running,
+        'failed': failed,
+    })
+    task_run.mark_completed()
+
     return {
-        'total_users': total_users,
-        'total_photos': total_photos,
-        'channels_scanned': channels_scanned,
+        'success': True,
+        'dispatched': dispatched,
+        'skipped_running': skipped_running,
+        'failed': failed,
     }

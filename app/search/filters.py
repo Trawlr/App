@@ -6,9 +6,11 @@ import re
 from abc import ABC, abstractmethod
 from datetime import datetime
 
-from django.db.models import Exists, OuterRef, Q
+from django.conf import settings
+from django.contrib.postgres.search import SearchQuery as PGSearchQuery, SearchRank
+from django.db.models import F, Q
 
-from audit.models import MessageEntity
+from audit.models import GlobalEntity, MessageEntity
 from downloads.models import ArchivedMessage
 
 from .parser import (
@@ -37,21 +39,25 @@ class BaseFilter(ABC):
         return []
 
 
-class TextFilter(BaseFilter):
+class TextVectorFilter(BaseFilter):
     """
-    Full-text search on message text.
-    Uses icontains for partial match, iexact for exact match (quoted values).
+    Full-text search on message text via the trigger-maintained
+    ``search_vector`` column, so the GIN index serves the query.
+
+    Unquoted values use websearch semantics (terms are ANDed, ``-term``
+    excludes); quoted values use phrase matching (``phraseto_tsquery``).
+    Set SEARCH_TEXT_FALLBACK=true to revert to the old icontains path.
     """
 
     field_name = 'text'
 
     def to_q(self, query: FieldQuery) -> Q:
-        if query.exact:
-            # Exact match - text must equal the value exactly (case-insensitive)
-            q = Q(text__iexact=query.value)
-        else:
-            # Partial match - text contains the value
-            q = Q(text__icontains=query.value)
+        if getattr(settings, 'SEARCH_TEXT_FALLBACK', False):
+            return TextFallbackFilter().to_q(query)
+        search_type = 'phrase' if query.exact else 'websearch'
+        q = Q(search_vector=PGSearchQuery(
+            query.value, config='english', search_type=search_type
+        ))
         return ~q if query.negated else q
 
 
@@ -68,92 +74,101 @@ class TextFallbackFilter(BaseFilter):
         return ~q if query.negated else q
 
 
+def _wildcard_q(field: str, value: str, anchored: bool) -> Q:
+    """
+    Translate a ``*`` glob against a GlobalEntity column into lookups the
+    UPPER() trigram GIN indexes can serve (istartswith/iendswith/icontains
+    all compile to UPPER(...) LIKE). Multi-segment globs (``mid*dle``) keep
+    an iregex predicate so exact glob semantics are preserved — it runs as a
+    recheck on the rows the icontains predicates already narrowed.
+
+    anchored=True matches the whole value (hashtag/mention/email/phone);
+    anchored=False matches a substring, mirroring the old ``.*pattern.*``
+    behaviour of url/domain.
+    """
+    segments = [s for s in value.split('*') if s]
+    if not segments:
+        return Q()  # bare '*' — any entity of this type
+
+    if len(segments) == 1:
+        seg = segments[0]
+        if not anchored or (value.startswith('*') and value.endswith('*')):
+            return Q(**{f'{field}__icontains': seg})
+        if value.endswith('*'):
+            return Q(**{f'{field}__istartswith': seg})
+        return Q(**{f'{field}__iendswith': seg})
+
+    pattern = re.escape(value).replace(r'\*', '.*')
+    q = Q(**{f'{field}__iregex': f'^{pattern}$' if anchored else pattern})
+    for seg in segments:
+        q &= Q(**{f'{field}__icontains': seg})
+    return q
+
+
 class EntityFilter(BaseFilter):
-    """Filter by MessageEntity relationships."""
+    """
+    Filter by entity occurrences, as an uncorrelated subquery chain:
+    GlobalEntity (index-served match) → MessageEntity.message_id →
+    ArchivedMessage.pk. This shape lets the planner find matching entities
+    once and semi-join into messages, instead of probing the entity tables
+    per message (the old correlated EXISTS).
+    """
 
-    entity_type: str
+    entity_types: list
     search_field: str
+    anchored_wildcards = True
+    strip_prefixes = '@#$'
 
-    def __init__(self, entity_type: str, search_field: str = 'text'):
-        self.entity_type = entity_type
+    def __init__(self, entity_type, search_field: str = 'text'):
+        self.entity_types = (
+            [entity_type] if isinstance(entity_type, str) else list(entity_type)
+        )
         self.search_field = search_field
 
     def to_q(self, query: FieldQuery) -> Q:
-        value = query.value.lstrip('@#$')  # Strip common prefixes
+        value = query.value.lstrip(self.strip_prefixes) if self.strip_prefixes else query.value
+        field = self.search_field
 
-        # Build filter for the entity — search_field is 'text' or 'url' on GlobalEntity
-        field = f'entity__{self.search_field}'
         if '*' in value:
-            # Convert glob pattern to regex (escape metacharacters first)
-            pattern = re.escape(value).replace(r'\*', '.*')
-            entity_filter = Q(**{f'{field}__iregex': f'^{pattern}$'})
+            entity_filter = _wildcard_q(field, value, anchored=self.anchored_wildcards)
         elif query.exact:
-            # Exact match (quoted value)
             entity_filter = Q(**{f'{field}__iexact': value})
         else:
-            # Partial match
             entity_filter = Q(**{f'{field}__icontains': value})
 
-        subquery = MessageEntity.objects.filter(
-            message_id=OuterRef('pk'),
-            entity__entity_type=self.entity_type,
-        ).filter(entity_filter)
+        if len(self.entity_types) == 1:
+            entities = GlobalEntity.objects.filter(entity_type=self.entity_types[0])
+        else:
+            entities = GlobalEntity.objects.filter(entity_type__in=self.entity_types)
 
-        q = Exists(subquery)
+        message_ids = MessageEntity.objects.filter(
+            entity_id__in=entities.filter(entity_filter).values('id')
+        ).values('message_id')
+
+        q = Q(pk__in=message_ids)
         return ~q if query.negated else q
 
 
-class UrlFilter(BaseFilter):
-    """Filter by URL entities."""
+class UrlFilter(EntityFilter):
+    """Filter by URL entities (both 'url' and 'text_url' types)."""
 
     field_name = 'url'
+    anchored_wildcards = False
+    strip_prefixes = ''
 
-    def to_q(self, query: FieldQuery) -> Q:
-        value = query.value
-
-        # Search both 'url' and 'text_url' entity types
-        subquery = MessageEntity.objects.filter(
-            message_id=OuterRef('pk'),
-            entity__entity_type__in=['url', 'text_url'],
-        )
-
-        if '*' in value:
-            pattern = re.escape(value).replace(r'\*', '.*')
-            subquery = subquery.filter(entity__url__iregex=f'.*{pattern}.*')
-        elif query.exact:
-            # Exact match (quoted value)
-            subquery = subquery.filter(entity__url__iexact=value)
-        else:
-            # Partial match
-            subquery = subquery.filter(entity__url__icontains=value)
-
-        q = Exists(subquery)
-        return ~q if query.negated else q
+    def __init__(self):
+        super().__init__(['url', 'text_url'], search_field='url')
 
 
-class DomainFilter(BaseFilter):
+class DomainFilter(EntityFilter):
     """Filter by domain entities (extracted domain names from URLs)."""
 
     field_name = 'domain'
+    anchored_wildcards = False
+    strip_prefixes = ''
 
-    def to_q(self, query: FieldQuery) -> Q:
-        value = query.value
-
-        subquery = MessageEntity.objects.filter(
-            message_id=OuterRef('pk'),
-            entity__entity_type='domain',
-        )
-
-        if '*' in value:
-            pattern = re.escape(value).replace(r'\*', '.*')
-            subquery = subquery.filter(entity__text__iregex=f'.*{pattern}.*')
-        elif query.exact:
-            subquery = subquery.filter(entity__text__iexact=value)
-        else:
-            subquery = subquery.filter(entity__text__icontains=value)
-
-        q = Exists(subquery)
-        return ~q if query.negated else q
+    def __init__(self):
+        super().__init__('domain', search_field='text')
 
 
 class MentionFilter(EntityFilter):
@@ -442,7 +457,7 @@ def _find_archived_value(node: SearchNode) -> str:
 
 # Registry of filters
 FILTERS = {
-    'text': TextFilter(),
+    'text': TextVectorFilter(),
     'url': UrlFilter(),
     'domain': DomainFilter(),
     'mention': MentionFilter(),
@@ -478,7 +493,7 @@ def ast_to_q(node: SearchNode) -> Q:
         if filter_cls:
             return filter_cls.to_q(node)
         # Unknown field - treat as text search
-        return TextFallbackFilter().to_q(FieldQuery(
+        return FILTERS['text'].to_q(FieldQuery(
             field='text',
             value=f'{node.field}:{node.value}',
             negated=node.negated
@@ -486,7 +501,7 @@ def ast_to_q(node: SearchNode) -> Q:
 
     if isinstance(node, BareQuery):
         # Default to text search
-        return TextFallbackFilter().to_q(FieldQuery(
+        return FILTERS['text'].to_q(FieldQuery(
             field='text',
             value=node.value,
             negated=node.negated
@@ -543,13 +558,48 @@ def _collect_warnings(node: SearchNode, warnings: list):
             _collect_warnings(child, warnings)
 
 
-def search_messages(query_string: str, base_queryset=None):
+def collect_text_queries(node: SearchNode, terms: list = None) -> list:
+    """
+    Collect (value, exact) tuples from the positive text-bearing nodes of an
+    AST — BareQuery and text: FieldQuery. Negated nodes (and anything inside
+    a negated group) are skipped: they exclude rows, so they shouldn't
+    contribute to relevance ranking.
+    """
+    if terms is None:
+        terms = []
+    if isinstance(node, BareQuery) and not node.negated:
+        terms.append((node.value, False))
+    elif (isinstance(node, FieldQuery) and node.field.lower() == 'text'
+          and not node.negated):
+        terms.append((node.value, node.exact))
+    elif isinstance(node, (AndNode, OrNode)) and not node.negated:
+        for child in node.children:
+            collect_text_queries(child, terms)
+    return terms
+
+
+def _build_rank_query(ast: SearchNode):
+    """OR-combine the AST's text terms into one SearchQuery for ranking."""
+    combined = None
+    for value, exact in collect_text_queries(ast):
+        sq = PGSearchQuery(
+            value, config='english',
+            search_type='phrase' if exact else 'websearch',
+        )
+        combined = sq if combined is None else combined | sq
+    return combined
+
+
+def search_messages(query_string: str, base_queryset=None, with_rank: bool = False):
     """
     Execute a search query and return filtered queryset.
 
     Args:
         query_string: The JQL/EQL like query string
         base_queryset: Optional base queryset to filter (defaults to all ArchivedMessages)
+        with_rank: Annotate a `rank` (SearchRank against search_vector) when
+            the query contains text-bearing nodes, so callers can sort by
+            relevance. Check `'rank' in qs.query.annotations` before ordering.
 
     Returns:
         Filtered QuerySet with search results
@@ -562,5 +612,13 @@ def search_messages(query_string: str, base_queryset=None):
 
     ast = parse_query(query_string)
     q = ast_to_q(ast)
+    queryset = base_queryset.filter(q)
 
-    return base_queryset.filter(q)
+    if with_rank:
+        rank_query = _build_rank_query(ast)
+        if rank_query is not None:
+            queryset = queryset.annotate(
+                rank=SearchRank(F('search_vector'), rank_query)
+            )
+
+    return queryset

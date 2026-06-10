@@ -194,6 +194,7 @@ DRAMATIQ_BROKER = {
         'trawlr.dramatiq_middleware.TrawlrTimeLimit',
         'dramatiq.middleware.Callbacks',
         'dramatiq.middleware.Pipelines',
+        'dramatiq.middleware.CurrentMessage',
         'trawlr.dramatiq_middleware.TrawlrRetries',
         'trawlr.dramatiq_middleware.StartupRecoveryMiddleware',
         'trawlr.dramatiq_middleware.ClientPoolShutdownMiddleware',
@@ -302,6 +303,11 @@ TRAWLR_SESSION_DIR = BASE_DIR / 'sessions'
 # Notifications: allow private/loopback IPs as webhook destinations (testing only).
 NOTIFICATIONS_SSRF_ALLOW_PRIVATE = (
     os.environ.get('NOTIFICATIONS_SSRF_ALLOW_PRIVATE', 'False').lower() == 'true'
+)
+
+# Rollback switch: route plain/text: searches back to the old icontains path
+SEARCH_TEXT_FALLBACK = (
+    os.environ.get('SEARCH_TEXT_FALLBACK', 'False').lower() in ('true', '1', 'yes')
 )
 
 
