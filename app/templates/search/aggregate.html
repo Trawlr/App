@@ -153,7 +153,8 @@
     <!-- Results Header -->
     <div class="d-flex justify-content-between align-items-center px-3 py-2 border-bottom" style="border-color: var(--tg-border) !important;">
         <span class="text-muted">
-            {{ total_count }} group{{ total_count|pluralize }}
+            {{ total_count }}{% if total_capped %}+{% endif %} group{{ total_count|pluralize }}
+            {% if total_capped %}<span class="ms-1" title="More groups exist — narrow the query or use min/max count to see them.">(first 10,000 shown)</span>{% endif %}
             {% if query %}for <code class="ms-1">{{ query }}</code>{% endif %}
             {% if min_count or max_count %}
                 <span class="ms-1">
@@ -234,10 +235,12 @@
                 </li>
                 {% endif %}
 
-                {% for num in page_obj.paginator.page_range %}
-                    {% if page_obj.number == num %}
+                {% for num in page_range %}
+                    {% if num == page_obj.paginator.ELLIPSIS %}
+                    <li class="page-item disabled"><span class="page-link">{{ num }}</span></li>
+                    {% elif page_obj.number == num %}
                     <li class="page-item active"><span class="page-link">{{ num }}</span></li>
-                    {% elif num > page_obj.number|add:'-6' and num < page_obj.number|add:'6' %}
+                    {% else %}
                     <li class="page-item">
                         <a class="page-link" href="?q={{ query|urlencode }}&group_by={{ group_by }}&sort={{ sort }}&per_page={{ per_page }}&min_count={{ min_count }}&max_count={{ max_count }}&page={{ num }}">{{ num }}</a>
                     </li>
