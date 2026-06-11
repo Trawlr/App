@@ -74,7 +74,7 @@
     <!-- Results Header -->
     <div class="d-flex justify-content-between align-items-center px-3 py-2 border-bottom" style="border-color: var(--tg-border) !important;">
         <span class="text-muted">
-            {{ page_obj.paginator.count|default:0 }} result{{ page_obj.paginator.count|pluralize }}
+            {% if page_obj.paginator.is_capped %}{{ page_obj.paginator.count }}+ results{% else %}{{ page_obj.paginator.count|default:0 }} result{{ page_obj.paginator.count|pluralize }}{% endif %}
             {% if query %}for <code class="ms-1">{{ query }}</code>{% endif %}
         </span>
         <div class="d-flex gap-2 align-items-center">
@@ -127,10 +127,12 @@
                 </li>
                 {% endif %}
 
-                {% for num in results.paginator.page_range %}
-                    {% if results.number == num %}
+                {% for num in page_range %}
+                    {% if num == results.paginator.ELLIPSIS %}
+                    <li class="page-item disabled"><span class="page-link">{{ num }}</span></li>
+                    {% elif results.number == num %}
                     <li class="page-item active"><span class="page-link">{{ num }}</span></li>
-                    {% elif num > results.number|add:'-6' and num < results.number|add:'6' %}
+                    {% else %}
                     <li class="page-item">
                         <a class="page-link" href="?q={{ query|urlencode }}&page={{ num }}&per_page={{ per_page }}&sort={{ sort }}">{{ num }}</a>
                     </li>
@@ -152,7 +154,7 @@
             </ul>
         </nav>
         <div class="text-muted small">
-            Page {{ results.number }} of {{ results.paginator.num_pages }}
+            Page {{ results.number }} of {{ results.paginator.num_pages }}{% if results.paginator.is_capped %}+{% endif %}
         </div>
     </div>
     {% endif %}

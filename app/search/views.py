@@ -16,6 +16,7 @@ from audit.models import MessageEntity, TelegramChannel, TelegramUser
 from downloads.models import ArchivedMessage, DownloadedFile, DownloadTask
 
 from .filters import extract_archived_mode, search_messages, validate_query
+from .pagination import CappedCountPaginator
 from .parser import parse_query
 
 logger = logging.getLogger('trawlr.search')
@@ -79,8 +80,13 @@ def search_view(request):
     except (ValueError, TypeError):
         per_page = 50
 
-    paginator = Paginator(results, per_page)
+    paginator = CappedCountPaginator(results, per_page)
     page_obj = paginator.get_page(page_number)
+    # Elided range: only the page numbers actually displayed, with ellipses,
+    # instead of iterating every page in the template.
+    page_range = paginator.get_elided_page_range(
+        page_obj.number, on_each_side=5, on_ends=1
+    )
 
     # Get known users for linking senders
     sender_ids = set(
@@ -109,6 +115,7 @@ def search_view(request):
         'query': query,
         'results': page_obj,
         'page_obj': page_obj,
+        'page_range': page_range,
         'error': error,
         'sort': sort,
         'per_page': per_page,
@@ -146,11 +153,12 @@ def search_autocomplete(request):
         suggestions = list(channels)
 
     elif field == 'sender':
-        senders = ArchivedMessage.objects.filter(
-            channel__in=user_channels
-        ).filter(
-            sender_username__icontains=term
-        ).values_list('sender_username', flat=True).distinct()[:10]
+        # TelegramUser is orders of magnitude smaller than ArchivedMessage
+        # (no DISTINCT over the message table); prefix match suits
+        # autocomplete UX anyway.
+        senders = TelegramUser.objects.filter(
+            username__istartswith=term.lstrip('@')
+        ).values_list('username', flat=True)[:10]
         suggestions = [f"@{s}" for s in senders if s]
 
     elif field == 'hashtag':
@@ -268,6 +276,7 @@ def get_search_help():
             {'name': 'OR', 'desc': 'Either condition', 'example': 'text:foo OR text:bar'},
             {'name': 'NOT / -', 'desc': 'Exclude', 'example': '-channel:spam'},
             {'name': '"quotes"', 'desc': 'Exact match', 'example': 'sender:"r00tof"'},
+            {'name': '*', 'desc': 'Wildcard in entity fields (hashtag, mention, email, phone, url, domain): prefix*, *suffix, or *contains*', 'example': 'email:*@gmail.com'},
         ],
         'examples': [
             'bitcoin',
@@ -459,6 +468,8 @@ def aggregate_view(request):
     page_obj = None
     error = None
     total_count = 0
+    total_capped = False
+    page_range = []
     warnings = validate_query(query) if query else []
 
     try:
@@ -488,9 +499,13 @@ def aggregate_view(request):
         # Aggregation rows are small (label + count), so 10K rows ≈ 200KB.
         MAX_AGGREGATE_RESULTS = 10_000
         results_list = list(agg_qs[:MAX_AGGREGATE_RESULTS])
+        total_capped = len(results_list) >= MAX_AGGREGATE_RESULTS
         paginator = Paginator(results_list, per_page)
         page_obj = paginator.get_page(page_number)
         total_count = paginator.count
+        page_range = paginator.get_elided_page_range(
+            page_obj.number, on_each_side=5, on_ends=1
+        )
 
         # Compute max count on this page for bar width
         bar_max = max((row['count'] for row in page_obj), default=1)
@@ -533,6 +548,8 @@ def aggregate_view(request):
         'error': error,
         'warnings': warnings,
         'total_count': total_count,
+        'total_capped': total_capped,
+        'page_range': page_range,
         'aggregation_groups': AGGREGATION_GROUPS,
         'search_help': get_search_help(),
     }
@@ -586,7 +603,14 @@ def aggregate_export(request):
     label_name = AGGREGATION_GROUPS[group_by]['label']
     writer.writerow([label_name, 'Count'])
 
-    for row in agg_qs[:10000]:
+    rows = list(agg_qs[:10000])
+    for row in rows:
         writer.writerow([_get_result_label(row, group_by), row['count']])
+
+    if len(rows) == 10000:
+        logger.warning(
+            'aggregate_export capped at 10K rows',
+            extra={'query': query, 'group_by': group_by},
+        )
 
     return response
